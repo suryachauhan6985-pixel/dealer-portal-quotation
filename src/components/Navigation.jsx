@@ -3,10 +3,20 @@ import { useApp } from '../context/AppContext';
 import NotificationPanel from './Shared/NotificationPanel';
 
 export default function Navigation() {
-  const { role, activeTab, setActiveTab, currentDealer, logout, unreadNotificationsCount, clearEditingQuotation, clearActiveDraftQuote } = useApp();
+  const {
+    role,
+    activeTab,
+    setActiveTab,
+    currentDealer,
+    logout,
+    unreadNotificationsCount,
+    clearEditingQuotation,
+    clearActiveDraftQuote,
+    notificationsOpen,
+    setNotificationsOpen
+  } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const profileDropdownRef = useRef(null);
   const desktopNotificationRef = useRef(null);
   const mobileNotificationRef = useRef(null);
