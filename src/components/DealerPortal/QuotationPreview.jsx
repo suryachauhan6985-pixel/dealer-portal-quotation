@@ -86,10 +86,13 @@ export default function QuotationPreview({ isPublicView = false, publicQuoteId =
     const scrollToTop = () => {
       if (typeof window !== 'undefined') {
         window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+        if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
         const main = document.querySelector('main');
         if (main) main.scrollTop = 0;
+        if (previewWrapperRef.current) previewWrapperRef.current.scrollTop = 0;
+        if (pdfScrollContainerRef.current) pdfScrollContainerRef.current.scrollTop = 0;
       }
     };
 
@@ -105,7 +108,7 @@ export default function QuotationPreview({ isPublicView = false, publicQuoteId =
       clearTimeout(t2);
       clearTimeout(t3);
     };
-  }, [activeQuotation?.id]);
+  }, [activeQuotation?.id, activeQuotation]);
 
   // Sync refs with state
   useEffect(() => {
@@ -590,7 +593,7 @@ export default function QuotationPreview({ isPublicView = false, publicQuoteId =
       {/* PDF Container with Responsive Scaling, 2-Finger Pinch Zoom & Pan Viewport */}
       <div
         ref={pdfScrollContainerRef}
-        className="w-full max-w-full overflow-x-auto overflow-y-visible py-6 px-2 sm:px-4 print:p-0 print:m-0"
+        className="w-full max-w-full overflow-x-auto overflow-y-visible py-3 sm:py-4 px-2 sm:px-4 print:p-0 print:m-0"
         style={{
           WebkitOverflowScrolling: 'touch',
           touchAction: isPinching ? 'none' : 'pan-x pan-y'
