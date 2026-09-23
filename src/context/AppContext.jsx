@@ -252,6 +252,12 @@ const safeSetItem = (key, value) => {
   // Active quotation loaded for Editing in CreateQuotation
   const [editingQuotation, setEditingQuotation] = useState(null);
 
+  // Active in-progress draft quotation for multi-step navigation persistence (SR-36)
+  const [activeDraftQuote, setActiveDraftQuote] = useState(null);
+  const clearActiveDraftQuote = () => {
+    setActiveDraftQuote(null);
+  };
+
   // System & Compliance Notifications
   const [notifications, setNotifications] = useState(() => {
     if (!isDbUpToDate) return DEFAULT_NOTIFICATIONS;
@@ -690,6 +696,9 @@ const safeSetItem = (key, value) => {
         editingQuotation,
         startEditingQuotation,
         clearEditingQuotation,
+        activeDraftQuote,
+        setActiveDraftQuote,
+        clearActiveDraftQuote,
         updateQuotationStatus,
         previewQuotation,
         setPreviewQuotation,

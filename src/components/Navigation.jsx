@@ -3,13 +3,21 @@ import { useApp } from '../context/AppContext';
 import NotificationPanel from './Shared/NotificationPanel';
 
 export default function Navigation() {
-  const { role, activeTab, setActiveTab, currentDealer, logout, unreadNotificationsCount } = useApp();
+  const { role, activeTab, setActiveTab, currentDealer, logout, unreadNotificationsCount, clearEditingQuotation, clearActiveDraftQuote } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const profileDropdownRef = useRef(null);
   const desktopNotificationRef = useRef(null);
   const mobileNotificationRef = useRef(null);
+
+  const handleMenuClick = (tabId) => {
+    if (tabId === 'create_quote') {
+      if (clearEditingQuotation) clearEditingQuotation();
+      if (clearActiveDraftQuote) clearActiveDraftQuote();
+    }
+    setActiveTab(tabId);
+  };
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -72,7 +80,7 @@ export default function Navigation() {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => handleMenuClick(item.id)}
                   className={`flex items-center gap-space-sm px-space-lg py-space-sm transition-colors text-left ${isActive
                     ? 'border-l-4 border-primary-container bg-white/10 text-on-secondary font-label-md'
                     : 'text-secondary-fixed-dim hover:bg-white/5 hover:text-on-secondary font-body-md'
@@ -288,7 +296,7 @@ export default function Navigation() {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => handleMenuClick(item.id)}
                 className={`flex flex-col items-center justify-center flex-1 min-h-[44px] py-1 px-0.5 gap-0.5 rounded-lg transition-colors overflow-hidden min-w-0 ${isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-on-surface'
                   }`}
               >

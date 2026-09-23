@@ -15,6 +15,9 @@ export default function CreateQuotation() {
     updateQuotation, 
     editingQuotation, 
     clearEditingQuotation, 
+    activeDraftQuote,
+    setActiveDraftQuote,
+    clearActiveDraftQuote,
     setActiveTab, 
     setPreviewQuotation,
     addNotification,
@@ -35,64 +38,76 @@ export default function CreateQuotation() {
                         (currentDealer?.tier || '').toLowerCase().includes('silver') ? 'silver' : 'gold';
   const tierConfig = tierMargins?.[dealerTierKey] || { defaultMarginPerKw: 4500, maxMarginCapPerKw: 6000 };
 
-  // Step 1.1 Customer Details (Empty by default for dealer input)
-  const [custName, setCustName] = useState('');
-  const [custPhone, setCustPhone] = useState('');
-  const [custLocation, setCustLocation] = useState('');
+  const initialSource = editingQuotation || activeDraftQuote;
+
+  // Step 1.1 Customer Details (Persisted across multi-step navigation)
+  const [custName, setCustName] = useState(initialSource?.customerName || '');
+  const [custPhone, setCustPhone] = useState(initialSource?.customerPhone || '');
+  const [custLocation, setCustLocation] = useState(initialSource?.location || initialSource?.city || '');
 
   // Step 1.2 System Details (Standard field presets)
-  const [systemCapacity, setSystemCapacity] = useState('3.3');
-  const [panelBrand, setPanelBrand] = useState('Waaree 585W TOPCon Bifacial (ALMM List-I)');
-  const [inverterModel, setInverterModel] = useState('Sunvine Solaryaan 5.0G (1-Phase 2 MPPT)');
+  const [systemCapacity, setSystemCapacity] = useState(() => {
+    const rawKw = initialSource?.systemCapacityKW || initialSource?.capacity;
+    return rawKw ? String(parseFloat(rawKw)) : '3.3';
+  });
+  const [panelBrand, setPanelBrand] = useState(initialSource?.solarModule || initialSource?.panelType || 'Waaree 585W TOPCon Bifacial (ALMM List-I)');
+  const [inverterModel, setInverterModel] = useState(initialSource?.inverterType || 'Sunvine Solaryaan 5.0G (1-Phase 2 MPPT)');
   const [showInverterModal, setShowInverterModal] = useState(false);
 
   // Multi-Panel Quotation Toggle
-  const [multiBrandComparison, setMultiBrandComparison] = useState(false);
+  const [multiBrandComparison, setMultiBrandComparison] = useState(initialSource?.multiBrandComparison || false);
 
   // Step 1.3 Pricing & Subsidy (Linked to Admin Pricing Presets & Dealer Tier Margins)
-  const [ratePerKw, setRatePerKw] = useState(() => pricingPresets?.baseRatePerKw || 59800);
+  const [ratePerKw, setRatePerKw] = useState(() => Number(initialSource?.baseRatePerKW) || pricingPresets?.baseRatePerKw || 59800);
   const [marginMode, setMarginMode] = useState('amount'); // default to fixed amount matching tier
   const [dealerMarginRate, setDealerMarginRate] = useState(8); // 8%
-  const [dealerMarginFixed, setDealerMarginFixed] = useState(() => tierConfig.defaultMarginPerKw * 3.3);
+  const [dealerMarginFixed, setDealerMarginFixed] = useState(() => {
+    if (initialSource?.dealerTotalMargin) return Number(initialSource.dealerTotalMargin);
+    return tierConfig.defaultMarginPerKw * 3.3;
+  });
   const [saveStatus, setSaveStatus] = useState('');
 
   useEffect(() => {
-    if (!editingQuotation && pricingPresets?.baseRatePerKw) {
+    if (!editingQuotation && !activeDraftQuote && pricingPresets?.baseRatePerKw) {
       setRatePerKw(pricingPresets.baseRatePerKw);
     }
-    if (!editingQuotation && tierConfig?.defaultMarginPerKw) {
+    if (!editingQuotation && !activeDraftQuote && tierConfig?.defaultMarginPerKw) {
       setDealerMarginFixed(tierConfig.defaultMarginPerKw * (parseFloat(systemCapacity) || 5));
     }
-  }, [pricingPresets?.baseRatePerKw, tierConfig?.defaultMarginPerKw, editingQuotation, systemCapacity]);
+  }, [pricingPresets?.baseRatePerKw, tierConfig?.defaultMarginPerKw, editingQuotation, activeDraftQuote, systemCapacity]);
 
-  // Auto-populate when editing an existing quote
+  // Auto-populate when editing an existing quote or restoring draft (SR-36)
   useEffect(() => {
-    if (editingQuotation) {
-      if (editingQuotation.customerName) setCustName(editingQuotation.customerName);
-      if (editingQuotation.customerPhone) setCustPhone(editingQuotation.customerPhone);
-      if (editingQuotation.location || editingQuotation.city) {
-        setCustLocation(editingQuotation.location || `${editingQuotation.city || 'Rajkot'}, Gujarat`);
+    const source = editingQuotation || activeDraftQuote;
+    if (source) {
+      if (source.customerName !== undefined) setCustName(source.customerName);
+      if (source.customerPhone !== undefined) setCustPhone(source.customerPhone);
+      if (source.location || source.city) {
+        setCustLocation(source.location || `${source.city || 'Rajkot'}, Gujarat`);
       }
-      const rawKw = parseFloat(editingQuotation.systemCapacityKW || editingQuotation.capacity || 5);
+      const rawKw = parseFloat(source.systemCapacityKW || source.capacity);
       if (!isNaN(rawKw)) setSystemCapacity(String(rawKw));
-      if (editingQuotation.solarModule || editingQuotation.panelType) {
-        setPanelBrand(editingQuotation.solarModule || editingQuotation.panelType);
+      if (source.solarModule || source.panelType) {
+        setPanelBrand(source.solarModule || source.panelType);
       }
-      if (editingQuotation.inverterType) {
-        setInverterModel(editingQuotation.inverterType);
+      if (source.inverterType) {
+        setInverterModel(source.inverterType);
       }
-      if (editingQuotation.baseRatePerKW) {
-        setRatePerKw(Number(editingQuotation.baseRatePerKW));
+      if (source.baseRatePerKW) {
+        setRatePerKw(Number(source.baseRatePerKW));
       }
-      if (editingQuotation.dealerTotalMargin) {
+      if (source.multiBrandComparison !== undefined) {
+        setMultiBrandComparison(source.multiBrandComparison);
+      }
+      if (source.dealerTotalMargin) {
         setMarginMode('amount');
-        setDealerMarginFixed(Number(editingQuotation.dealerTotalMargin));
-      } else if (editingQuotation.dealerMarginPerKW && rawKw > 0) {
+        setDealerMarginFixed(Number(source.dealerTotalMargin));
+      } else if (source.dealerMarginPerKW && rawKw > 0) {
         setMarginMode('amount');
-        setDealerMarginFixed(Number(editingQuotation.dealerMarginPerKW) * rawKw);
+        setDealerMarginFixed(Number(source.dealerMarginPerKW) * rawKw);
       }
     }
-  }, [editingQuotation]);
+  }, [editingQuotation, activeDraftQuote]);
 
   // Sizing Computations
   const kw = parseFloat(systemCapacity) || 3.3;
@@ -171,14 +186,16 @@ export default function CreateQuotation() {
 
   const handleReset = () => {
     if (clearEditingQuotation) clearEditingQuotation();
+    if (clearActiveDraftQuote) clearActiveDraftQuote();
     setCustName('');
     setCustPhone('');
     setCustLocation('');
-    setSystemCapacity('5');
+    setSystemCapacity('3.3');
+    setPanelBrand('Waaree 585W TOPCon Bifacial (ALMM List-I)');
+    setInverterModel('Sunvine Solaryaan 5.0G (1-Phase 2 MPPT)');
+    setMultiBrandComparison(false);
     setRatePerKw(pricingPresets?.baseRatePerKw || 59800);
-    setMarginMode('percent');
-    setDealerMarginRate(8);
-    setDealerMarginFixed(25000);
+    setDealerMarginFixed(tierConfig.defaultMarginPerKw * 3.3);
   };
 
   const handleSaveDraft = async () => {
@@ -298,6 +315,7 @@ export default function CreateQuotation() {
       addQuotation(quotePayload);
     }
     if (setPreviewQuotation) setPreviewQuotation(quotePayload);
+    if (setActiveDraftQuote) setActiveDraftQuote(quotePayload);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       document.documentElement.scrollTop = 0;
@@ -312,7 +330,11 @@ export default function CreateQuotation() {
       <div className="flex flex-col gap-3 mb-6">
         <div className="flex flex-col gap-1 min-w-0">
           <button
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => {
+              if (clearEditingQuotation) clearEditingQuotation();
+              if (clearActiveDraftQuote) clearActiveDraftQuote();
+              setActiveTab('dashboard');
+            }}
             className="inline-flex items-center gap-1.5 text-secondary hover:text-on-surface font-label-sm transition-colors w-fit group"
           >
             <span className="material-symbols-outlined text-[18px] group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
