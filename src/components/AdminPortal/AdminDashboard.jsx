@@ -469,7 +469,7 @@ export default function AdminDashboard() {
       {/* Top Row: 4 Data-Driven KPI Metric Cards with Interactive Hover Elevation */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         {/* Card 1: Total Active Dealers */}
-        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest hover:border-primary hover:-translate-y-1 hover:shadow-lg transition-all duration-200 p-5 shadow-sm flex flex-col justify-between cursor-default group">
+        <div className="kpi-card bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm flex flex-col justify-between group">
           <div>
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider group-hover:text-primary transition-colors">
@@ -493,7 +493,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Card 2: Total Quotations */}
-        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest hover:border-primary hover:-translate-y-1 hover:shadow-lg transition-all duration-200 p-5 shadow-sm flex flex-col justify-between cursor-default group">
+        <div className="kpi-card bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm flex flex-col justify-between group">
           <div>
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider group-hover:text-primary transition-colors">
@@ -515,7 +515,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Card 3: Total Capacity Quoted */}
-        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest hover:border-primary hover:-translate-y-1 hover:shadow-lg transition-all duration-200 p-5 shadow-sm flex flex-col justify-between cursor-default group">
+        <div className="kpi-card bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm flex flex-col justify-between group">
           <div>
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider group-hover:text-primary transition-colors">
@@ -537,7 +537,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Card 4: Commissioned Projects */}
-        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest hover:border-primary hover:-translate-y-1 hover:shadow-lg transition-all duration-200 p-5 shadow-sm flex flex-col justify-between cursor-default group">
+        <div className="kpi-card bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm flex flex-col justify-between group">
           <div>
             <div className="flex items-center justify-between">
               <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider group-hover:text-primary transition-colors">

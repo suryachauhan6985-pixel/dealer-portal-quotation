@@ -385,9 +385,10 @@ export default function NotificationPanel({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
+                            e.preventDefault();
                             deleteNotification(notif.id);
                           }}
-                          className="w-6 h-6 rounded-md flex items-center justify-center text-secondary hover:text-error hover:bg-error-container/20 transition-all cursor-pointer"
+                          className="w-6 h-6 rounded-md flex items-center justify-center text-secondary hover:text-error hover:bg-error-container/20 transition-all cursor-pointer z-10"
                           title="Dismiss notification"
                           aria-label="Dismiss notification"
                         >

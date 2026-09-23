@@ -1,48 +1,67 @@
 // Authoritative Single Source of Truth for Sunvine EPC Portal Versioning
 // Strictly semantic versioning (MAJOR.MINOR.PATCH)
 
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.1.0';
 export const RELEASE_DATE = 'September 2026';
-export const RELEASE_TYPE = 'MAJOR'; // 'MAJOR' | 'MINOR' | 'PATCH'
+export const RELEASE_TYPE = 'MINOR'; // 'MAJOR' | 'MINOR' | 'PATCH'
 
 // Verified changelog items derived from real repository Git history
 export const CURRENT_RELEASE_CHANGELOG = {
-  version: 'v2.0.0',
-  title: 'Super Admin Portal & National Operations Overview',
+  version: 'v2.1.0',
+  title: 'BOM Preset Engine & Comparative Multi-Panel Proposals',
   date: 'September 2026',
-  type: 'MAJOR',
+  type: 'MINOR',
   highlights: [
-    'Super Admin National Operations Overview with real-time Gujarat solar telemetry',
-    'Calibrated dataset of 1,480 Gujarat proposals and 550 verified EPC dealers',
-    'Structured 21-column CSV financial ledger export with full BOM metadata',
-    'Interactive date range filtering with FY 2025-26 and Q3/Q4 presets',
-    'Cross-module quotation presets synchronization between Super Admin and Dealer Portal'
+    'Standard 3.3 kW BOM & BoS hardware presets engine with real-time rate calculator',
+    'Interactive side-by-side Multi-Panel comparative customer proposal generation',
+    'Commercial zero-subsidy logic & balanced 2x2 system details alignment',
+    'Structured CSV partner directory export & interactive breadcrumbs navigation'
   ],
   categories: {
     features: [
-      'Super Admin National Operations Overview with real-time Gujarat solar telemetry',
-      'Calibrated dataset of 1,480 Gujarat proposals and 550 verified EPC dealers',
-      'Structured 21-column CSV financial ledger export with full BOM metadata',
-      'Interactive date range filtering with FY 2025-26 and Q3/Q4 presets',
-      'Cross-module quotation presets synchronization between Super Admin and Dealer Portal'
+      'Standard 3.3 kW BOM & BoS hardware presets engine with real-time rate calculator',
+      'Interactive side-by-side Multi-Panel comparative customer proposal generation',
+      'Commercial zero-subsidy logic & balanced 2x2 system details alignment',
+      'Structured CSV partner directory export & interactive breadcrumbs navigation'
     ],
     improvements: [
-      'Zero-FOUC branded application boot shell with font ligature flash protection',
-      'Role-segregated persistent notification architecture (Super Admin vs Dealer isolation)',
-      'Offline network status detection and graceful connectivity restoration banner',
-      'Comprehensive 14-viewport responsive hardening and zero-overflow enforcement'
+      'Full-width quotation feed ledger eliminating horizontal table scrollbars',
+      'Subtle hover elevation and green border transition across all KPI summary cards',
+      'Persistent multi-step quotation drafting preserving customer data across tabs'
     ],
     fixes: [
-      'Eliminated duplicate notification bug where read alerts reappeared upon page refresh',
-      'Fixed popup banner dismissing so closed alerts stay dismissed across sessions',
-      'Removed outdated CAD Single Line Diagram (SLD) option from quotation flow',
-      'Resolved single-page PDF cover print page-break issues'
+      'Interactive notification panel dismiss mechanism with persistent state storage',
+      'Dynamic version and changelog synchronization for system release alerts'
     ]
   }
 };
 
 // Complete historical release register verified from Git log
 export const VERSION_HISTORY = [
+  {
+    version: 'v2.1.0',
+    date: '2026-09-24',
+    type: 'MINOR',
+    summary: 'BOM Preset Engine, comparative multi-panel quotes, and partner directory CSV ledger.',
+    highlights: [
+      'BOM & BoS 3.3kW preset specifications matrix',
+      'Multi-panel comparative quotes toggle',
+      'Zero-subsidy commercial project mode',
+      'Persistent multi-step quote draft & CSV export'
+    ]
+  },
+  {
+    version: 'v2.0.0',
+    date: '2026-09-22',
+    type: 'MAJOR',
+    summary: 'Super Admin National Operations Overview, calibrated Gujarat ledger, CSV export, and presets sync.',
+    highlights: [
+      'Super Admin National Operations Overview',
+      '1,480 calibrated Gujarat quotations & 550 dealers',
+      'Real CSV financial ledger export',
+      'Cross-portal pricing & margin presets sync'
+    ]
+  },
   {
     version: 'v2.0.0',
     date: '2026-09-22',

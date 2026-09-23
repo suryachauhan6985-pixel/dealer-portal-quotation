@@ -100,10 +100,10 @@ export default function AllQuotations() {
       {/* 2. Overview Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 my-6">
         {/* Card 1 */}
-        <div className="bg-white p-5 rounded-xl border border-[#E4E7EB] shadow-[0px_2px_8px_rgba(0,0,0,0.06)] flex flex-col justify-between">
+        <div className="kpi-card bg-white p-5 rounded-xl border border-[#E4E7EB] shadow-sm flex flex-col justify-between group">
           <div className="flex items-center justify-between text-secondary">
-            <span className="font-label-sm text-label-sm uppercase tracking-wider text-xs">Total Proposals Issued</span>
-            <span className="p-1.5 rounded-lg bg-surface-container-low text-secondary">
+            <span className="font-label-sm text-label-sm uppercase tracking-wider text-xs group-hover:text-primary transition-colors">Total Proposals Issued</span>
+            <span className="p-1.5 rounded-lg bg-surface-container-low text-secondary group-hover:bg-primary/10 group-hover:text-primary transition-colors">
               <span className="material-symbols-outlined">request_quote</span>
             </span>
           </div>
@@ -120,10 +120,10 @@ export default function AllQuotations() {
         </div>
 
         {/* Card 2 */}
-        <div className="bg-white p-5 rounded-xl border border-[#E4E7EB] shadow-[0px_2px_8px_rgba(0,0,0,0.06)] flex flex-col justify-between">
+        <div className="kpi-card bg-white p-5 rounded-xl border border-[#E4E7EB] shadow-sm flex flex-col justify-between group">
           <div className="flex items-center justify-between text-secondary">
-            <span className="font-label-sm text-label-sm uppercase tracking-wider text-xs">Average Quotation Value</span>
-            <span className="p-1.5 rounded-lg bg-surface-container-low text-secondary">
+            <span className="font-label-sm text-label-sm uppercase tracking-wider text-xs group-hover:text-primary transition-colors">Average Quotation Value</span>
+            <span className="p-1.5 rounded-lg bg-surface-container-low text-secondary group-hover:bg-primary/10 group-hover:text-primary transition-colors">
               <span className="material-symbols-outlined">calculate</span>
             </span>
           </div>
@@ -138,10 +138,10 @@ export default function AllQuotations() {
         </div>
 
         {/* Card 3 */}
-        <div className="bg-white p-5 rounded-xl border border-[#E4E7EB] shadow-[0px_2px_8px_rgba(0,0,0,0.06)] flex flex-col justify-between">
+        <div className="kpi-card bg-white p-5 rounded-xl border border-[#E4E7EB] shadow-sm flex flex-col justify-between group">
           <div className="flex items-center justify-between text-secondary">
-            <span className="font-label-sm text-label-sm uppercase tracking-wider text-xs">Total Capacity Quoted</span>
-            <span className="p-1.5 rounded-lg bg-surface-container-low text-secondary">
+            <span className="font-label-sm text-label-sm uppercase tracking-wider text-xs group-hover:text-primary transition-colors">Total Capacity Quoted</span>
+            <span className="p-1.5 rounded-lg bg-surface-container-low text-secondary group-hover:bg-primary/10 group-hover:text-primary transition-colors">
               <span className="material-symbols-outlined">solar_power</span>
             </span>
           </div>
@@ -160,10 +160,10 @@ export default function AllQuotations() {
         </div>
 
         {/* Card 4 */}
-        <div className="bg-white p-5 rounded-xl border border-[#E4E7EB] shadow-[0px_2px_8px_rgba(0,0,0,0.06)] flex flex-col justify-between">
+        <div className="kpi-card bg-white p-5 rounded-xl border border-[#E4E7EB] shadow-sm flex flex-col justify-between group">
           <div className="flex items-center justify-between text-secondary">
-            <span className="font-label-sm text-label-sm uppercase tracking-wider text-xs">Average Dealer Margin</span>
-            <span className="p-1.5 rounded-lg bg-surface-container-low text-secondary">
+            <span className="font-label-sm text-label-sm uppercase tracking-wider text-xs group-hover:text-primary transition-colors">Average Dealer Margin</span>
+            <span className="p-1.5 rounded-lg bg-surface-container-low text-secondary group-hover:bg-primary/10 group-hover:text-primary transition-colors">
               <span className="material-symbols-outlined">verified_user</span>
             </span>
           </div>

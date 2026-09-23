@@ -239,9 +239,9 @@ export default function DealerDashboard() {
       {/* Telemetry & Performance KPI Row */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
         {/* Card 1: Total Quotations */}
-        <div className="relative overflow-hidden bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between group hover:shadow-md transition-shadow">
+        <div className="kpi-card relative overflow-hidden bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between group border border-surface-container-high/60">
           <div className="flex items-center justify-between mb-space-md">
-            <div className="w-12 h-12 rounded-full bg-[#E8F5E9] flex items-center justify-center text-primary">
+            <div className="w-12 h-12 rounded-full bg-[#E8F5E9] flex items-center justify-center text-primary group-hover:scale-105 transition-transform duration-200">
               <span className="material-symbols-outlined text-[24px]">description</span>
             </div>
             <span className="px-space-sm py-0.5 rounded-full text-label-xs font-label-xs bg-primary-container/15 text-primary">
@@ -253,7 +253,7 @@ export default function DealerDashboard() {
               <span className="font-headline-xl text-headline-xl text-on-surface font-bold">{activeKpi.totalQuotes}</span>
               <span className="font-label-sm text-label-sm text-secondary">proposals</span>
             </div>
-            <div className="font-label-sm text-label-sm text-secondary mt-1">Total Quotations</div>
+            <div className="font-label-sm text-label-sm text-secondary mt-1 group-hover:text-primary transition-colors">Total Quotations</div>
           </div>
           {/* Mini Sparkline Representation */}
           <div className="mt-space-md pt-space-xs flex items-end gap-1.5 h-8">
@@ -269,9 +269,9 @@ export default function DealerDashboard() {
         </div>
 
         {/* Card 2: Period Quotations */}
-        <div className="relative overflow-hidden bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between group hover:shadow-md transition-shadow">
+        <div className="kpi-card relative overflow-hidden bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between group border border-surface-container-high/60">
           <div className="flex items-center justify-between mb-space-md">
-            <div className="w-12 h-12 rounded-full bg-tertiary-fixed/40 flex items-center justify-center text-tertiary">
+            <div className="w-12 h-12 rounded-full bg-tertiary-fixed/40 flex items-center justify-center text-tertiary group-hover:scale-105 transition-transform duration-200">
               <span className="material-symbols-outlined text-[24px]">wb_sunny</span>
             </div>
             <span className="px-space-sm py-0.5 rounded-full text-label-xs font-label-xs bg-tertiary/10 text-tertiary">
@@ -283,7 +283,7 @@ export default function DealerDashboard() {
               <span className="font-headline-xl text-headline-xl text-on-surface font-bold">{activeKpi.periodQuotes}</span>
               <span className="font-label-sm text-label-sm text-secondary">{activeKpi.periodLabel}</span>
             </div>
-            <div className="font-label-sm text-label-sm text-secondary mt-1">{activeKpi.periodTitle}</div>
+            <div className="font-label-sm text-label-sm text-secondary mt-1 group-hover:text-primary transition-colors">{activeKpi.periodTitle}</div>
           </div>
           {/* Capacity Yield Bar Visual */}
           <div className="mt-space-md flex flex-col gap-1">
@@ -301,9 +301,9 @@ export default function DealerDashboard() {
         </div>
 
         {/* Card 3: Total Business Value */}
-        <div className="relative overflow-hidden bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between group hover:shadow-md transition-shadow">
+        <div className="kpi-card relative overflow-hidden bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between group border border-surface-container-high/60">
           <div className="flex items-center justify-between mb-space-md">
-            <div className="w-12 h-12 rounded-full bg-secondary-fixed/50 flex items-center justify-center text-on-secondary-fixed">
+            <div className="w-12 h-12 rounded-full bg-secondary-fixed/50 flex items-center justify-center text-on-secondary-fixed group-hover:scale-105 transition-transform duration-200">
               <span className="material-symbols-outlined text-[24px]">currency_rupee</span>
             </div>
             <span className="px-space-sm py-0.5 rounded-full text-label-xs font-label-xs bg-secondary-fixed text-on-secondary-fixed-variant">
@@ -314,7 +314,7 @@ export default function DealerDashboard() {
             <div className="flex items-baseline gap-space-xs">
               <span className="font-headline-xl text-headline-xl text-on-surface font-bold">{activeKpi.totalValue}</span>
             </div>
-            <div className="font-label-sm text-label-sm text-secondary mt-1">Total Business Value</div>
+            <div className="font-label-sm text-label-sm text-secondary mt-1 group-hover:text-primary transition-colors">Total Business Value</div>
           </div>
           {/* Conversion Split */}
           <div className="mt-space-md flex items-center justify-between text-label-xs font-label-xs text-secondary pt-2">
