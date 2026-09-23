@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 
 export default function DealerSettings() {
-  const { currentDealer, updateDealerProfile } = useApp();
+  const { currentDealer, updateDealerProfile, setActiveTab: setGlobalTab } = useApp();
   const fileInputRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState('profile');
@@ -165,12 +165,30 @@ export default function DealerSettings() {
       {/* Top Breadcrumbs & Action Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 w-full">
         <div className="flex flex-col gap-1.5 min-w-0">
-          <div className="flex items-center gap-2 text-secondary font-label-sm text-label-sm flex-wrap">
-            <span>Dealer Console</span>
-            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span>Settings</span>
-            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span className="text-on-surface font-semibold truncate">Account &amp; Configurations</span>
+          <div className="flex items-center gap-1.5 sm:gap-2 text-secondary font-label-sm text-xs sm:text-label-sm flex-wrap">
+            <button
+              type="button"
+              onClick={() => setGlobalTab('dashboard')}
+              className="inline-flex items-center gap-1 text-secondary hover:text-primary hover:underline cursor-pointer transition-colors font-medium"
+              title="Return to Dealer Dashboard"
+            >
+              <span className="material-symbols-outlined text-[16px]">dashboard</span>
+              <span>Dealer Console</span>
+            </button>
+            <span className="material-symbols-outlined text-[14px] text-secondary/60">chevron_right</span>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('profile');
+                if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="text-secondary hover:text-primary hover:underline cursor-pointer transition-colors font-medium"
+              title="Go to Settings Root"
+            >
+              Settings
+            </button>
+            <span className="material-symbols-outlined text-[14px] text-secondary/60">chevron_right</span>
+            <span className="text-on-surface font-semibold truncate cursor-default">Account &amp; Configurations</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <h1 className="font-headline-xl text-2xl sm:text-headline-xl text-on-surface tracking-tight">Dealer Settings</h1>
