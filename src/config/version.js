@@ -1,43 +1,56 @@
 // Authoritative Single Source of Truth for Sunvine EPC Portal Versioning
 // Strictly semantic versioning (MAJOR.MINOR.PATCH)
 
-export const APP_VERSION = '2.1.0';
-export const RELEASE_DATE = 'September 2026';
-export const RELEASE_TYPE = 'MINOR'; // 'MAJOR' | 'MINOR' | 'PATCH'
+export const APP_VERSION = '2.1.1';
+export const RELEASE_DATE = '24 September 2026';
+export const RELEASE_TYPE = 'PATCH'; // 'MAJOR' | 'MINOR' | 'PATCH'
 
 // Verified changelog items derived from real repository Git history
 export const CURRENT_RELEASE_CHANGELOG = {
-  version: 'v2.1.0',
-  title: 'BOM Preset Engine & Comparative Multi-Panel Proposals',
-  date: 'September 2026',
-  type: 'MINOR',
+  version: 'v2.1.1',
+  title: 'Notification Panel Interactivity & UI Polish Release',
+  date: '24 September 2026',
+  type: 'PATCH',
   highlights: [
-    'Standard 3.3 kW BOM & BoS hardware presets engine with real-time rate calculator',
-    'Interactive side-by-side Multi-Panel comparative customer proposal generation',
-    'Commercial zero-subsidy logic & balanced 2x2 system details alignment',
-    'Structured CSV partner directory export & interactive breadcrumbs navigation'
+    'Direct Notification Panel opening from real-time update toast on "View Update"',
+    'Interactive Release Logs & Changelog modal showing detailed patch notes',
+    'Global KPI card hover animations with smooth grow effect and green border',
+    'Clean CSV directory export without disruptive toaster popups',
+    'Streamlined admin-controlled dealer credentials and settings hub'
   ],
   categories: {
     features: [
-      'Standard 3.3 kW BOM & BoS hardware presets engine with real-time rate calculator',
-      'Interactive side-by-side Multi-Panel comparative customer proposal generation',
-      'Commercial zero-subsidy logic & balanced 2x2 system details alignment',
-      'Structured CSV partner directory export & interactive breadcrumbs navigation'
+      'Interactive Notification Panel Integration: Clicking "View Update" on notification popups immediately opens the slide-in notification tray',
+      'Detailed Release Notes & Logs Viewer: Direct access to version changelog, feature breakdowns, and patch histories',
+      'Standardized Global KPI Hover Cards: Uniform cubic-bezier grow effect (translateY(-3px)), elevation shadow, and brand green border highlight'
     ],
     improvements: [
-      'Full-width quotation feed ledger eliminating horizontal table scrollbars',
-      'Subtle hover elevation and green border transition across all KPI summary cards',
-      'Persistent multi-step quotation drafting preserving customer data across tabs'
+      'Export Directory Optimization: One-click direct CSV download in Dealer Management without intermediate toast alert cards',
+      'Dealer Settings Cleanup: Streamlined settings hub with official Sunvine Partner Support priority helpline in sidebar',
+      'Admin-Managed Credentials: Dealer passwords configured and managed centrally by Super Admin'
     ],
     fixes: [
-      'Interactive notification panel dismiss mechanism with persistent state storage',
-      'Dynamic version and changelog synchronization for system release alerts'
+      'Dynamic Version Detection: Automatic detection of newly deployed portal releases on reload / hard refresh',
+      'Persistent Notification Dismissal: LocalStorage persistence preventing already-dismissed notifications from re-appearing',
+      'Clockwise Login Spinner: Restored natural clockwise rotation on vertically mirrored solar portal loader'
     ]
   }
 };
 
 // Complete historical release register verified from Git log
 export const VERSION_HISTORY = [
+  {
+    version: 'v2.1.1',
+    date: '2026-09-24',
+    type: 'PATCH',
+    summary: 'Notification panel integration, interactive changelog modal, global KPI card hover animations, and admin credential control.',
+    highlights: [
+      'View Update directly opens Notification Panel',
+      'Interactive Release Logs & Changelog Modal',
+      'Global KPI card grow effect & green border',
+      'Seamless CSV export directory downloads'
+    ]
+  },
   {
     version: 'v2.1.0',
     date: '2026-09-24',

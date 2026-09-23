@@ -10,7 +10,9 @@ export default function UpdateNotificationPopup() {
     setActiveTab,
     dismissedPopupIds,
     dismissPopupNotification,
-    setNotificationsOpen
+    setNotificationsOpen,
+    setIsChangelogModalOpen,
+    openChangelogModal
   } = useApp();
 
   const [sessionDismissedIds, setSessionDismissedIds] = useState([]);
@@ -110,6 +112,16 @@ export default function UpdateNotificationPopup() {
   const handleAction = (e) => {
     e?.stopPropagation?.();
     const targetId = activeNotif.id;
+    const isRelease = activeNotif.isRelease || activeNotif.id?.startsWith('release-') || activeNotif.icon === 'system_update';
+
+    if (isRelease) {
+      if (openChangelogModal) {
+        openChangelogModal(activeNotif.version || null);
+      } else if (setIsChangelogModalOpen) {
+        setIsChangelogModalOpen(true);
+      }
+    }
+
     const tab = activeNotif.targetTab;
     if (tab) setActiveTab(tab);
     setTimeout(() => {
@@ -230,8 +242,16 @@ export default function UpdateNotificationPopup() {
               onClick={handleAction}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#6CBF3D] hover:bg-[#4F9A2C] text-white font-bold text-xs transition-all shadow-xs active:scale-95 cursor-pointer"
             >
-              <span>{activeNotif.targetTab ? 'View Details' : 'View Update'}</span>
-              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+              <span>
+                {activeNotif.isRelease || activeNotif.id?.startsWith('release-')
+                  ? 'View Update & Logs'
+                  : activeNotif.targetTab
+                  ? 'View Details'
+                  : 'View Update'}
+              </span>
+              <span className="material-symbols-outlined text-[14px]">
+                {activeNotif.isRelease || activeNotif.id?.startsWith('release-') ? 'receipt_long' : 'arrow_forward'}
+              </span>
             </button>
             <button
               type="button"

@@ -120,6 +120,18 @@ export const INITIAL_QUOTATIONS = GUJARAT_QUOTATIONS;
 
 // Gujarat System & Compliance Notifications (Role-partitioned: 'admin' | 'dealer' | 'all')
 export const DEFAULT_NOTIFICATIONS = [
+  // Latest System Release Notification (Available to All)
+  {
+    id: 'release-2.1.1',
+    audience: 'all',
+    type: 'success',
+    icon: 'system_update',
+    title: 'System Updated to v2.1.1',
+    description: 'v2.1.1 Production Deployment. Interactive Release Notes, real-time changelog viewer, persistent notification panel, and unified Gujarat solar calculation workflows.',
+    createdAt: '2026-09-24T00:00:00.000Z',
+    isRelease: true,
+    version: 'v2.1.1'
+  },
   // Super Admin Alerts
   {
     id: 'notif-adm-001',

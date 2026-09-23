@@ -649,6 +649,13 @@ const safeSetItem = (key, value) => {
   }, [visibleNotifications]);
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [isChangelogModalOpen, setIsChangelogModalOpen] = useState(false);
+  const [selectedChangelogVersion, setSelectedChangelogVersion] = useState(null);
+
+  const openChangelogModal = (version = null) => {
+    setSelectedChangelogVersion(version);
+    setIsChangelogModalOpen(true);
+  };
 
   const markNotificationAsRead = (id) => {
     if (!readNotifIds.includes(id)) {
@@ -691,7 +698,11 @@ const safeSetItem = (key, value) => {
       ...notif
     };
     // If a new or updated notification arrives, remove from dismissed IDs so popup shows
-    setDismissedPopupIds(prev => prev.filter(id => id !== newNotif.id));
+    setDismissedPopupIds(prev => {
+      const updated = prev.filter(id => id !== newNotif.id);
+      safeSetItem(`sunvine_dismissed_popups_${role}`, updated);
+      return updated;
+    });
     setNotifications(prev => {
       const filtered = prev.filter(n => n.id !== newNotif.id);
       return [newNotif, ...filtered];
@@ -744,6 +755,10 @@ const safeSetItem = (key, value) => {
         unreadNotificationsCount,
         notificationsOpen,
         setNotificationsOpen,
+        isChangelogModalOpen,
+        setIsChangelogModalOpen,
+        selectedChangelogVersion,
+        openChangelogModal,
         markNotificationAsRead,
         markAllNotificationsAsRead,
         deleteNotification,
