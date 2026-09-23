@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 
 export default function DealerManagement() {
-  const { dealers, addDealer, toggleDealerStatus, tierMargins, updateTierMargins, addNotification } = useApp();
+  const { dealers, addDealer, toggleDealerStatus, updateDealerPassword, tierMargins, updateTierMargins, addNotification } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTabFilter, setActiveTabFilter] = useState('all');
   const [discomFilter, setDiscomFilter] = useState('all');
@@ -24,7 +24,25 @@ export default function DealerManagement() {
   const [newDiscomCode, setNewDiscomCode] = useState('PGVCL-VND-2025-0845');
   const [newTier, setNewTier] = useState('Gold EPC Partner (Quarterly Cap: 1.5 MW)');
   const [newCap, setNewCap] = useState('5,000');
+  const [newPassword, setNewPassword] = useState('Sunvine@2026');
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // Password / Credentials Modal for Existing Dealers
+  const [credModalDealer, setCredModalDealer] = useState(null);
+  const [editPassword, setEditPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [copiedCreds, setCopiedCreds] = useState(false);
+  const [credSavedNotice, setCredSavedNotice] = useState(false);
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$';
+    let pass = 'SV@';
+    for (let i = 0; i < 6; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pass;
+  };
 
   // Tier Margins Quick Editor Form State
   const [tempTierMargins, setTempTierMargins] = useState(() => tierMargins || {});
@@ -98,7 +116,8 @@ export default function DealerManagement() {
       totalQuotes: 0,
       totalCapacityKw: 0,
       status: 'Active',
-      joinedDate: new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date())
+      joinedDate: new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date()),
+      password: newPassword.trim() || 'dealer123'
     };
 
     if (addDealer) {
@@ -107,7 +126,7 @@ export default function DealerManagement() {
     if (addNotification) {
       addNotification({
         title: 'New EPC Dealer Onboarded',
-        description: `${newFirm.trim()} (${tierClean}) added to Gujarat Dealer Network.`,
+        description: `${newFirm.trim()} (${tierClean}) added with assigned login credentials.`,
         type: 'success',
         icon: 'person_add',
         audience: 'admin'
@@ -122,6 +141,7 @@ export default function DealerManagement() {
     setNewAddress('');
     setNewGstinState('');
     setNewPan('');
+    setNewPassword('Sunvine@2026');
     setFormError('');
     setShowAddModal(false);
   };
@@ -451,15 +471,51 @@ export default function DealerManagement() {
               <div className="space-y-3 bg-surface-bright p-4 rounded-lg border border-surface-container-highest">
                 <div className="flex flex-col">
                   <span className="font-label-xs text-label-xs text-secondary uppercase font-semibold">Dealer Portal URL</span>
-                  <span className="font-mono text-body-sm text-tertiary font-medium select-all">portal.sunvinerenewable.com/dealer</span>
+                  <span className="font-mono text-body-sm text-tertiary font-medium select-all">sunvine-dealer.vprotech.online</span>
                 </div>
                 <div className="h-px bg-surface-container-highest"></div>
                 <div className="flex flex-col">
-                  <span className="font-label-xs text-label-xs text-secondary uppercase font-semibold">Authentication Protocol</span>
+                  <span className="font-label-xs text-label-xs text-secondary uppercase font-semibold">Login Username (Mobile)</span>
                   <div className="flex items-center justify-between mt-0.5">
-                    <span className="font-body-sm font-semibold text-on-surface">Registered Mobile OTP</span>
-                    <span className="font-mono text-label-sm text-secondary font-medium">{newMobile}</span>
+                    <span className="font-body-sm font-semibold text-on-surface">Registered Mobile</span>
+                    <span className="font-mono text-label-sm text-primary font-bold">{newMobile || '10-digit mobile'}</span>
                   </div>
+                </div>
+                <div className="h-px bg-surface-container-highest"></div>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-label-xs text-label-xs text-secondary uppercase font-semibold">Assigned Portal Password</span>
+                    <button
+                      type="button"
+                      onClick={() => setNewPassword(generateRandomPassword())}
+                      className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">refresh</span>
+                      Auto-Generate
+                    </button>
+                  </div>
+                  <div className="relative flex items-center">
+                    <span className="material-symbols-outlined absolute left-3 text-secondary text-[18px]">key</span>
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full h-9 pl-9 pr-9 bg-white border border-surface-container-highest rounded-lg font-mono text-xs text-on-surface font-semibold focus:outline-none focus:border-primary-container"
+                      placeholder="Assign password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-2.5 text-secondary hover:text-on-surface cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        {showNewPassword ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-secondary">
+                    Dealer logs in with registered mobile and this password. Dealer panel cannot alter this password.
+                  </p>
                 </div>
               </div>
               <button
@@ -835,6 +891,19 @@ export default function DealerManagement() {
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button
+                            onClick={() => {
+                              setCredModalDealer(d);
+                              setEditPassword(d.password || 'dealer123');
+                              setShowEditPassword(false);
+                              setCopiedCreds(false);
+                              setCredSavedNotice(false);
+                            }}
+                            className="w-7 h-7 rounded hover:bg-surface-container text-[#6CBF3D] hover:text-[#4F9A2C] transition-colors flex items-center justify-center cursor-pointer"
+                            title="Manage Password & Credentials"
+                          >
+                            <span className="material-symbols-outlined text-[17px]">key</span>
+                          </button>
+                          <button
                             onClick={() => toggleDealerStatus(d.id)}
                             className={`w-7 h-7 rounded hover:bg-surface-container transition-colors ${
                               d.status === 'Active' ? 'text-secondary hover:text-error' : 'text-primary hover:text-primary-container'
@@ -1021,6 +1090,154 @@ export default function DealerManagement() {
                 className="px-5 py-2 rounded-lg bg-primary-container hover:bg-primary text-on-primary text-xs font-bold transition-all shadow-sm cursor-pointer"
               >
                 Save Tier Margins
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dealer Credentials & Password Modal */}
+      {credModalDealer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-surface-container-lowest border border-surface-container-high rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-surface-container-highest">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-2xl">vpn_key</span>
+                </div>
+                <div>
+                  <h3 className="font-headline-sm text-base font-bold text-on-surface">Manage Dealer Credentials</h3>
+                  <p className="text-xs text-secondary">Set portal login password for partner</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCredModalDealer(null)}
+                className="w-8 h-8 rounded-lg hover:bg-surface-container text-secondary hover:text-on-surface flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="py-4 space-y-4">
+              <div className="p-3 bg-surface-container-low rounded-xl border border-surface-container-highest space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-secondary">Dealer Firm</span>
+                  <span className="text-xs font-bold text-on-surface truncate max-w-[200px]">{credModalDealer.firmName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-secondary">Contact Person</span>
+                  <span className="text-xs font-semibold text-on-surface">{credModalDealer.contactPerson}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-secondary">Login Mobile ID</span>
+                  <span className="text-xs font-mono font-bold text-primary">{credModalDealer.mobile}</span>
+                </div>
+              </div>
+
+              {/* Password field */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-on-surface">Portal Password</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rand = generateRandomPassword();
+                      setEditPassword(rand);
+                    }}
+                    className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">refresh</span>
+                    Auto-Generate
+                  </button>
+                </div>
+                <div className="relative flex items-center">
+                  <span className="material-symbols-outlined absolute left-3 text-secondary text-[18px]">lock</span>
+                  <input
+                    type={showEditPassword ? 'text' : 'password'}
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    className="w-full h-10 pl-9 pr-10 bg-white border border-surface-container-highest rounded-lg font-mono text-sm font-semibold text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    placeholder="Enter password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 text-secondary hover:text-on-surface cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">
+                      {showEditPassword ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-secondary">
+                  Dealers cannot change their password from the dealer portal. Only Super Admin can set or reset it.
+                </p>
+              </div>
+
+              {credSavedNotice && (
+                <div className="p-2.5 rounded-lg bg-green-50 border border-green-200 text-green-800 text-xs flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm text-green-600">check_circle</span>
+                  <span>Password updated successfully in Gujarat ledger!</span>
+                </div>
+              )}
+
+              {/* Copy credentials helper */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cleanPhone = String(credModalDealer.mobile).replace(/\D/g, '').slice(-10);
+                    const text = `Sunvine Dealer Portal Credentials:\nPortal: https://sunvine-dealer.vprotech.online\nMobile: ${cleanPhone}\nPassword: ${editPassword}`;
+                    navigator.clipboard.writeText(text);
+                    setCopiedCreds(true);
+                    setTimeout(() => setCopiedCreds(false), 3000);
+                  }}
+                  className="w-full py-2 px-3 rounded-lg border border-surface-container-highest hover:bg-surface-container-low text-xs font-semibold text-secondary hover:text-on-surface flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px]">{copiedCreds ? 'done' : 'content_copy'}</span>
+                  <span>{copiedCreds ? 'Credentials Copied to Clipboard!' : 'Copy Login Details to Clipboard'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-surface-container-highest">
+              <button
+                type="button"
+                onClick={() => setCredModalDealer(null)}
+                className="px-4 py-2 rounded-lg border border-surface-container-highest text-xs font-semibold text-secondary hover:bg-surface-container-low cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!editPassword.trim()) return;
+                  if (updateDealerPassword) {
+                    updateDealerPassword(credModalDealer.id, editPassword.trim());
+                  }
+                  setCredSavedNotice(true);
+                  if (addNotification) {
+                    addNotification({
+                      title: 'Dealer Password Updated',
+                      description: `Portal login password for ${credModalDealer.firmName} was updated by Admin.`,
+                      type: 'success',
+                      icon: 'key',
+                      audience: 'admin'
+                    });
+                  }
+                  setTimeout(() => {
+                    setCredModalDealer(null);
+                    setCredSavedNotice(false);
+                  }, 1200);
+                }}
+                className="px-4 py-2 rounded-lg bg-primary hover:bg-[#4F9A2C] text-on-primary text-xs font-semibold shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">save</span>
+                <span>Save Password</span>
               </button>
             </div>
           </div>

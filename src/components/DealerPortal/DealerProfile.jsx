@@ -12,13 +12,6 @@ export default function DealerProfile() {
   const [gstin, setGstin] = useState(currentDealer?.gstin || '24AFPFS7402A1Z7');
   const [address, setAddress] = useState(currentDealer?.address || 'Shop No. 12, GIDC Industrial Estate, Metoda, Rajkot, Gujarat - 360021');
 
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   const [toast, setToast] = useState({ message: '', type: 'success' });
 
   const triggerToast = (message, type = 'success') => {
@@ -40,44 +33,6 @@ export default function DealerProfile() {
       });
     }
     triggerToast('Profile details updated successfully', 'success');
-  };
-
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
-
-  const handleUpdatePassword = (e) => {
-    e.preventDefault();
-    if (!currentPassword) {
-      triggerToast('Please enter your current password', 'error');
-      return;
-    }
-    if (!newPassword) {
-      triggerToast('Please enter a new password', 'error');
-      return;
-    }
-    if (!ruleLength || !ruleCasing || !ruleSymbol) {
-      triggerToast('Please satisfy all password requirements', 'error');
-      return;
-    }
-    if (!confirmPassword) {
-      triggerToast('Please confirm your new password', 'error');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      triggerToast('Passwords do not match', 'error');
-      return;
-    }
-
-    setIsUpdatingPassword(true);
-    setTimeout(() => {
-      setIsUpdatingPassword(false);
-      triggerToast('Password updated successfully', 'success');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setShowCurrentPassword(false);
-      setShowNewPassword(false);
-      setShowConfirmPassword(false);
-    }, 450);
   };
 
   const handleAvatarClick = () => {
@@ -108,10 +63,6 @@ export default function DealerProfile() {
     };
     reader.readAsDataURL(file);
   };
-
-  const ruleLength = newPassword.length >= 8;
-  const ruleCasing = /[a-z]/.test(newPassword) && /[A-Z]/.test(newPassword);
-  const ruleSymbol = /[0-9]/.test(newPassword) || /[^A-Za-z0-9]/.test(newPassword);
 
   return (
     <div className="flex flex-col w-full min-w-0">
@@ -393,207 +344,6 @@ export default function DealerProfile() {
 
         {/* Right Column */}
         <div className="xl:col-span-5 flex flex-col gap-6 min-w-0">
-          {/* Security & Password */}
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm p-4 sm:p-6 border border-surface-container-high">
-            <div className="mb-4 sm:mb-6">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="material-symbols-outlined text-primary text-[22px] shrink-0">security</span>
-                <h2 className="text-lg sm:text-xl font-bold text-on-secondary-fixed">Security &amp; Password Management</h2>
-              </div>
-              <p className="text-xs sm:text-sm text-secondary">Keep your Sunvine portal login credentials and quotes protected.</p>
-            </div>
-            <form className="flex flex-col gap-space-md" onSubmit={handleUpdatePassword}>
-              <div className="flex flex-col gap-1.5 min-w-0">
-                <label className="font-label-sm text-on-surface" htmlFor="current-password">Current Password</label>
-                <div className="relative">
-                  <input
-                    className="w-full h-11 sm:h-10 px-3 pr-11 bg-surface-container-low rounded-lg font-body-md text-base sm:text-body-md text-on-surface focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary-container outline-none transition-all"
-                    id="current-password"
-                    placeholder="••••••••••••"
-                    type={showCurrentPassword ? "text" : "password"}
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                  />
-                  <button
-                    className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center text-secondary hover:text-on-surface cursor-pointer rounded-r-lg transition-colors"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    type="button"
-                    aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
-                  >
-                    <span className="material-symbols-outlined text-[20px]">
-                      {showCurrentPassword ? "visibility_off" : "visibility"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5 min-w-0">
-                <label className="font-label-sm text-on-surface" htmlFor="new-password">New Password</label>
-                <div className="relative">
-                  <input
-                    className={`w-full h-11 sm:h-10 px-3 pr-11 bg-surface-container-low rounded-lg font-body-md text-base sm:text-body-md text-on-surface focus:bg-surface-container-lowest outline-none transition-all ${
-                      newPassword.length > 0
-                        ? ruleLength && ruleCasing && ruleSymbol
-                          ? 'border border-primary focus:ring-2 focus:ring-primary/20'
-                          : 'border border-amber-500/50 focus:ring-2 focus:ring-amber-500/20'
-                        : 'border border-transparent focus:ring-2 focus:ring-primary-container'
-                    }`}
-                    id="new-password"
-                    placeholder="Enter new secure password"
-                    type={showNewPassword ? "text" : "password"}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                  />
-                  <button
-                    className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center text-secondary hover:text-on-surface cursor-pointer rounded-r-lg transition-colors"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    type="button"
-                    aria-label={showNewPassword ? "Hide new password" : "Show new password"}
-                  >
-                    <span className="material-symbols-outlined text-[20px]">
-                      {showNewPassword ? "visibility_off" : "visibility"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Animated Password Requirements */}
-              <div
-                className={`grid transition-all duration-300 ease-in-out ${
-                  newPassword.length > 0
-                    ? 'grid-rows-[1fr] opacity-100 translate-y-0'
-                    : 'grid-rows-[0fr] opacity-0 -translate-y-2 pointer-events-none'
-                }`}
-              >
-                <div className="overflow-hidden">
-                  <div className="p-space-sm rounded-lg bg-surface-container-low border border-surface-container-high/60 flex flex-col gap-2 min-w-0 transition-all">
-                    <div className="flex items-center justify-between">
-                      <span className="font-label-xs text-secondary uppercase tracking-wider font-semibold">Password Requirements</span>
-                      <span className="text-[11px] font-semibold text-secondary">
-                        {[ruleLength, ruleCasing, ruleSymbol].filter(Boolean).length}/3 Met
-                      </span>
-                    </div>
-
-                    {/* Progress Indicator Bar */}
-                    <div className="w-full bg-surface-container-high h-1 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-500 rounded-full ${
-                          [ruleLength, ruleCasing, ruleSymbol].filter(Boolean).length === 3
-                            ? 'bg-primary w-full'
-                            : [ruleLength, ruleCasing, ruleSymbol].filter(Boolean).length === 2
-                            ? 'bg-amber-500 w-2/3'
-                            : [ruleLength, ruleCasing, ruleSymbol].filter(Boolean).length === 1
-                            ? 'bg-orange-500 w-1/3'
-                            : 'w-0'
-                        }`}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-1.5 text-label-xs font-label-xs pt-0.5">
-                      <div className={`flex items-start sm:items-center gap-1.5 transition-all duration-300 ${ruleLength ? 'text-primary font-medium translate-x-0.5' : 'text-secondary'}`}>
-                        <span
-                          className={`material-symbols-outlined text-[16px] shrink-0 mt-0.5 sm:mt-0 transition-all duration-300 ${ruleLength ? 'scale-110 text-primary' : 'scale-95 text-secondary/60'}`}
-                          style={{ fontVariationSettings: ruleLength ? "'FILL' 1" : "'FILL' 0" }}
-                        >
-                          {ruleLength ? 'check_circle' : 'radio_button_unchecked'}
-                        </span>
-                        <span className="break-words leading-tight transition-colors duration-300">Minimum 8+ characters</span>
-                      </div>
-                      <div className={`flex items-start sm:items-center gap-1.5 transition-all duration-300 ${ruleCasing ? 'text-primary font-medium translate-x-0.5' : 'text-secondary'}`}>
-                        <span
-                          className={`material-symbols-outlined text-[16px] shrink-0 mt-0.5 sm:mt-0 transition-all duration-300 ${ruleCasing ? 'scale-110 text-primary' : 'scale-95 text-secondary/60'}`}
-                          style={{ fontVariationSettings: ruleCasing ? "'FILL' 1" : "'FILL' 0" }}
-                        >
-                          {ruleCasing ? 'check_circle' : 'radio_button_unchecked'}
-                        </span>
-                        <span className="break-words leading-tight transition-colors duration-300">Uppercase &amp; lowercase letters</span>
-                      </div>
-                      <div className={`flex items-start sm:items-center gap-1.5 transition-all duration-300 ${ruleSymbol ? 'text-primary font-medium translate-x-0.5' : 'text-secondary'}`}>
-                        <span
-                          className={`material-symbols-outlined text-[16px] shrink-0 mt-0.5 sm:mt-0 transition-all duration-300 ${ruleSymbol ? 'scale-110 text-primary' : 'scale-95 text-secondary/60'}`}
-                          style={{ fontVariationSettings: ruleSymbol ? "'FILL' 1" : "'FILL' 0" }}
-                        >
-                          {ruleSymbol ? 'check_circle' : 'radio_button_unchecked'}
-                        </span>
-                        <span className="break-words leading-tight transition-colors duration-300">At least one number or special symbol (@, #, $)</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1.5 min-w-0">
-                <label className="font-label-sm text-on-surface" htmlFor="confirm-password">Confirm New Password</label>
-                <div className="relative">
-                  <input
-                    className={`w-full h-11 sm:h-10 px-3 pr-11 bg-surface-container-low rounded-lg font-body-md text-base sm:text-body-md text-on-surface focus:bg-surface-container-lowest outline-none transition-all ${
-                      confirmPassword.length > 0
-                        ? newPassword.length === 0
-                          ? 'border border-surface-container-high focus:ring-2 focus:ring-secondary/20'
-                          : confirmPassword === newPassword
-                          ? 'border border-primary focus:ring-2 focus:ring-primary/20 bg-primary/5'
-                          : 'border border-error focus:ring-2 focus:ring-error/20 bg-error-container/10'
-                        : 'border border-transparent focus:ring-2 focus:ring-primary-container'
-                    }`}
-                    id="confirm-password"
-                    placeholder="Re-enter new secure password"
-                    type={showConfirmPassword ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                  />
-                  <button
-                    className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center text-secondary hover:text-on-surface cursor-pointer rounded-r-lg transition-colors"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    type="button"
-                    aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"}
-                  >
-                    <span className="material-symbols-outlined text-[20px]">
-                      {showConfirmPassword ? "visibility_off" : "visibility"}
-                    </span>
-                  </button>
-                </div>
-                {confirmPassword.length > 0 && (
-                  <div className="flex items-center gap-1.5 mt-0.5 transition-all text-xs">
-                    {newPassword.length === 0 ? (
-                      <span className="text-secondary flex items-center gap-1 font-medium">
-                        <span className="material-symbols-outlined text-[16px]">info</span>
-                        Please enter new password first
-                      </span>
-                    ) : confirmPassword === newPassword ? (
-                      <span className="text-primary flex items-center gap-1 font-medium">
-                        <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                        Passwords match
-                      </span>
-                    ) : (
-                      <span className="text-error flex items-center gap-1 font-medium">
-                        <span className="material-symbols-outlined text-[16px]">cancel</span>
-                        Passwords do not match
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="pt-space-xs">
-                <button
-                  className="w-full h-11 sm:h-10 bg-primary-container hover:bg-primary text-on-primary rounded-lg font-label-md transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                  type="submit"
-                  disabled={isUpdatingPassword}
-                >
-                  {isUpdatingPassword ? (
-                    <>
-                      <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
-                      <span>Updating Password...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-[18px]">key</span>
-                      <span>Update Password</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-
           {/* Partner Support */}
           <div className="bg-surface-container-lowest rounded-xl shadow-sm p-4 sm:p-6 border border-surface-container-high relative overflow-hidden">
             <div className="w-1.5 h-full bg-primary absolute left-0 top-0"></div>

@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 
 export default function DealerLogin() {
-  const { login, setAuthView } = useApp();
-  const [mobileNumber, setMobileNumber] = useState('9876543210');
+  const { login, setAuthView, dealers } = useApp();
+  const [mobileNumber, setMobileNumber] = useState('9810000000');
   const [password, setPassword] = useState('dealer123');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -26,12 +26,36 @@ export default function DealerLogin() {
       return;
     }
     setError('');
-    setLoading(true);
 
+    // Locate dealer in Gujarat network by phone number
+    const matchedDealer = (dealers || []).find((d) => {
+      const dClean = String(d.mobile || '').replace(/\D/g, '');
+      return dClean.endsWith(cleanNumber);
+    });
+
+    const expectedPassword = matchedDealer?.password || 'dealer123';
+
+    if (matchedDealer) {
+      if (password !== expectedPassword) {
+        setError('Incorrect password. Please contact Sunvine Admin to reset your credentials.');
+        return;
+      }
+      if (matchedDealer.status === 'Suspended') {
+        setError('Your dealer account is currently suspended. Please contact Sunvine Operations.');
+        return;
+      }
+    } else if (cleanNumber === '9876543210' && password === 'dealer123') {
+      // Demo fallback dealer
+    } else {
+      setError('No registered dealer found with this mobile number. Contact Sunvine Admin to get access.');
+      return;
+    }
+
+    setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      login('dealer');
-    }, 600);
+      login('dealer', matchedDealer || undefined);
+    }, 400);
   };
 
   return (
@@ -140,12 +164,9 @@ export default function DealerLogin() {
                 <label className="font-label-sm text-xs font-semibold text-on-surface" htmlFor="dealer-password-mob">
                   Password
                 </label>
-                <a
-                  className="font-label-xs text-[11px] text-primary hover:underline cursor-pointer"
-                  onClick={() => alert('Password reset link sent to your registered phone.')}
-                >
-                  Forgot Password?
-                </a>
+                <span className="font-label-xs text-[11px] text-secondary">
+                  Managed by Admin
+                </span>
               </div>
               <div className="relative flex items-center rounded-lg bg-surface-container-low shadow-sm transition-all focus-within:bg-surface-container-lowest focus-within:shadow-md border border-surface-container-high">
                 <input
@@ -408,12 +429,9 @@ export default function DealerLogin() {
                     <label className="block font-label-xs text-on-surface font-semibold" htmlFor="dealer-password">
                       Password
                     </label>
-                    <a
-                      className="font-label-xs text-primary hover:text-on-primary-container transition-colors cursor-pointer"
-                      onClick={() => alert('Password reset link sent to your registered phone number.')}
-                    >
-                      Forgot Password?
-                    </a>
+                    <span className="font-label-xs text-secondary text-[11px]">
+                      Managed by Admin
+                    </span>
                   </div>
                   <div className="relative flex items-center">
                     <span className="absolute left-3.5 text-secondary flex items-center">
