@@ -160,14 +160,6 @@ export default function DealerManagement() {
     document.body.appendChild(downloadLink);
     downloadLink.click();
     document.body.removeChild(downloadLink);
-
-    if (addNotification) {
-      addNotification({
-        type: 'success',
-        title: 'Directory Exported',
-        message: `Successfully exported ${dataToExport.length} dealer partner records to CSV.`
-      });
-    }
   };
 
   const handleCreateDealer = (e) => {
