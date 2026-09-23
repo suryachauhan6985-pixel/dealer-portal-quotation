@@ -37,19 +37,6 @@ export default function DealerSettings() {
     autoPdfDownload: true
   });
 
-  // Password Security State
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
-
-  const ruleLength = newPassword.length >= 8;
-  const ruleCasing = /[a-z]/.test(newPassword) && /[A-Z]/.test(newPassword);
-  const ruleSymbol = /[0-9]/.test(newPassword) || /[^A-Za-z0-9]/.test(newPassword);
-
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
   };
@@ -94,42 +81,6 @@ export default function DealerSettings() {
     setSaved(true);
     triggerToast('Settings & preferences saved successfully', 'success');
     setTimeout(() => setSaved(false), 3000);
-  };
-
-  const handleUpdatePassword = (e) => {
-    e.preventDefault();
-    if (!currentPassword) {
-      triggerToast('Please enter your current password', 'error');
-      return;
-    }
-    if (!newPassword) {
-      triggerToast('Please enter a new password', 'error');
-      return;
-    }
-    if (!ruleLength || !ruleCasing || !ruleSymbol) {
-      triggerToast('Please satisfy all password requirements', 'error');
-      return;
-    }
-    if (!confirmPassword) {
-      triggerToast('Please confirm your new password', 'error');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      triggerToast('Passwords do not match', 'error');
-      return;
-    }
-
-    setIsUpdatingPassword(true);
-    setTimeout(() => {
-      setIsUpdatingPassword(false);
-      triggerToast('Password updated successfully', 'success');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setShowCurrentPassword(false);
-      setShowNewPassword(false);
-      setShowConfirmPassword(false);
-    }, 450);
   };
 
   return (
@@ -250,20 +201,6 @@ export default function DealerSettings() {
           </button>
 
           <button
-            onClick={() => setActiveTab('security')}
-            className={`flex items-center justify-between px-3.5 py-3 rounded-lg text-left font-label-md text-label-md transition-colors cursor-pointer ${
-              activeTab === 'security'
-                ? 'bg-surface-container text-on-surface font-semibold'
-                : 'text-secondary hover:text-on-surface hover:bg-surface-container-low'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-[20px]">lock_reset</span>
-              <span>Security &amp; Password</span>
-            </div>
-          </button>
-
-          <button
             onClick={() => setActiveTab('discom')}
             className={`flex items-center justify-between px-3.5 py-3 rounded-lg text-left font-label-md text-label-md transition-colors cursor-pointer ${
               activeTab === 'discom'
@@ -317,6 +254,24 @@ export default function DealerSettings() {
               <div className="bg-primary-container h-full rounded-full" style={{ width: '100%' }}></div>
             </div>
             <span className="text-[11px] font-body-sm text-secondary">Aadhaar e-KYC, GSTIN &amp; License verified.</span>
+          </div>
+
+          {/* Sunvine Partner Support */}
+          <div className="mt-2 p-3 rounded-lg bg-surface-container-low border border-surface-container-high/60 flex flex-col gap-2.5">
+            <div className="flex items-center gap-2 text-on-surface font-semibold font-label-xs uppercase tracking-wider">
+              <span className="material-symbols-outlined text-primary text-[18px]">contact_support</span>
+              <span>Partner Support</span>
+            </div>
+            <div className="flex flex-col gap-1.5 text-xs text-secondary">
+              <div className="flex items-center justify-between">
+                <span>Helpline:</span>
+                <a href="tel:+918000050580" className="text-on-surface font-bold hover:text-primary transition-colors">+91 80000 50580</a>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Email:</span>
+                <a href="mailto:support@sunvine.in" className="text-on-surface font-semibold hover:text-primary transition-colors">support@sunvine.in</a>
+              </div>
+            </div>
           </div>
         </nav>
 
@@ -467,271 +422,7 @@ export default function DealerSettings() {
                   />
                 </div>
               </div>
-
-              {/* Quick Jump to Security */}
-              <div className="p-4 rounded-xl bg-surface-container-low border border-surface-container-high flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-primary text-[22px]">lock_reset</span>
-                  <div className="flex flex-col">
-                    <span className="font-label-sm font-semibold text-on-surface">Account Password &amp; Credentials</span>
-                    <span className="text-xs text-secondary">Keep your portal access and pricing margins secure.</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('security')}
-                  className="px-3.5 py-1.5 bg-surface-container-lowest hover:bg-surface-container border border-surface-container-high rounded-lg text-xs font-semibold text-primary transition-colors cursor-pointer"
-                >
-                  Manage Password
-                </button>
-              </div>
             </section>
-          )}
-
-          {/* Section B: Security & Password Management */}
-          {activeTab === 'security' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              <div className="lg:col-span-7 bg-surface-container-lowest rounded-xl shadow-sm p-4 sm:p-6 border border-surface-container-high">
-                <div className="mb-4 sm:mb-6">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="material-symbols-outlined text-primary text-[22px] shrink-0">security</span>
-                    <h2 className="text-lg sm:text-xl font-bold text-on-secondary-fixed">Security &amp; Password Management</h2>
-                  </div>
-                  <p className="text-xs sm:text-sm text-secondary">Keep your Sunvine portal login credentials and quotes protected.</p>
-                </div>
-
-                <form className="flex flex-col gap-space-md" onSubmit={handleUpdatePassword}>
-                  <div className="flex flex-col gap-1.5 min-w-0">
-                    <label className="font-label-sm text-on-surface" htmlFor="current-password">Current Password</label>
-                    <div className="relative">
-                      <input
-                        className="w-full h-11 sm:h-10 px-3 pr-11 bg-surface-container-low rounded-lg font-body-md text-base sm:text-body-md text-on-surface focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary-container outline-none transition-all"
-                        id="current-password"
-                        placeholder="••••••••••••"
-                        type={showCurrentPassword ? "text" : "password"}
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                      />
-                      <button
-                        className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center text-secondary hover:text-on-surface cursor-pointer rounded-r-lg transition-colors"
-                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                        type="button"
-                        aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
-                      >
-                        <span className="material-symbols-outlined text-[20px]">
-                          {showCurrentPassword ? "visibility_off" : "visibility"}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 min-w-0">
-                    <label className="font-label-sm text-on-surface" htmlFor="new-password">New Password</label>
-                    <div className="relative">
-                      <input
-                        className={`w-full h-11 sm:h-10 px-3 pr-11 bg-surface-container-low rounded-lg font-body-md text-base sm:text-body-md text-on-surface focus:bg-surface-container-lowest outline-none transition-all ${
-                          newPassword.length > 0
-                            ? ruleLength && ruleCasing && ruleSymbol
-                              ? 'border border-primary focus:ring-2 focus:ring-primary/20'
-                              : 'border border-amber-500/50 focus:ring-2 focus:ring-amber-500/20'
-                            : 'border border-transparent focus:ring-2 focus:ring-primary-container'
-                        }`}
-                        id="new-password"
-                        placeholder="Enter new secure password"
-                        type={showNewPassword ? "text" : "password"}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                      />
-                      <button
-                        className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center text-secondary hover:text-on-surface cursor-pointer rounded-r-lg transition-colors"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        type="button"
-                        aria-label={showNewPassword ? "Hide new password" : "Show new password"}
-                      >
-                        <span className="material-symbols-outlined text-[20px]">
-                          {showNewPassword ? "visibility_off" : "visibility"}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Animated Password Requirements */}
-                  <div
-                    className={`grid transition-all duration-300 ease-in-out ${
-                      newPassword.length > 0
-                        ? 'grid-rows-[1fr] opacity-100 translate-y-0'
-                        : 'grid-rows-[0fr] opacity-0 -translate-y-2 pointer-events-none'
-                    }`}
-                  >
-                    <div className="overflow-hidden">
-                      <div className="p-space-sm rounded-lg bg-surface-container-low border border-surface-container-high/60 flex flex-col gap-2 min-w-0 transition-all">
-                        <div className="flex items-center justify-between">
-                          <span className="font-label-xs text-secondary uppercase tracking-wider font-semibold">Password Requirements</span>
-                          <span className="text-[11px] font-semibold text-secondary">
-                            {[ruleLength, ruleCasing, ruleSymbol].filter(Boolean).length}/3 Met
-                          </span>
-                        </div>
-
-                        {/* Progress Indicator Bar */}
-                        <div className="w-full bg-surface-container-high h-1 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full transition-all duration-500 rounded-full ${
-                              [ruleLength, ruleCasing, ruleSymbol].filter(Boolean).length === 3
-                                ? 'bg-primary w-full'
-                                : [ruleLength, ruleCasing, ruleSymbol].filter(Boolean).length === 2
-                                ? 'bg-amber-500 w-2/3'
-                                : [ruleLength, ruleCasing, ruleSymbol].filter(Boolean).length === 1
-                                ? 'bg-orange-500 w-1/3'
-                                : 'w-0'
-                            }`}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-1.5 text-label-xs font-label-xs pt-0.5">
-                          <div className={`flex items-start sm:items-center gap-1.5 transition-all duration-300 ${ruleLength ? 'text-primary font-medium translate-x-0.5' : 'text-secondary'}`}>
-                            <span
-                              className={`material-symbols-outlined text-[16px] shrink-0 mt-0.5 sm:mt-0 transition-all duration-300 ${ruleLength ? 'scale-110 text-primary' : 'scale-95 text-secondary/60'}`}
-                              style={{ fontVariationSettings: ruleLength ? "'FILL' 1" : "'FILL' 0" }}
-                            >
-                              {ruleLength ? 'check_circle' : 'radio_button_unchecked'}
-                            </span>
-                            <span className="break-words leading-tight transition-colors duration-300">Minimum 8+ characters</span>
-                          </div>
-                          <div className={`flex items-start sm:items-center gap-1.5 transition-all duration-300 ${ruleCasing ? 'text-primary font-medium translate-x-0.5' : 'text-secondary'}`}>
-                            <span
-                              className={`material-symbols-outlined text-[16px] shrink-0 mt-0.5 sm:mt-0 transition-all duration-300 ${ruleCasing ? 'scale-110 text-primary' : 'scale-95 text-secondary/60'}`}
-                              style={{ fontVariationSettings: ruleCasing ? "'FILL' 1" : "'FILL' 0" }}
-                            >
-                              {ruleCasing ? 'check_circle' : 'radio_button_unchecked'}
-                            </span>
-                            <span className="break-words leading-tight transition-colors duration-300">Uppercase &amp; lowercase letters</span>
-                          </div>
-                          <div className={`flex items-start sm:items-center gap-1.5 transition-all duration-300 ${ruleSymbol ? 'text-primary font-medium translate-x-0.5' : 'text-secondary'}`}>
-                            <span
-                              className={`material-symbols-outlined text-[16px] shrink-0 mt-0.5 sm:mt-0 transition-all duration-300 ${ruleSymbol ? 'scale-110 text-primary' : 'scale-95 text-secondary/60'}`}
-                              style={{ fontVariationSettings: ruleSymbol ? "'FILL' 1" : "'FILL' 0" }}
-                            >
-                              {ruleSymbol ? 'check_circle' : 'radio_button_unchecked'}
-                            </span>
-                            <span className="break-words leading-tight transition-colors duration-300">At least one number or special symbol (@, #, $)</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 min-w-0">
-                    <label className="font-label-sm text-on-surface" htmlFor="confirm-password">Confirm New Password</label>
-                    <div className="relative">
-                      <input
-                        className={`w-full h-11 sm:h-10 px-3 pr-11 bg-surface-container-low rounded-lg font-body-md text-base sm:text-body-md text-on-surface focus:bg-surface-container-lowest outline-none transition-all ${
-                          confirmPassword.length > 0
-                            ? newPassword.length === 0
-                              ? 'border border-surface-container-high focus:ring-2 focus:ring-secondary/20'
-                              : confirmPassword === newPassword
-                              ? 'border border-primary focus:ring-2 focus:ring-primary/20 bg-primary/5'
-                              : 'border border-error focus:ring-2 focus:ring-error/20 bg-error-container/10'
-                            : 'border border-transparent focus:ring-2 focus:ring-primary-container'
-                        }`}
-                        id="confirm-password"
-                        placeholder="Re-enter new secure password"
-                        type={showConfirmPassword ? "text" : "password"}
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                      />
-                      <button
-                        className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center text-secondary hover:text-on-surface cursor-pointer rounded-r-lg transition-colors"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        type="button"
-                        aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"}
-                      >
-                        <span className="material-symbols-outlined text-[20px]">
-                          {showConfirmPassword ? "visibility_off" : "visibility"}
-                        </span>
-                      </button>
-                    </div>
-                    {confirmPassword.length > 0 && (
-                      <div className="flex items-center gap-1.5 mt-0.5 transition-all text-xs">
-                        {newPassword.length === 0 ? (
-                          <span className="text-secondary flex items-center gap-1 font-medium">
-                            <span className="material-symbols-outlined text-[16px]">info</span>
-                            Please enter new password first
-                          </span>
-                        ) : confirmPassword === newPassword ? (
-                          <span className="text-primary flex items-center gap-1 font-medium">
-                            <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                            Passwords match
-                          </span>
-                        ) : (
-                          <span className="text-error flex items-center gap-1 font-medium">
-                            <span className="material-symbols-outlined text-[16px]">cancel</span>
-                            Passwords do not match
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-space-xs">
-                    <button
-                      className="w-full h-11 sm:h-10 bg-primary-container hover:bg-primary text-on-primary rounded-lg font-label-md transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                      type="submit"
-                      disabled={isUpdatingPassword}
-                    >
-                      {isUpdatingPassword ? (
-                        <>
-                          <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
-                          <span>Updating Password...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="material-symbols-outlined text-[18px]">key</span>
-                          <span>Update Password</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              {/* Partner Support Card */}
-              <div className="lg:col-span-5 bg-surface-container-lowest rounded-xl shadow-sm p-4 sm:p-6 border border-surface-container-high relative overflow-hidden">
-                <div className="w-1.5 h-full bg-primary absolute left-0 top-0"></div>
-                <div className="flex flex-col gap-3 min-w-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-tertiary-container/30 text-on-tertiary-container flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[22px]">contact_support</span>
-                    </div>
-                    <div>
-                      <h3 className="text-base sm:text-lg font-bold text-on-surface">Sunvine Partner Support</h3>
-                      <p className="text-xs text-secondary">Direct EPC partner priority assistance.</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-col gap-2.5 font-body-sm min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[18px] text-primary shrink-0">support_agent</span>
-                      <span className="text-secondary text-xs">Official Helpline:</span>
-                      <a className="text-on-surface font-bold hover:text-primary transition-colors text-xs ml-auto" href="tel:+918000050580">
-                        +91 80000 50580
-                      </a>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[18px] text-primary shrink-0">mail</span>
-                      <span className="text-secondary text-xs">Email Desk:</span>
-                      <a className="text-on-surface font-semibold hover:text-primary transition-colors text-xs ml-auto" href="mailto:support@sunvine.in">
-                        support@sunvine.in
-                      </a>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[18px] text-primary shrink-0">schedule</span>
-                      <span className="text-secondary text-xs">Working Hours:</span>
-                      <span className="text-on-surface font-medium text-xs ml-auto">Mon - Sat (9am - 7pm)</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           )}
 
           {/* Section C: DISCOM & Grid Connections */}
