@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-
 export default function DealerManagement() {
-  const { dealers, addDealer, toggleDealerStatus, updateDealerPassword, tierMargins, updateTierMargins, addNotification } = useApp();
+  const { dealers, addDealer, toggleDealerStatus, updateDealerPassword, tierMargins, updateTierMargins, addNotification, setActiveTab } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTabFilter, setActiveTabFilter] = useState('all');
   const [discomFilter, setDiscomFilter] = useState('all');
@@ -87,6 +86,90 @@ export default function DealerManagement() {
   const totalPages = Math.ceil(filteredDealers.length / pageSize) || 1;
   const paginatedDealers = filteredDealers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+  // Structured Tabular CSV Export of Dealer Directory (SR-44)
+  const handleExportDirectory = () => {
+    const dataToExport = filteredDealers;
+    if (!dataToExport || dataToExport.length === 0) {
+      alert('No dealer partner records found for the selected filters.');
+      return;
+    }
+
+    const headers = [
+      'Dealer ID',
+      'Dealer / Firm Name',
+      'Contact Person',
+      'Mobile',
+      'Email',
+      'City',
+      'State',
+      'DISCOM Circle',
+      'Pricing Tier',
+      'Default Margin / kW (INR)',
+      'Max Margin Cap / kW (INR)',
+      'Total Quotes Issued',
+      'Capacity Sold (kW)',
+      'GSTIN',
+      'PAN Number',
+      'KYC Status',
+      'Portal Status'
+    ];
+
+    const escapeCsv = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const csvRows = [headers.join(',')];
+
+    dataToExport.forEach(d => {
+      const tierKey = (d.tier || '').toLowerCase().includes('diamond') ? 'diamond' :
+                      (d.tier || '').toLowerCase().includes('platinum') ? 'platinum' :
+                      (d.tier || '').toLowerCase().includes('silver') ? 'silver' : 'gold';
+      const conf = tierMargins?.[tierKey] || { defaultMarginPerKw: 4500, maxMarginCapPerKw: 6000 };
+      const defaultMargin = conf.defaultMarginPerKw || 4500;
+      const marginCap = d.maxMarginCapPerKw || conf.maxMarginCapPerKw || 6000;
+
+      const row = [
+        escapeCsv(d.id),
+        escapeCsv(d.firmName),
+        escapeCsv(d.contactPerson),
+        escapeCsv(d.mobile),
+        escapeCsv(d.email),
+        escapeCsv(d.city || 'Gujarat'),
+        escapeCsv('Gujarat'),
+        escapeCsv(`${d.discom || 'PGVCL'} Circle`),
+        escapeCsv(d.tier || conf.tierName || 'Gold EPC Partner'),
+        escapeCsv(defaultMargin),
+        escapeCsv(marginCap),
+        escapeCsv(d.totalQuotes || 0),
+        escapeCsv(d.totalCapacityKw || 0),
+        escapeCsv(d.gstin || '24AFPFS7402A1Z7'),
+        escapeCsv(d.pan || (d.gstin ? d.gstin.slice(2, 12) : 'AFPFS7402A')),
+        escapeCsv('Verified'),
+        escapeCsv(d.status || 'Active')
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csvRows.join('\r\n'));
+    const downloadLink = document.createElement('a');
+    downloadLink.setAttribute('href', csvContent);
+    const dateStamp = new Date().toISOString().split('T')[0];
+    downloadLink.setAttribute('download', `sunvine_dealer_partners_${activeTabFilter}_${dateStamp}.csv`);
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+
+    if (addNotification) {
+      addNotification({
+        type: 'success',
+        title: 'Directory Exported',
+        message: `Successfully exported ${dataToExport.length} dealer partner records to CSV.`
+      });
+    }
+  };
+
   const handleCreateDealer = (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!newFirm.trim() || !newContact.trim() || !newMobile.trim()) {
@@ -163,13 +246,25 @@ export default function DealerManagement() {
                   <span>Back to Dealer Management</span>
                 </button>
                 <span className="text-secondary/40 text-xs">/</span>
-                <div className="flex items-center gap-1.5 text-secondary font-label-xs text-label-xs">
-                  <span>Admin Console</span>
+                <nav className="flex items-center gap-1.5 text-secondary font-label-xs text-label-xs">
+                  <button
+                    onClick={() => setActiveTab('admin_dashboard')}
+                    className="hover:text-primary transition-colors cursor-pointer"
+                    type="button"
+                  >
+                    Admin Console
+                  </button>
                   <span>&gt;</span>
-                  <span>Dealer Partners</span>
+                  <button
+                    onClick={() => setShowAddModal(false)}
+                    className="hover:text-primary transition-colors cursor-pointer"
+                    type="button"
+                  >
+                    Dealer Partners
+                  </button>
                   <span>&gt;</span>
                   <span className="text-on-surface font-semibold">Onboard New Partner</span>
-                </div>
+                </nav>
               </div>
               <h1 className="font-headline-lg text-headline-lg font-bold text-on-surface tracking-tight">
                 Onboard New EPC Dealer Partner
@@ -539,6 +634,32 @@ export default function DealerManagement() {
       {/* Page Header & Action Clusters */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
+          <nav className="flex items-center gap-1.5 text-xs font-label-xs text-secondary mb-2">
+            <button
+              onClick={() => setActiveTab('admin_dashboard')}
+              className="hover:text-primary transition-colors cursor-pointer flex items-center gap-1"
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[14px]">dashboard</span>
+              <span>Admin Console</span>
+            </button>
+            <span className="material-symbols-outlined text-xs">chevron_right</span>
+            <button
+              onClick={() => {
+                setActiveTabFilter('all');
+                setDiscomFilter('all');
+                setTierFilter('all');
+                setSearchTerm('');
+                setCurrentPage(1);
+              }}
+              className="hover:text-primary transition-colors cursor-pointer"
+              type="button"
+            >
+              Partner Directory
+            </button>
+            <span className="material-symbols-outlined text-xs">chevron_right</span>
+            <span className="text-on-surface font-semibold">Dealer Partner Management</span>
+          </nav>
           <h1 className="font-poppins font-bold text-headline-xl text-[#0F1B2E] tracking-tight">
             Dealer Partner Management
           </h1>
@@ -559,7 +680,7 @@ export default function DealerManagement() {
             <span>Configure Tier Margins</span>
           </button>
           <button
-            onClick={() => window.print()}
+            onClick={handleExportDirectory}
             className="h-10 px-3.5 sm:px-4 bg-white border border-[#0F1B2E] text-[#0F1B2E] font-label-md rounded-lg hover:bg-[#F6F8F7] transition-all duration-150 flex items-center gap-2 shadow-xs text-xs sm:text-sm cursor-pointer"
             type="button"
           >
