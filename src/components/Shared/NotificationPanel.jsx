@@ -14,7 +14,9 @@ export default function NotificationPanel({
     markAllNotificationsAsRead,
     deleteNotification,
     clearAllNotifications,
-    setActiveTab
+    setActiveTab,
+    setIsChangelogModalOpen,
+    openChangelogModal
   } = useApp();
 
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'unread'
@@ -75,10 +77,39 @@ export default function NotificationPanel({
     return true;
   });
 
-  // Clicking card marks as read without closing panel
+  const isReleaseNotif = (notif) => {
+    return Boolean(
+      notif.isRelease ||
+      notif.id?.startsWith('release-') ||
+      notif.icon === 'system_update' ||
+      notif.title?.toLowerCase().includes('version') ||
+      notif.title?.toLowerCase().includes('updated to')
+    );
+  };
+
+  const handleOpenReleaseLogs = (e, notif) => {
+    e?.stopPropagation?.();
+    if (!notif.read) {
+      markNotificationAsRead(notif.id);
+    }
+    if (openChangelogModal) {
+      openChangelogModal(notif.version || null);
+    } else if (setIsChangelogModalOpen) {
+      setIsChangelogModalOpen(true);
+    }
+  };
+
+  // Clicking card marks as read; for release notifications, opens release logs
   const handleCardClick = (notif) => {
     if (!notif.read) {
       markNotificationAsRead(notif.id);
+    }
+    if (isReleaseNotif(notif)) {
+      if (openChangelogModal) {
+        openChangelogModal(notif.version || null);
+      } else if (setIsChangelogModalOpen) {
+        setIsChangelogModalOpen(true);
+      }
     }
   };
 
@@ -202,6 +233,19 @@ export default function NotificationPanel({
                   {unreadNotificationsCount} new
                 </span>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (openChangelogModal) openChangelogModal();
+                  else if (setIsChangelogModalOpen) setIsChangelogModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#6CBF3D]/15 hover:bg-[#6CBF3D]/25 text-[#4F9A2C] dark:text-[#8AE256] text-[10px] font-bold tracking-tight transition-colors cursor-pointer border border-[#6CBF3D]/30"
+                title="View latest deployment release notes and system changelog"
+              >
+                <span className="material-symbols-outlined text-[13px]">receipt_long</span>
+                <span className="hidden sm:inline">v2.1.1 Logs</span>
+                <span className="sm:hidden">v2.1.1</span>
+              </button>
             </div>
           </div>
 
@@ -358,7 +402,16 @@ export default function NotificationPanel({
 
                     {/* Bottom Action Footer Row inside Card */}
                     <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-surface-container-high/40">
-                      {notif.targetTab ? (
+                      {isReleaseNotif(notif) ? (
+                        <button
+                          type="button"
+                          onClick={(e) => handleOpenReleaseLogs(e, notif)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#6CBF3D]/15 hover:bg-[#6CBF3D]/25 text-[#4F9A2C] dark:text-[#8AE256] text-[11px] font-bold transition-all cursor-pointer truncate min-w-0 border border-[#6CBF3D]/30 active:scale-95"
+                        >
+                          <span className="material-symbols-outlined text-[14px] shrink-0">receipt_long</span>
+                          <span className="truncate">View Release Logs</span>
+                        </button>
+                      ) : notif.targetTab ? (
                         <button
                           type="button"
                           onClick={(e) => handleNavigate(e, notif)}
