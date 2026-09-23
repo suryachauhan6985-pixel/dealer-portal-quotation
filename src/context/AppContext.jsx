@@ -10,6 +10,12 @@ import {
   PDF_BOM_SPECIFICATIONS,
   SUNVINE_OFFICIAL_PROFILE
 } from '../data/defaultPresets';
+import {
+  STANDARD_BOM_CATALOG,
+  STANDARD_BOM_CATEGORIES,
+  DEFAULT_CAPACITY_BOM,
+  resolveCapacityBom
+} from '../data/standardBomData';
 
 const DB_VERSION = 'sunvine_gujarat_ledger_200_v1';
 
@@ -206,6 +212,30 @@ const safeSetItem = (key, value) => {
     return (Array.isArray(parsed) && parsed.length > 0) ? parsed : PDF_BOS_PRICE_MATRIX;
   });
 
+  // Standard BOM Item Rates (Admin Configurable)
+  const defaultBomRates = useMemo(() => {
+    return STANDARD_BOM_CATALOG.reduce((acc, item) => {
+      acc[item.id] = item.defaultRate;
+      return acc;
+    }, {});
+  }, []);
+
+  const [bomRates, setBomRates] = useState(() => {
+    if (!isDbUpToDate) return defaultBomRates;
+    return safeJsonParse('sunvine_bom_rates', defaultBomRates);
+  });
+
+  // Standard Capacity-Wise BOM Quantities (Admin Configurable)
+  const [capacityBomMatrix, setCapacityBomMatrix] = useState(() => {
+    if (!isDbUpToDate) return DEFAULT_CAPACITY_BOM;
+    return safeJsonParse('sunvine_capacity_bom', DEFAULT_CAPACITY_BOM);
+  });
+
+  // Catalog items viewed by dealer (for "NEW" badge management)
+  const [seenCatalogItemIds, setSeenCatalogItemIds] = useState(() => {
+    return safeJsonParse('sunvine_seen_catalog_items', []);
+  });
+
   // Quotations List (All in Gujarat)
   const [quotations, setQuotations] = useState(() => {
     if (!isDbUpToDate) return INITIAL_QUOTATIONS;
@@ -287,6 +317,124 @@ const safeSetItem = (key, value) => {
   useEffect(() => {
     safeSetItem('sunvine_notifications', notifications);
   }, [notifications]);
+
+  useEffect(() => {
+    safeSetItem('sunvine_bom_rates', bomRates);
+  }, [bomRates]);
+
+  useEffect(() => {
+    safeSetItem('sunvine_capacity_bom', capacityBomMatrix);
+  }, [capacityBomMatrix]);
+
+  useEffect(() => {
+    safeSetItem('sunvine_seen_catalog_items', seenCatalogItemIds);
+  }, [seenCatalogItemIds]);
+
+  const updateBomItemRate = (itemId, newRate) => {
+    setBomRates(prev => ({
+      ...prev,
+      [itemId]: Number(newRate) || 0
+    }));
+  };
+
+  const updateCapacityBomItemQty = (capacityKW, itemId, qty) => {
+    const kwKey = parseFloat(capacityKW).toFixed(1);
+    setCapacityBomMatrix(prev => {
+      const existing = prev[kwKey] || prev['3.3'] || { capacityKW: parseFloat(capacityKW), items: {} };
+      return {
+        ...prev,
+        [kwKey]: {
+          ...existing,
+          capacityKW: parseFloat(capacityKW),
+          items: {
+            ...existing.items,
+            [itemId]: Math.max(0, Number(qty) || 0)
+          }
+        }
+      };
+    });
+  };
+
+  const updateCapacityBomPreset = (capacityKW, newPreset) => {
+    const kwKey = parseFloat(capacityKW).toFixed(1);
+    setCapacityBomMatrix(prev => ({
+      ...prev,
+      [kwKey]: newPreset
+    }));
+  };
+
+  const addNewModule = (newModule) => {
+    const brand = newModule.brand?.trim() || 'Custom';
+    const model = newModule.model?.trim() || 'Solar Module';
+    const id = `mod-${Date.now()}`;
+    const moduleEntry = {
+      id,
+      brand,
+      model,
+      cellTech: newModule.cellTech || 'N-Type TOPCon',
+      wattage: Number(newModule.wattage) || 550,
+      efficiency: newModule.efficiency || '22.0%',
+      ratePerWp: newModule.ratePerWp ? (typeof newModule.ratePerWp === 'number' ? `₹ ${newModule.ratePerWp.toFixed(2)}/Wp` : newModule.ratePerWp) : '₹ 19.50/Wp',
+      warranty: newModule.warranty || '30 Yrs',
+      isNew: true,
+      createdAt: Date.now()
+    };
+    setModulesList(prev => [moduleEntry, ...prev]);
+    addNotification({
+      type: 'success',
+      title: 'New Solar Module Added',
+      message: `Admin introduced ${brand} ${model} (${moduleEntry.wattage}W) to dealer catalogs.`,
+      audience: 'all'
+    });
+    return moduleEntry;
+  };
+
+  const addNewInverter = (newInverter) => {
+    const brand = newInverter.brand?.trim() || 'Custom';
+    const model = newInverter.model?.trim() || 'Solar Inverter';
+    const id = `inv-${Date.now()}`;
+    const inverterEntry = {
+      id,
+      brand,
+      model,
+      capacity: newInverter.capacity || '5.0 kW',
+      phase: newInverter.phase || '1-Phase 230V / 2 MPPT',
+      efficiency: newInverter.efficiency || '98.5%',
+      warranty: newInverter.warranty || '8 Years',
+      cloud: newInverter.cloud || 'Integrated Wi-Fi',
+      isNew: true,
+      createdAt: Date.now()
+    };
+    setInvertersList(prev => [inverterEntry, ...prev]);
+    addNotification({
+      type: 'success',
+      title: 'New Solar Inverter Added',
+      message: `Admin introduced ${brand} ${model} (${inverterEntry.capacity}) to dealer catalogs.`,
+      audience: 'all'
+    });
+    return inverterEntry;
+  };
+
+  const markCatalogItemSeen = (itemId) => {
+    if (!itemId) return;
+    setSeenCatalogItemIds(prev => {
+      if (prev.includes(itemId)) return prev;
+      return [...prev, itemId];
+    });
+  };
+
+  const isCatalogItemNew = (item) => {
+    if (!item) return false;
+    const itemId = item.id || `${item.brand}-${item.model}`;
+    if (seenCatalogItemIds.includes(itemId)) return false;
+    if (item.isNew) return true;
+    if (item.createdAt && (Date.now() - item.createdAt < 7 * 24 * 3600 * 1000)) return true;
+    return false;
+  };
+
+  const getResolvedBom = (capacityKW) => {
+    return resolveCapacityBom(capacityKW, capacityBomMatrix, bomRates);
+  };
 
   // Auth Actions
   const login = (userRole, userProfile = null) => {
@@ -549,7 +697,22 @@ const safeSetItem = (key, value) => {
         pdfBosMatrix,
         setPdfBosMatrix,
         pdfBomSpecs: PDF_BOM_SPECIFICATIONS,
-        officialProfile: SUNVINE_OFFICIAL_PROFILE
+        officialProfile: SUNVINE_OFFICIAL_PROFILE,
+        // Standard BOM & BoS Engine
+        bomCatalog: STANDARD_BOM_CATALOG,
+        bomCategories: STANDARD_BOM_CATEGORIES,
+        bomRates,
+        updateBomItemRate,
+        capacityBomMatrix,
+        updateCapacityBomItemQty,
+        updateCapacityBomPreset,
+        getResolvedBom,
+        // Dynamic Catalogs & 'NEW' Badge Tracking
+        addNewModule,
+        addNewInverter,
+        seenCatalogItemIds,
+        markCatalogItemSeen,
+        isCatalogItemNew
       }}
     >
       {children}

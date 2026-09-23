@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { quotationService } from '../../services/quotationService';
 import { useToast } from '../Shared/Toast';
@@ -19,7 +19,11 @@ export default function CreateQuotation() {
     setPreviewQuotation,
     addNotification,
     pricingPresets,
-    tierMargins
+    tierMargins,
+    modulesList,
+    invertersList,
+    isCatalogItemNew,
+    markCatalogItemSeen
   } = useApp();
 
   const { addToast } = useToast();
@@ -36,17 +40,20 @@ export default function CreateQuotation() {
   const [custPhone, setCustPhone] = useState('');
   const [custLocation, setCustLocation] = useState('');
 
-  // Step 1.2 System Details
-  const [systemCapacity, setSystemCapacity] = useState('5');
-  const [panelBrand, setPanelBrand] = useState('Sunvine Monocrystalline Half-Cut 550W (Tier 1)');
-  const [inverterModel, setInverterModel] = useState('Sunvine Solar Hybrid Inverter 5kW 3-Phase');
+  // Step 1.2 System Details (Standard field presets)
+  const [systemCapacity, setSystemCapacity] = useState('3.3');
+  const [panelBrand, setPanelBrand] = useState('Waaree 585W TOPCon Bifacial (ALMM List-I)');
+  const [inverterModel, setInverterModel] = useState('Sunvine Solaryaan 5.0G (1-Phase 2 MPPT)');
   const [showInverterModal, setShowInverterModal] = useState(false);
+
+  // Multi-Panel Quotation Toggle
+  const [multiBrandComparison, setMultiBrandComparison] = useState(false);
 
   // Step 1.3 Pricing & Subsidy (Linked to Admin Pricing Presets & Dealer Tier Margins)
   const [ratePerKw, setRatePerKw] = useState(() => pricingPresets?.baseRatePerKw || 59800);
   const [marginMode, setMarginMode] = useState('amount'); // default to fixed amount matching tier
   const [dealerMarginRate, setDealerMarginRate] = useState(8); // 8%
-  const [dealerMarginFixed, setDealerMarginFixed] = useState(() => tierConfig.defaultMarginPerKw * 5);
+  const [dealerMarginFixed, setDealerMarginFixed] = useState(() => tierConfig.defaultMarginPerKw * 3.3);
   const [saveStatus, setSaveStatus] = useState('');
 
   useEffect(() => {
@@ -88,8 +95,9 @@ export default function CreateQuotation() {
   }, [editingQuotation]);
 
   // Sizing Computations
-  const kw = parseFloat(systemCapacity) || 5;
-  const panelWatt = panelBrand.includes('580W') ? 580 : panelBrand.includes('440W') ? 440 : 550;
+  const kw = parseFloat(systemCapacity) || 3.3;
+  const matchedWatt = panelBrand.match(/(\d{3})\s*W/i);
+  const panelWatt = matchedWatt ? Number(matchedWatt[1]) : 585;
   const moduleCount = Math.ceil((kw * 1000) / panelWatt);
   const rooftopAreaSqFt = Math.round(kw * 64);
 
@@ -124,6 +132,35 @@ export default function CreateQuotation() {
   const paybackYears = annualSavings > 0 ? (finalPayable / annualSavings).toFixed(1) : '3.8';
   const paybackPercent = Math.min(100, Math.round((parseFloat(paybackYears) / 10) * 100));
   const breakEvenYear = new Date().getFullYear() + Math.ceil(parseFloat(paybackYears));
+
+  // Multi-brand comparison package calculator (Waaree vs APS vs Adani)
+  const multiBrandPackages = useMemo(() => {
+    if (!multiBrandComparison) return null;
+    const candidates = [
+      { name: 'Waaree 585W TOPCon Bifacial', brand: 'Waaree', wattage: 585, rateOffset: 0 },
+      { name: 'APS 600W TOPCon Bifacial', brand: 'APS', wattage: 600, rateOffset: -600 },
+      { name: 'Adani 550W Vertex Mono PERC', brand: 'Adani', wattage: 550, rateOffset: +500 }
+    ];
+    return candidates.map((c) => {
+      const pWatt = c.wattage;
+      const count = Math.ceil((kw * 1000) / pWatt);
+      const pkgRate = ratePerKw + c.rateOffset;
+      const bCost = Math.round(kw * pkgRate);
+      const tCost = bCost + dealerMarginINR;
+      const payable = Math.max(0, tCost - subsidy);
+      return {
+        brand: c.brand,
+        name: c.name,
+        wattage: pWatt,
+        moduleCount: count,
+        ratePerKw: pkgRate,
+        baseCost: bCost,
+        totalCost: tCost,
+        subsidy,
+        netPayable: payable
+      };
+    });
+  }, [multiBrandComparison, kw, ratePerKw, dealerMarginINR, subsidy]);
 
   const availableInverters = [
     { name: 'Sunvine Solar Hybrid Inverter 5kW 3-Phase', efficiency: '98.4%', specs: 'Built-in WiFi Smart Logger • IP65 Protection' },
@@ -166,6 +203,10 @@ export default function CreateQuotation() {
       systemCapacityKW: kw,
       panelType: panelBrand,
       solarModule: panelBrand,
+      selectedModuleMake: panelBrand.split(' ')[0],
+      selectedInverterMake: inverterModel.split(' ')[0],
+      multiBrandComparison,
+      multiBrandPackages: multiBrandComparison ? multiBrandPackages : null,
       inverterType: inverterModel,
       inverterCapacity: `${kw} kW`,
       baseCost: baseProjectCost,
@@ -230,6 +271,10 @@ export default function CreateQuotation() {
       state: 'Gujarat',
       systemCapacityKW: kw,
       solarModule: panelBrand,
+      selectedModuleMake: panelBrand.split(' ')[0],
+      selectedInverterMake: inverterModel.split(' ')[0],
+      multiBrandComparison,
+      multiBrandPackages: multiBrandComparison ? multiBrandPackages : null,
       moduleCount: moduleCount,
       pvModuleSize: '4 * 8',
       inverterCapacity: `${kw} kW`,
@@ -427,62 +472,161 @@ export default function CreateQuotation() {
                       value={systemCapacity}
                       onChange={(e) => setSystemCapacity(e.target.value)}
                     >
-                      <option value="3">3 kW (On-Grid Rooftop Residential)</option>
-                      <option value="5">5 kW (On-Grid Rooftop Residential)</option>
-                      <option value="7">7 kW (On-Grid Rooftop Residential)</option>
-                      <option value="10">10 kW (Commercial / High Load)</option>
+                      <option value="2.2">2.2 kW (4 Panels Rooftop)</option>
+                      <option value="3.3">3.3 kW (6 Panels Standard Field Spec)</option>
+                      <option value="4.4">4.4 kW (8 Panels Rooftop)</option>
+                      <option value="5.5">5.5 kW (10 Panels Rooftop)</option>
+                      <option value="6.6">6.6 kW (12 Panels Rooftop)</option>
+                      <option value="8">8.0 kW (14 Panels High-Capacity)</option>
+                      <option value="10">10.0 kW (Commercial / High Load)</option>
                     </select>
                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
                   </div>
                 </div>
 
-                {/* Panel Brand Selector */}
+                {/* Panel Brand Selector with Dynamic Catalog & NEW badge */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="panelBrand">
-                    Solar Panel Brand &amp; Wattage
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="panelBrand">
+                      Solar Panel Brand &amp; Model
+                    </label>
+                    {(() => {
+                      const activeMod = (modulesList || []).find(m => `${m.brand} ${m.model}` === panelBrand);
+                      return activeMod && isCatalogItemNew && isCatalogItemNew(activeMod) ? (
+                        <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider animate-pulse">
+                          NEW
+                        </span>
+                      ) : null;
+                    })()}
+                  </div>
                   <div className="relative">
                     <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">grid_view</span>
                     <select
                       className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
                       id="panelBrand"
                       value={panelBrand}
-                      onChange={(e) => setPanelBrand(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPanelBrand(val);
+                        const mod = (modulesList || []).find(m => `${m.brand} ${m.model}` === val);
+                        if (mod && markCatalogItemSeen) {
+                          markCatalogItemSeen(mod.id || `${mod.brand}-${mod.model}`);
+                        }
+                      }}
                     >
-                      <option value="Sunvine Monocrystalline Half-Cut 550W (Tier 1)">Sunvine Monocrystalline Half-Cut 550W (Tier 1)</option>
-                      <option value="Sunvine TOPCon Dual-Glass Bi-Facial 580W">Sunvine TOPCon Dual-Glass Bi-Facial 580W</option>
-                      <option value="Sunvine High-Density Poly 440W Standard">Sunvine High-Density Poly 440W Standard</option>
+                      {(modulesList || [
+                        { brand: 'Waaree', model: '585W TOPCon Bifacial (ALMM List-I)' },
+                        { brand: 'APS', model: '600W TOPCon Bifacial (ALMM List-I)' },
+                        { brand: 'Adani', model: '550W Vertex Mono PERC' },
+                        { brand: 'Rayzone', model: '550W Bifacial TOPCon' }
+                      ]).map((mod, idx) => {
+                        const fullName = `${mod.brand} ${mod.model}`;
+                        const isNew = isCatalogItemNew ? isCatalogItemNew(mod) : false;
+                        return (
+                          <option key={mod.id || idx} value={fullName}>
+                            {fullName} {isNew ? '★ [NEW]' : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
                   </div>
                 </div>
               </div>
 
-              {/* Inverter Configuration Card Option */}
-              <div className="flex flex-col gap-2 pt-1">
-                <label className="font-label-sm text-label-sm text-on-surface font-semibold">Selected Inverter Unit</label>
-                <div className="p-3.5 rounded-lg bg-surface-container-low border border-surface-container-high flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-lg bg-surface-container-lowest flex items-center justify-center text-primary shadow-xs border border-surface-container-high shrink-0">
-                      <span className="material-symbols-outlined text-[22px]">developer_board</span>
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-label-md text-label-md text-on-surface font-bold truncate">{inverterModel}</span>
-                        <span className="px-2 py-0.5 rounded-full bg-primary-container/20 text-on-primary-container font-label-xs font-semibold shrink-0">Included</span>
-                      </div>
-                      <span className="font-body-sm text-xs sm:text-body-sm text-secondary">Efficiency 98.4% • Built-in WiFi Smart Logger • IP65 Protection</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowInverterModal(true)}
-                    className="text-tertiary hover:text-on-tertiary-container font-label-sm text-left sm:text-right self-start sm:self-auto underline-offset-4 hover:underline cursor-pointer font-semibold shrink-0"
-                    type="button"
+              {/* Inverter Configuration Selector with Dynamic Catalog & NEW badge */}
+              <div className="flex flex-col gap-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="font-label-sm text-label-sm text-on-surface font-semibold">Selected Inverter Unit</label>
+                  {(() => {
+                    const activeInv = (invertersList || []).find(i => `${i.brand} ${i.model}` === inverterModel);
+                    return activeInv && isCatalogItemNew && isCatalogItemNew(activeInv) ? (
+                      <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider animate-pulse">
+                        NEW
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">developer_board</span>
+                  <select
+                    className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
+                    value={inverterModel}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setInverterModel(val);
+                      const inv = (invertersList || []).find(i => `${i.brand} ${i.model}` === val);
+                      if (inv && markCatalogItemSeen) {
+                        markCatalogItemSeen(inv.id || `${inv.brand}-${inv.model}`);
+                      }
+                    }}
                   >
-                    Change Model
-                  </button>
+                    {(invertersList || [
+                      { brand: 'Sunvine', model: 'Solaryaan 5.0G (1-Phase 2 MPPT)' },
+                      { brand: 'Solis', model: 'S6-GR1P-5K (1-Phase 2 MPPT)' },
+                      { brand: 'Sungrow', model: 'SG5.0RS Residential Grid-Tied' },
+                      { brand: 'Growatt', model: 'MIN 5000TL-X Dual MPPT' }
+                    ]).map((inv, idx) => {
+                      const fullName = `${inv.brand} ${inv.model}`;
+                      const isNew = isCatalogItemNew ? isCatalogItemNew(inv) : false;
+                      return (
+                        <option key={inv.id || idx} value={fullName}>
+                          {fullName} {isNew ? '★ [NEW]' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
                 </div>
               </div>
+
+              {/* Multi-Panel Comparative Quotation Toggle */}
+              <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-container-low border border-surface-container-high mt-1">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary-container/15 text-primary flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[18px]">view_column</span>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-label-md text-label-md font-bold text-on-surface">Multi-Panel Comparative Proposal</span>
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-primary/10 text-primary uppercase">Single PDF</span>
+                    </div>
+                    <p className="text-xs text-secondary">Present side-by-side brand pricing comparison (Waaree vs APS vs Adani) in customer quotation</p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-3">
+                  <input
+                    type="checkbox"
+                    checked={multiBrandComparison}
+                    onChange={(e) => setMultiBrandComparison(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
+
+              {/* Multi-Panel Comparison Live Preview Card when active */}
+              {multiBrandComparison && multiBrandPackages && (
+                <div className="p-3.5 rounded-xl bg-primary-container/5 border border-primary/20 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-primary flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm">compare_arrows</span>
+                      Comparative Brand Breakdown ({kw} kW)
+                    </span>
+                    <span className="text-[10px] text-secondary">Injected into PDF Page 2</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {multiBrandPackages.map((pkg, pIdx) => (
+                      <div key={pIdx} className="p-2.5 rounded-lg bg-surface-container-lowest border border-surface-container-high text-xs space-y-1">
+                        <div className="font-bold text-on-surface">{pkg.brand}</div>
+                        <div className="text-[11px] text-secondary">{pkg.moduleCount} modules × {pkg.wattage}W</div>
+                        <div className="text-primary font-bold">{formatINR(pkg.totalCost)}</div>
+                        <div className="text-[10px] text-emerald-700 font-semibold">Net: {formatINR(pkg.netPayable)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Visual Hardware Configuration Tile */}
               <div className="mt-1 rounded-lg bg-surface border border-surface-container-high p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

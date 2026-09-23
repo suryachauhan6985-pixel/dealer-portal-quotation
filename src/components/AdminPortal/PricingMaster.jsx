@@ -15,7 +15,19 @@ export default function PricingMaster() {
     tierMargins,
     updateTierMargins,
     modulesList,
-    invertersList
+    setModulesList,
+    invertersList,
+    setInvertersList,
+    addNewModule,
+    addNewInverter,
+    bomCatalog,
+    bomCategories,
+    bomRates,
+    updateBomItemRate,
+    capacityBomMatrix,
+    updateCapacityBomItemQty,
+    updateCapacityBomPreset,
+    getResolvedBom
   } = useApp();
 
   // Initialize tab from URL query param if present (?tab=base|modules|bom|bank)
@@ -65,6 +77,34 @@ export default function PricingMaster() {
   // Tier margins state
   const [localTierMargins, setLocalTierMargins] = useState(() => tierMargins || {});
 
+  // Add Module Modal state
+  const [showAddModuleModal, setShowAddModuleModal] = useState(false);
+  const [newModuleForm, setNewModuleForm] = useState({
+    brand: '',
+    model: '',
+    cellTech: 'N-Type TOPCon',
+    wattage: 585,
+    efficiency: '22.6%',
+    ratePerWp: 19.50,
+    warranty: '30 Yrs'
+  });
+
+  // Add Inverter Modal state
+  const [showAddInverterModal, setShowAddInverterModal] = useState(false);
+  const [newInverterForm, setNewInverterForm] = useState({
+    brand: '',
+    model: '',
+    capacity: '5.0 kW',
+    phase: '1-Phase 230V / 2 MPPT',
+    efficiency: '98.5%',
+    warranty: '8 Years',
+    cloud: 'Integrated Wi-Fi'
+  });
+
+  // Capacity selector for BOM Tab (e.g. 2.2, 3.3, 4.4, 5.5, 6.6, 8.0, 10.0)
+  const [selectedBomCapacity, setSelectedBomCapacity] = useState('3.3');
+  const [customBomKwInput, setCustomBomKwInput] = useState('');
+
   // Form states initialized with pricingMaster or realistic defaults
   const [rate1to3, setRate1to3] = useState(pricingMaster?.baseRates?.tier1to3kw || 62000);
   const [rate3to10, setRate3to10] = useState(pricingMaster?.baseRates?.tier3to10kw || 58000);
@@ -109,6 +149,11 @@ export default function PricingMaster() {
   const getRayzonePrice = (row) => row.rayzonePrice ?? row.rayzone ?? 0;
   const getWaareePrice = (row) => row.waaree585Price ?? row.waaree585Topcon ?? 0;
   const getApsTopconPrice = (row) => row.apsTopcon600Price ?? row.apsTopcon600 ?? 0;
+
+  const formatINR = (val) => {
+    if (val === undefined || val === null || isNaN(val)) return '₹\u00A00';
+    return '₹\u00A0' + Number(val).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  };
 
   // Sync tab with URL search params
   const handleTabChange = (tabKey) => {
@@ -263,6 +308,62 @@ export default function PricingMaster() {
         setPdfBosMatrix(PDF_BOS_PRICE_MATRIX);
       }
       triggerToast('Reset BOS Price Matrix to official PDF defaults');
+    }
+  };
+
+  const handleSaveModuleForm = (e) => {
+    e.preventDefault();
+    if (!newModuleForm.brand.trim() || !newModuleForm.model.trim()) {
+      triggerToast('Please provide both Brand and Model name');
+      return;
+    }
+    const created = addNewModule(newModuleForm);
+    setShowAddModuleModal(false);
+    setNewModuleForm({
+      brand: '',
+      model: '',
+      cellTech: 'N-Type TOPCon',
+      wattage: 585,
+      efficiency: '22.6%',
+      ratePerWp: 19.50,
+      warranty: '30 Yrs'
+    });
+    triggerToast(`Added ${created.brand} ${created.model} - "NEW" badge active for dealers!`);
+  };
+
+  const handleDeleteModule = (idx) => {
+    const mod = modulesList[idx];
+    if (window.confirm(`Remove ${mod.brand} ${mod.model} from master catalog?`)) {
+      setModulesList(prev => prev.filter((_, i) => i !== idx));
+      triggerToast(`Removed ${mod.brand} ${mod.model}`);
+    }
+  };
+
+  const handleSaveInverterForm = (e) => {
+    e.preventDefault();
+    if (!newInverterForm.brand.trim() || !newInverterForm.model.trim()) {
+      triggerToast('Please provide both Brand and Series/Model name');
+      return;
+    }
+    const created = addNewInverter(newInverterForm);
+    setShowAddInverterModal(false);
+    setNewInverterForm({
+      brand: '',
+      model: '',
+      capacity: '5.0 kW',
+      phase: '1-Phase 230V / 2 MPPT',
+      efficiency: '98.5%',
+      warranty: '8 Years',
+      cloud: 'Integrated Wi-Fi'
+    });
+    triggerToast(`Added ${created.brand} ${created.model} - "NEW" badge active for dealers!`);
+  };
+
+  const handleDeleteInverter = (idx) => {
+    const inv = invertersList[idx];
+    if (window.confirm(`Remove ${inv.brand} ${inv.model} from master catalog?`)) {
+      setInvertersList(prev => prev.filter((_, i) => i !== idx));
+      triggerToast(`Removed ${inv.brand} ${inv.model}`);
     }
   };
 
@@ -1099,13 +1200,23 @@ export default function PricingMaster() {
                         Approved Solar Modules Master Catalog
                       </h2>
                       <p className="font-body-sm text-body-sm text-secondary">
-                        ALMM List-I compliant high-efficiency bifacial &amp; mono PERC modules for Gujarat installations.
+                        ALMM List-I compliant high-efficiency bifacial &amp; mono PERC modules for Gujarat installations. Newly added modules will display a "NEW" badge for dealers until selected.
                       </p>
                     </div>
                   </div>
-                  <span className="font-label-xs text-label-xs bg-primary-container/15 text-primary px-2.5 py-1 rounded-full font-bold">
-                    {modulesList?.length || 5} ALMM Models
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-label-xs text-label-xs bg-primary-container/15 text-primary px-2.5 py-1 rounded-full font-bold">
+                      {modulesList?.length || 5} ALMM Models
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddModuleModal(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-container hover:bg-primary text-on-primary rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                      <span>Add New Module</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1119,24 +1230,36 @@ export default function PricingMaster() {
                         <th className="px-3 py-2 text-xs text-center whitespace-nowrap">Efficiency</th>
                         <th className="px-3 py-2 text-right whitespace-nowrap">Benchmark Wp Rate</th>
                         <th className="px-3 py-2 text-right whitespace-nowrap">Warranty</th>
+                        <th className="px-3 py-2 text-center whitespace-nowrap">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-container-highest font-body-sm text-xs text-on-surface">
-                      {(modulesList || [
-                        { brand: 'Waaree', model: '585W TOPCon Bifacial', cellTech: 'N-Type TOPCon', wattage: 585, efficiency: '22.6%', ratePerWp: '₹ 19.80/Wp', warranty: '30 Yrs' },
-                        { brand: 'APS', model: '600W TOPCon Bifacial', cellTech: 'N-Type TOPCon', wattage: 600, efficiency: '22.8%', ratePerWp: '₹ 19.20/Wp', warranty: '30 Yrs' },
-                        { brand: 'Adani', model: '550W Vertex Mono PERC', cellTech: 'Mono PERC Bi-Fi', wattage: 550, efficiency: '21.5%', ratePerWp: '₹ 20.10/Wp', warranty: '25 Yrs' },
-                        { brand: 'APS', model: '550W Mono Bifacial', cellTech: 'Mono Bifacial', wattage: 550, efficiency: '21.4%', ratePerWp: '₹ 18.90/Wp', warranty: '25 Yrs' },
-                        { brand: 'Rayzone', model: '550W Bifacial TOPCon', cellTech: 'TOPCon Bifacial', wattage: 550, efficiency: '21.5%', ratePerWp: '₹ 18.90/Wp', warranty: '25 Yrs' }
-                      ]).map((mod, idx) => (
-                        <tr key={idx} className="hover:bg-surface-container-low/60 transition-colors">
-                          <td className="px-3 py-2.5 font-bold text-inverse-surface whitespace-nowrap">{mod.brand}</td>
+                      {(modulesList || []).map((mod, idx) => (
+                        <tr key={mod.id || idx} className="hover:bg-surface-container-low/60 transition-colors">
+                          <td className="px-3 py-2.5 font-bold text-inverse-surface whitespace-nowrap flex items-center gap-1.5">
+                            <span>{mod.brand}</span>
+                            {mod.isNew && (
+                              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                                NEW
+                              </span>
+                            )}
+                          </td>
                           <td className="px-3 py-2.5 font-medium text-primary whitespace-nowrap">{mod.model}</td>
                           <td className="px-3 py-2.5 text-secondary whitespace-nowrap">{mod.cellTech}</td>
                           <td className="px-3 py-2.5 text-center font-mono font-bold text-on-surface whitespace-nowrap">{mod.wattage} W</td>
                           <td className="px-3 py-2.5 text-center font-mono whitespace-nowrap">{mod.efficiency}</td>
                           <td className="px-3 py-2.5 text-right font-mono font-semibold text-inverse-surface whitespace-nowrap tabular-nums">{mod.ratePerWp}</td>
                           <td className="px-3 py-2.5 text-right text-secondary whitespace-nowrap">{mod.warranty}</td>
+                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteModule(idx)}
+                              title="Delete module from catalog"
+                              className="text-secondary hover:text-error transition-colors p-1"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">delete</span>
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1156,13 +1279,23 @@ export default function PricingMaster() {
                         Approved Solar Inverters Master Catalog
                       </h2>
                       <p className="font-body-sm text-body-sm text-secondary">
-                        Grid-tied string inverters with built-in Wi-Fi monitoring and dual MPPT algorithms.
+                        Grid-tied string inverters with built-in Wi-Fi monitoring and dual MPPT algorithms. Newly added models show a "NEW" badge for dealers until selected.
                       </p>
                     </div>
                   </div>
-                  <span className="font-label-xs text-label-xs bg-primary-container/15 text-primary px-2.5 py-1 rounded-full font-bold">
-                    {invertersList?.length || 4} Certified Series
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-label-xs text-label-xs bg-primary-container/15 text-primary px-2.5 py-1 rounded-full font-bold">
+                      {invertersList?.length || 4} Certified Series
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddInverterModal(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-container hover:bg-primary text-on-primary rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                      <span>Add New Inverter</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1176,17 +1309,20 @@ export default function PricingMaster() {
                         <th className="px-3 py-2 text-xs text-center">Peak Efficiency</th>
                         <th className="px-3 py-2 text-right">Warranty Term</th>
                         <th className="px-3 py-2 text-center">Cloud Sync</th>
+                        <th className="px-3 py-2 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-container-highest font-body-sm text-xs text-on-surface">
-                      {(invertersList || [
-                        { brand: 'Sunvine', model: 'Solaryaan 5.0G', capacity: '5.0 kW', phase: '1-Phase 230V / 2 MPPT', efficiency: '98.6%', warranty: '8 Years', cloud: 'Integrated Wi-Fi' },
-                        { brand: 'Solis', model: 'S6-GR1P-5K', capacity: '5.0 kW', phase: '1-Phase 230V / 2 MPPT', efficiency: '98.4%', warranty: '8 Years', cloud: 'SolisCloud' },
-                        { brand: 'Sungrow', model: 'SG5.0RS', capacity: '5.0 kW', phase: '1-Phase 230V / 2 MPPT', efficiency: '98.5%', warranty: '8 Years', cloud: 'iSolarCloud' },
-                        { brand: 'Growatt', model: 'MIN 5000TL-X', capacity: '5.0 kW', phase: '1-Phase 230V / 2 MPPT', efficiency: '98.4%', warranty: '5 Years', cloud: 'ShineServer' }
-                      ]).map((inv, idx) => (
-                        <tr key={idx} className="hover:bg-surface-container-low/60 transition-colors">
-                          <td className="px-3 py-2.5 font-bold text-inverse-surface">{inv.brand}</td>
+                      {(invertersList || []).map((inv, idx) => (
+                        <tr key={inv.id || idx} className="hover:bg-surface-container-low/60 transition-colors">
+                          <td className="px-3 py-2.5 font-bold text-inverse-surface flex items-center gap-1.5">
+                            <span>{inv.brand}</span>
+                            {inv.isNew && (
+                              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                                NEW
+                              </span>
+                            )}
+                          </td>
                           <td className="px-3 py-2.5 font-medium text-primary">{inv.model}</td>
                           <td className="px-3 py-2.5 text-center font-mono font-bold text-on-surface">{inv.capacity}</td>
                           <td className="px-3 py-2.5 text-secondary">{inv.phase}</td>
@@ -1196,6 +1332,16 @@ export default function PricingMaster() {
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary-container/20 text-primary">
                               {inv.cloud || 'Wi-Fi IoT'}
                             </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteInverter(idx)}
+                              title="Delete inverter from catalog"
+                              className="text-secondary hover:text-error transition-colors p-1"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">delete</span>
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -1209,103 +1355,314 @@ export default function PricingMaster() {
           {/* ========================================================================= */}
           {/* TAB 3: DEFAULT BILL OF MATERIAL (BOM)                                     */}
           {/* ========================================================================= */}
-          {activeTab === 'bom' && (
-            <>
-              <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-6 shadow-sm overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-surface-container-low gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary-container/10 text-primary">
-                      <span className="material-symbols-outlined text-xl">inventory_2</span>
+          {activeTab === 'bom' && (() => {
+            const resolved = getResolvedBom ? getResolvedBom(selectedBomCapacity) : null;
+            const availableCapacities = capacityBomMatrix
+              ? Object.keys(capacityBomMatrix).sort((a, b) => parseFloat(a) - parseFloat(b))
+              : ['2.2', '3.3', '4.4', '5.5', '6.6', '8.0', '10.0'];
+
+            const categoryLabels = {
+              structure: { name: '1. Mounting Structure (GI Pipes & Fasteners)', icon: 'foundation', desc: '60x40 & 40x40 GI pipes, anchor fasteners, L-A patti, zinc spray (6/8ft standard)' },
+              electrical: { name: '2. Switchgear & Protection', icon: 'electrical_services', desc: 'Solar Inverter, ACDB+DCDB combo box, Chemical earthing kit, MC4 pairs' },
+              cables: { name: '3. Solar DC & AC Cables', icon: 'cable', desc: 'Assumed Ground + 1st floor run (DC, AC, Earthing, and Lightning Arrestor copper wires)' },
+              conduits: { name: '4. Conduits, Piping & Installation Fixtures', icon: 'plumbing', desc: 'Heavy-duty PVC pipes, elbows, tees, cable ties and saddle clamps' }
+            };
+
+            return (
+              <>
+                {/* Main BOM Card */}
+                <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-6 shadow-sm overflow-hidden">
+                  {/* Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-surface-container-low gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-primary-container/10 text-primary">
+                        <span className="material-symbols-outlined text-xl">inventory_2</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="font-headline-md text-headline-md text-inverse-surface font-bold">
+                            Interactive Bill of Material (BOM) &amp; BoS Preset Engine
+                          </h2>
+                          <span className="px-2 py-0.5 rounded-full bg-primary-container/20 text-primary text-[11px] font-bold">
+                            Field Standard (3.3 kW Doc)
+                          </span>
+                        </div>
+                        <p className="font-body-sm text-body-sm text-secondary mt-0.5">
+                          Admin controls physical component quantities and live unit rates. Synced in real-time with Dealer Quotation Generator.
+                        </p>
+                      </div>
                     </div>
-                    <div>
+                    <div className="flex items-center gap-2 self-start sm:self-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          triggerToast(`BOM Presets & Rates saved! Real-time broadcasted to ${totalDealersCount} dealers.`);
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-primary-container hover:bg-primary text-surface-container-lowest text-xs font-bold rounded-lg shadow-xs cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">sync</span>
+                        <span>Save &amp; Broadcast BOM</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Capacity Selector Bar */}
+                  <div className="mb-6 p-4 rounded-xl bg-surface-container-low/60 border border-surface-container-highest">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
                       <div className="flex items-center gap-2">
-                        <h2 className="font-headline-md text-headline-md text-inverse-surface font-bold">
-                          Sunvine Official Standard Bill of Material (BOM)
-                        </h2>
-                        <span className="px-2 py-0.5 rounded-full bg-primary-container/20 text-primary text-[11px] font-bold">
-                          PDF Specifications
+                        <span className="material-symbols-outlined text-primary text-lg">tune</span>
+                        <span className="font-label-md text-label-md font-bold text-on-surface">Select Capacity Preset Slab:</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex items-center">
+                          <input
+                            type="number"
+                            step="0.1"
+                            placeholder="Add kW (e.g. 12.0)"
+                            value={customBomKwInput}
+                            onChange={(e) => setCustomBomKwInput(e.target.value)}
+                            className="w-36 h-8 px-2.5 text-xs bg-surface-container-lowest border border-surface-container-highest rounded-lg font-mono focus:outline-none focus:border-primary"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!customBomKwInput || isNaN(parseFloat(customBomKwInput))) {
+                              triggerToast('Enter a valid kW number');
+                              return;
+                            }
+                            const formatted = parseFloat(customBomKwInput).toFixed(1);
+                            // If not exists, resolve will initialize it
+                            setSelectedBomCapacity(formatted);
+                            setCustomBomKwInput('');
+                            triggerToast(`Configuring BOM for ${formatted} kW!`);
+                          }}
+                          className="h-8 px-3 bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold rounded-lg cursor-pointer"
+                        >
+                          + Add Slab
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+                      {availableCapacities.map((cap) => {
+                        const isSelected = String(selectedBomCapacity) === String(cap);
+                        const isDocBase = String(cap) === '3.3';
+                        return (
+                          <button
+                            key={cap}
+                            type="button"
+                            onClick={() => setSelectedBomCapacity(cap)}
+                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                              isSelected
+                                ? 'bg-primary-container text-surface-container-lowest shadow-sm ring-2 ring-primary/20'
+                                : 'bg-surface-container-lowest border border-surface-container-highest text-on-surface hover:bg-surface-container-high'
+                            }`}
+                          >
+                            <span className="font-mono">{cap} kW</span>
+                            {isDocBase && (
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded font-normal ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                                Base Spec
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Real-time BoS Cost Summary Cards for selected capacity */}
+                  {resolved && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+                      <div className="p-3.5 rounded-xl bg-surface-container-low border border-surface-container-highest">
+                        <div className="text-[11px] font-semibold text-secondary flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm text-primary">foundation</span>
+                          Structure
+                        </div>
+                        <div className="text-base sm:text-lg font-bold font-mono text-inverse-surface mt-1">
+                          {formatINR(resolved.categoryTotals.structure)}
+                        </div>
+                        <span className="text-[10px] text-secondary">Pipes, Fasteners &amp; Hardware</span>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-surface-container-low border border-surface-container-highest">
+                        <div className="text-[11px] font-semibold text-secondary flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm text-primary">electrical_services</span>
+                          Electrical
+                        </div>
+                        <div className="text-base sm:text-lg font-bold font-mono text-inverse-surface mt-1">
+                          {formatINR(resolved.categoryTotals.electrical)}
+                        </div>
+                        <span className="text-[10px] text-secondary">Inverter, ACDB/DCDB, MC4</span>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-surface-container-low border border-surface-container-highest">
+                        <div className="text-[11px] font-semibold text-secondary flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm text-primary">cable</span>
+                          Solar Cables
+                        </div>
+                        <div className="text-base sm:text-lg font-bold font-mono text-inverse-surface mt-1">
+                          {formatINR(resolved.categoryTotals.cables)}
+                        </div>
+                        <span className="text-[10px] text-secondary">AC, DC, Earthing &amp; LA</span>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-surface-container-low border border-surface-container-highest">
+                        <div className="text-[11px] font-semibold text-secondary flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm text-primary">plumbing</span>
+                          Conduits
+                        </div>
+                        <div className="text-base sm:text-lg font-bold font-mono text-inverse-surface mt-1">
+                          {formatINR(resolved.categoryTotals.conduits)}
+                        </div>
+                        <span className="text-[10px] text-secondary">PVC pipes &amp; fixtures</span>
+                      </div>
+
+                      <div className="col-span-2 sm:col-span-1 p-3.5 rounded-xl bg-primary-container/10 border-2 border-primary/30">
+                        <div className="text-[11px] font-bold text-primary flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm">savings</span>
+                          Total BoS Cost
+                        </div>
+                        <div className="text-base sm:text-xl font-bold font-mono text-primary mt-1">
+                          {formatINR(resolved.totalBoSCost)}
+                        </div>
+                        <span className="text-[10px] text-secondary font-mono">
+                          ~{formatINR(Math.round(resolved.totalBoSCost / (parseFloat(selectedBomCapacity) || 1)))}/kW
                         </span>
                       </div>
-                      <p className="font-body-sm text-body-sm text-secondary mt-0.5">
-                        Capacity-wise baseline electrical hardware, cables, conduits, and surge protection components included in quote calculations.
-                      </p>
+                    </div>
+                  )}
+
+                  {/* Categorized BOM Components Customization Tables */}
+                  {resolved && (
+                    <div className="space-y-6">
+                      {['structure', 'electrical', 'cables', 'conduits'].map((catKey) => {
+                        const catMeta = categoryLabels[catKey];
+                        const catItems = resolved.items.filter((it) => it.category === catKey);
+
+                        return (
+                          <div key={catKey} className="border border-surface-container-highest rounded-xl overflow-hidden shadow-xs">
+                            <div className="bg-surface-container-low px-4 py-3 border-b border-surface-container-highest flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-primary text-lg">{catMeta.icon}</span>
+                                <h3 className="font-label-md text-label-md font-bold text-on-surface">{catMeta.name}</h3>
+                              </div>
+                              <span className="text-xs text-secondary hidden sm:inline">{catMeta.desc}</span>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse min-w-[700px]">
+                                <thead>
+                                  <tr className="bg-surface-container-lowest text-secondary text-[11px] font-semibold uppercase tracking-wider border-b border-surface-container-highest">
+                                    <th className="px-4 py-2">Item Description &amp; Specification</th>
+                                    <th className="px-3 py-2 text-center w-24">Unit</th>
+                                    <th className="px-3 py-2 text-center w-36">Preset Qty ({selectedBomCapacity} kW)</th>
+                                    <th className="px-3 py-2 text-right w-44">Unit Benchmark Rate (₹)</th>
+                                    <th className="px-4 py-2 text-right w-36">Total Amount (₹)</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-surface-container-highest font-body-sm text-xs text-on-surface">
+                                  {catItems.map((item) => (
+                                    <tr key={item.id} className="hover:bg-surface-container-low/40 transition-colors">
+                                      <td className="px-4 py-2.5 font-medium text-inverse-surface">
+                                        {item.name}
+                                      </td>
+                                      <td className="px-3 py-2.5 text-center text-secondary font-mono">
+                                        {item.unit}
+                                      </td>
+                                      <td className="px-3 py-2.5 text-center">
+                                        <div className="relative inline-flex items-center justify-center">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="any"
+                                            value={item.qty}
+                                            onChange={(e) => {
+                                              const val = parseFloat(e.target.value) || 0;
+                                              if (updateCapacityBomItemQty) {
+                                                updateCapacityBomItemQty(selectedBomCapacity, item.id, val);
+                                              }
+                                            }}
+                                            className="w-24 h-8 text-center bg-surface-container-lowest border border-surface-container-highest rounded-lg font-mono font-bold text-on-surface focus:outline-none focus:border-primary text-xs"
+                                          />
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2.5 text-right">
+                                        <div className="relative inline-flex items-center justify-end">
+                                          <span className="absolute left-2.5 text-secondary text-xs">₹</span>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="any"
+                                            value={item.unitRate}
+                                            onChange={(e) => {
+                                              const val = parseFloat(e.target.value) || 0;
+                                              if (updateBomItemRate) {
+                                                updateBomItemRate(item.id, val);
+                                              }
+                                            }}
+                                            className="w-32 h-8 pl-6 pr-2.5 text-right bg-surface-container-lowest border border-surface-container-highest rounded-lg font-mono font-semibold text-on-surface focus:outline-none focus:border-primary text-xs"
+                                          />
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-2.5 text-right font-mono font-bold text-inverse-surface whitespace-nowrap">
+                                        {formatINR(item.totalCost)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Informational Callout */}
+                  <div className="mt-6 p-4 rounded-xl bg-surface-container-low border border-surface-container-highest flex items-start gap-3">
+                    <span className="material-symbols-outlined text-primary text-xl mt-0.5">verified_user</span>
+                    <div className="text-xs text-secondary leading-relaxed">
+                      <strong className="text-on-surface font-semibold">Real-Time Sync Notice:</strong> Changes made here immediately update the dealer quotation calculation engine for <strong className="text-primary">{selectedBomCapacity} kW</strong> systems across all empanelled Gujarat dealers. Dealers select only the system size, module, and inverter—all BOM calculations roll up automatically!
                     </div>
                   </div>
-                  <span className="font-label-xs text-label-xs bg-surface-container-low text-secondary px-2.5 py-1 rounded border border-surface-container-highest self-start sm:self-center">
-                    IS &amp; IEC Standard Compliant
-                  </span>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse min-w-[840px]">
-                    <thead>
-                      <tr className="bg-inverse-surface text-surface-container-lowest text-label-sm font-semibold h-10 border-none">
-                        <th className="px-3 py-2 text-xs">Capacity</th>
-                        <th className="px-3 py-2 text-xs">Modules</th>
-                        <th className="px-3 py-2 text-xs">Inverter</th>
-                        <th className="px-3 py-2 text-xs">DC Cable</th>
-                        <th className="px-3 py-2 text-xs">AC Cable</th>
-                        <th className="px-3 py-2 text-xs">Earthing</th>
-                        <th className="px-3 py-2 text-xs">LA Wire</th>
-                        <th className="px-3 py-2 text-xs">ACDB / DCDB</th>
-                        <th className="px-3 py-2 text-xs">Earthing Kit</th>
-                        <th className="px-3 py-2 text-xs">MC4</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-surface-container-highest font-body-sm text-xs text-on-surface">
-                      {(pdfBomSpecs || []).map((bom, idx) => (
-                        <tr key={idx} className={`hover:bg-surface-container-low/60 transition-colors ${idx % 2 === 1 ? 'bg-surface-container-low/20' : ''}`}>
-                          <td className="px-3 py-2.5 font-bold font-mono text-inverse-surface">{bom.capacityKW} kW</td>
-                          <td className="px-3 py-2.5 font-semibold text-primary font-mono">{bom.modules}</td>
-                          <td className="px-3 py-2.5 font-mono">{bom.inverter}</td>
-                          <td className="px-3 py-2.5 font-mono text-secondary">{bom.dcWire}</td>
-                          <td className="px-3 py-2.5 font-mono text-secondary">{bom.acWire}</td>
-                          <td className="px-3 py-2.5 font-mono text-secondary">{bom.earthingWire}</td>
-                          <td className="px-3 py-2.5 font-mono text-secondary">{bom.laWire}</td>
-                          <td className="px-3 py-2.5 text-on-surface">{bom.acdb} / {bom.dcdb}</td>
-                          <td className="px-3 py-2.5 text-secondary">{bom.earthingKit}</td>
-                          <td className="px-3 py-2.5 font-mono text-primary font-bold">{bom.mc4}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Technical Quality Standards Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-4 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-primary text-xl">foundation</span>
-                    <h3 className="font-label-md text-label-md font-bold text-inverse-surface">Mounting Structure</h3>
+                {/* Technical Quality Standards Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                  <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-primary text-xl">foundation</span>
+                      <h3 className="font-label-md text-label-md font-bold text-inverse-surface">Mounting Structure</h3>
+                    </div>
+                    <p className="text-xs text-secondary leading-relaxed">
+                      60x40 &amp; 40x40 GI pipe (2mm thickness) with 80+ microns HDG coating. Engineered to withstand 150 km/h wind speeds per IS 875 Part-3.
+                    </p>
                   </div>
-                  <p className="text-xs text-secondary leading-relaxed">
-                    Hot-Dip Galvanized (HDG) steel structure with 80+ microns coating thickness. Engineered to withstand 150 km/h wind speeds in Gujarat coastal zones.
-                  </p>
-                </div>
 
-                <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-4 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-primary text-xl">cable</span>
-                    <h3 className="font-label-md text-label-md font-bold text-inverse-surface">Solar DC &amp; AC Cables</h3>
+                  <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-primary text-xl">cable</span>
+                      <h3 className="font-label-md text-label-md font-bold text-inverse-surface">Solar DC &amp; AC Cables</h3>
+                    </div>
+                    <p className="text-xs text-secondary leading-relaxed">
+                      TUV Rheinland certified UV-resistant cross-linked halogen-free solar DC cables. Pure electrolytic copper conductors with minimal voltage drop (&lt; 2%).
+                    </p>
                   </div>
-                  <p className="text-xs text-secondary leading-relaxed">
-                    TUV Rheinland certified UV-resistant cross-linked halogen-free solar DC cables. Pure electrolytic copper conductors with minimal voltage drop (&lt; 2%).
-                  </p>
-                </div>
 
-                <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-4 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-primary text-xl">shield</span>
-                    <h3 className="font-label-md text-label-md font-bold text-inverse-surface">Earthing &amp; Protection</h3>
+                  <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-primary text-xl">shield</span>
+                      <h3 className="font-label-md text-label-md font-bold text-inverse-surface">Earthing &amp; Protection</h3>
+                    </div>
+                    <p className="text-xs text-secondary leading-relaxed">
+                      Chemical earthing rods with bentonite compound. Class-II Surge Protection Devices (SPD) installed in both ACDB and DCDB enclosures.
+                    </p>
                   </div>
-                  <p className="text-xs text-secondary leading-relaxed">
-                    Dual inverter grounding with chemical earth electrodes. Class-II Surge Protection Devices (SPD) installed in both ACDB and DCDB enclosures.
-                  </p>
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            );
+          })()}
 
           {/* ========================================================================= */}
           {/* TAB 4: COMPANY BANK DETAILS & TERMS & CONDITIONS                          */}
@@ -1738,6 +2095,300 @@ export default function PricingMaster() {
                 >
                   <span className="material-symbols-outlined text-[16px]">save</span>
                   <span>{editingRowIndex !== null ? 'Update Slab' : 'Save New Slab'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ADD NEW SOLAR MODULE                                               */}
+      {/* ========================================================================= */}
+      {showAddModuleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-surface-container-lowest border border-surface-container-highest rounded-2xl w-full max-w-lg shadow-2xl p-6">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-surface-container-low">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-primary-container/10 text-primary">
+                  <span className="material-symbols-outlined text-xl">grid_view</span>
+                </div>
+                <div>
+                  <h3 className="font-headline-md text-headline-md font-bold text-inverse-surface">
+                    Add New Solar Module
+                  </h3>
+                  <p className="text-xs text-secondary">
+                    Shows "NEW" badge on dealer quotation dropdown until selected.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddModuleModal(false)}
+                className="p-1.5 rounded-lg hover:bg-surface-container text-secondary hover:text-on-surface transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveModuleForm} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Brand / Manufacturer *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Waaree, Tata, Saatvik"
+                    value={newModuleForm.brand}
+                    onChange={(e) => setNewModuleForm({ ...newModuleForm, brand: e.target.value })}
+                    className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-medium text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Model Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 590W TOPCon Bifacial"
+                    value={newModuleForm.model}
+                    onChange={(e) => setNewModuleForm({ ...newModuleForm, model: e.target.value })}
+                    className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-medium text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Cell Tech
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="N-Type TOPCon"
+                    value={newModuleForm.cellTech}
+                    onChange={(e) => setNewModuleForm({ ...newModuleForm, cellTech: e.target.value })}
+                    className="w-full px-2.5 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Wattage (Wp) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="590"
+                    value={newModuleForm.wattage}
+                    onChange={(e) => setNewModuleForm({ ...newModuleForm, wattage: e.target.value })}
+                    className="w-full px-2.5 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-mono font-bold text-primary focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Efficiency (%)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="22.8%"
+                    value={newModuleForm.efficiency}
+                    onChange={(e) => setNewModuleForm({ ...newModuleForm, efficiency: e.target.value })}
+                    className="w-full px-2.5 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-mono text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Benchmark Wp Rate (₹/Wp)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    placeholder="19.50"
+                    value={newModuleForm.ratePerWp}
+                    onChange={(e) => setNewModuleForm({ ...newModuleForm, ratePerWp: e.target.value })}
+                    className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-mono text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Warranty Term
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="30 Yrs Linear"
+                    value={newModuleForm.warranty}
+                    onChange={(e) => setNewModuleForm({ ...newModuleForm, warranty: e.target.value })}
+                    className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-surface-container-low">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModuleModal(false)}
+                  className="px-4 py-2 rounded-lg border border-surface-container-highest text-secondary hover:text-on-surface text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-primary-container hover:bg-primary text-surface-container-lowest text-xs font-bold shadow-sm cursor-pointer flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                  <span>Add Module to Catalog</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ADD NEW SOLAR INVERTER                                             */}
+      {/* ========================================================================= */}
+      {showAddInverterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-surface-container-lowest border border-surface-container-highest rounded-2xl w-full max-w-lg shadow-2xl p-6">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-surface-container-low">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-primary-container/10 text-primary">
+                  <span className="material-symbols-outlined text-xl">bolt</span>
+                </div>
+                <div>
+                  <h3 className="font-headline-md text-headline-md font-bold text-inverse-surface">
+                    Add New Solar Inverter
+                  </h3>
+                  <p className="text-xs text-secondary">
+                    Shows "NEW" badge on dealer quotation dropdown until selected.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddInverterModal(false)}
+                className="p-1.5 rounded-lg hover:bg-surface-container text-secondary hover:text-on-surface transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInverterForm} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Brand / Manufacturer *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Sungrow, Solis, Deye"
+                    value={newInverterForm.brand}
+                    onChange={(e) => setNewInverterForm({ ...newInverterForm, brand: e.target.value })}
+                    className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-medium text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Series / Model Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. SG6.0RS Dual MPPT"
+                    value={newInverterForm.model}
+                    onChange={(e) => setNewInverterForm({ ...newInverterForm, model: e.target.value })}
+                    className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-medium text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Rated Capacity
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 5.0 kW / 6.0 kW"
+                    value={newInverterForm.capacity}
+                    onChange={(e) => setNewInverterForm({ ...newInverterForm, capacity: e.target.value })}
+                    className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Phase Topology
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="1-Phase 230V / 2 MPPT"
+                    value={newInverterForm.phase}
+                    onChange={(e) => setNewInverterForm({ ...newInverterForm, phase: e.target.value })}
+                    className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Efficiency
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="98.5%"
+                    value={newInverterForm.efficiency}
+                    onChange={(e) => setNewInverterForm({ ...newInverterForm, efficiency: e.target.value })}
+                    className="w-full px-2.5 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-mono text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Warranty
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="8 Years"
+                    value={newInverterForm.warranty}
+                    onChange={(e) => setNewInverterForm({ ...newInverterForm, warranty: e.target.value })}
+                    className="w-full px-2.5 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Cloud IoT
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Integrated Wi-Fi"
+                    value={newInverterForm.cloud}
+                    onChange={(e) => setNewInverterForm({ ...newInverterForm, cloud: e.target.value })}
+                    className="w-full px-2.5 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-surface-container-low">
+                <button
+                  type="button"
+                  onClick={() => setShowAddInverterModal(false)}
+                  className="px-4 py-2 rounded-lg border border-surface-container-highest text-secondary hover:text-on-surface text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-primary-container hover:bg-primary text-surface-container-lowest text-xs font-bold shadow-sm cursor-pointer flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                  <span>Add Inverter to Catalog</span>
                 </button>
               </div>
             </form>
