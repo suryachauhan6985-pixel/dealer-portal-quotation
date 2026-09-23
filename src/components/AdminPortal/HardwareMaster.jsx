@@ -206,10 +206,10 @@ export default function HardwareMaster() {
       {/* TOP TELEMETRY KPI QUICK STATS */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 my-6">
         {/* Card 1: Active PV Modules */}
-        <div className="bg-surface-container-lowest rounded-xl p-5 border border-surface-container-highest shadow-sm hover:shadow transition-shadow">
+        <div className="kpi-card bg-surface-container-lowest rounded-xl p-5 border border-surface-container-highest shadow-sm group">
           <div className="flex items-center justify-between text-secondary">
-            <span className="font-label-sm text-label-sm font-semibold tracking-wider uppercase">Active PV Modules</span>
-            <span className="p-1.5 rounded-lg bg-surface-container-low text-primary">
+            <span className="font-label-sm text-label-sm font-semibold tracking-wider uppercase group-hover:text-primary transition-colors">Active PV Modules</span>
+            <span className="p-1.5 rounded-lg bg-surface-container-low text-primary group-hover:bg-primary/10 transition-colors">
               <span className="material-symbols-outlined">grid_view</span>
             </span>
           </div>
@@ -224,10 +224,10 @@ export default function HardwareMaster() {
         </div>
 
         {/* Card 2: Active Inverters */}
-        <div className="bg-surface-container-lowest rounded-xl p-5 border border-surface-container-highest shadow-sm hover:shadow transition-shadow">
+        <div className="kpi-card bg-surface-container-lowest rounded-xl p-5 border border-surface-container-highest shadow-sm group">
           <div className="flex items-center justify-between text-secondary">
-            <span className="font-label-sm text-label-sm font-semibold tracking-wider uppercase">Active Inverters</span>
-            <span className="p-1.5 rounded-lg bg-surface-container-low text-primary">
+            <span className="font-label-sm text-label-sm font-semibold tracking-wider uppercase group-hover:text-primary transition-colors">Active Inverters</span>
+            <span className="p-1.5 rounded-lg bg-surface-container-low text-primary group-hover:bg-primary/10 transition-colors">
               <span className="material-symbols-outlined">power</span>
             </span>
           </div>
@@ -242,10 +242,10 @@ export default function HardwareMaster() {
         </div>
 
         {/* Card 3: Avg. Module Efficiency */}
-        <div className="bg-surface-container-lowest rounded-xl p-5 border border-surface-container-highest shadow-sm hover:shadow transition-shadow">
+        <div className="kpi-card bg-surface-container-lowest rounded-xl p-5 border border-surface-container-highest shadow-sm group">
           <div className="flex items-center justify-between text-secondary">
-            <span className="font-label-sm text-label-sm font-semibold tracking-wider uppercase">BOS BOM Profiles</span>
-            <span className="p-1.5 rounded-lg bg-surface-container-low text-primary">
+            <span className="font-label-sm text-label-sm font-semibold tracking-wider uppercase group-hover:text-primary transition-colors">BOS BOM Profiles</span>
+            <span className="p-1.5 rounded-lg bg-surface-container-low text-primary group-hover:bg-primary/10 transition-colors">
               <span className="material-symbols-outlined">table_view</span>
             </span>
           </div>
@@ -260,10 +260,10 @@ export default function HardwareMaster() {
         </div>
 
         {/* Card 4: Catalog Synchronization */}
-        <div className="bg-surface-container-lowest rounded-xl p-5 border border-surface-container-highest shadow-sm hover:shadow transition-shadow">
+        <div className="kpi-card bg-surface-container-lowest rounded-xl p-5 border border-surface-container-highest shadow-sm group">
           <div className="flex items-center justify-between text-secondary">
-            <span className="font-label-sm text-label-sm font-semibold tracking-wider uppercase">Catalog Synchronization</span>
-            <span className="p-1.5 rounded-lg bg-surface-container-low text-primary">
+            <span className="font-label-sm text-label-sm font-semibold tracking-wider uppercase group-hover:text-primary transition-colors">Catalog Synchronization</span>
+            <span className="p-1.5 rounded-lg bg-surface-container-low text-primary group-hover:bg-primary/10 transition-colors">
               <span className="material-symbols-outlined">sync</span>
             </span>
           </div>

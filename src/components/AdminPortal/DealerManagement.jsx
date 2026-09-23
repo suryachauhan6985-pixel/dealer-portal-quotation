@@ -693,18 +693,20 @@ export default function DealerManagement() {
       {/* 4 METRIC CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
         {/* Card 1 */}
-        <div className="bg-white rounded-xl border border-[#E4E7EB] p-5 shadow-[0px_2px_8px_rgba(0,0,0,0.06)] relative overflow-hidden group hover:border-[#6CBF3D]/50 transition-all duration-200">
-          <div className="flex items-center justify-between">
-            <span className="text-secondary font-label-sm uppercase tracking-wider text-[11px]">Total Registered Dealers</span>
-            <span className="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-[#0F1B2E]">
-              <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>handshake</span>
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-headline-xl font-poppins font-bold text-[#0F1B2E]">{totalDealersCount}</span>
-            <span className="inline-flex items-center gap-0.5 text-label-xs font-semibold text-[#2E7D32] bg-[#6CBF3D]/15 px-2 py-0.5 rounded-full">
-              <span className="material-symbols-outlined text-[14px]">verified</span> 100% Gujarat
-            </span>
+        <div className="kpi-card bg-white rounded-xl border border-[#E4E7EB] p-5 shadow-sm relative overflow-hidden group flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-secondary font-label-sm uppercase tracking-wider text-[11px] group-hover:text-primary transition-colors">Total Registered Dealers</span>
+              <span className="w-9 h-9 rounded-lg bg-surface-container group-hover:bg-primary/10 group-hover:text-primary flex items-center justify-center text-[#0F1B2E] transition-colors">
+                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>handshake</span>
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-headline-xl font-poppins font-bold text-[#0F1B2E]">{totalDealersCount}</span>
+              <span className="inline-flex items-center gap-0.5 text-label-xs font-semibold text-[#2E7D32] bg-[#6CBF3D]/15 px-2 py-0.5 rounded-full">
+                <span className="material-symbols-outlined text-[14px]">verified</span> 100% Gujarat
+              </span>
+            </div>
           </div>
           <div className="mt-3 pt-3 border-t border-[#F1F4F9] flex items-center justify-between text-body-sm text-secondary">
             <span>Western Grid Region</span>
@@ -713,21 +715,23 @@ export default function DealerManagement() {
         </div>
 
         {/* Card 2 */}
-        <div className="bg-white rounded-xl border border-[#E4E7EB] p-5 shadow-[0px_2px_8px_rgba(0,0,0,0.06)] relative overflow-hidden group hover:border-[#6CBF3D]/50 transition-all duration-200">
-          <div className="flex items-center justify-between">
-            <span className="text-secondary font-label-sm uppercase tracking-wider text-[11px]">Active &amp; Quoting</span>
-            <span className="w-9 h-9 rounded-lg bg-[#6CBF3D]/15 flex items-center justify-center text-[#2E7D32]">
-              <span className="material-symbols-outlined text-[20px]">bolt</span>
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-headline-xl font-poppins font-bold text-[#0F1B2E]">{activeDealersCount}</span>
-            <span className="text-label-sm font-semibold text-secondary">
-              ({totalDealersCount > 0 ? ((activeDealersCount / totalDealersCount) * 100).toFixed(0) : 0}% activation)
-            </span>
-            <span className="ml-auto inline-flex items-center text-label-xs font-semibold text-[#2E7D32]">
-              <span className="material-symbols-outlined text-[14px]">trending_up</span> Live
-            </span>
+        <div className="kpi-card bg-white rounded-xl border border-[#E4E7EB] p-5 shadow-sm relative overflow-hidden group flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-secondary font-label-sm uppercase tracking-wider text-[11px] group-hover:text-primary transition-colors">Active &amp; Quoting</span>
+              <span className="w-9 h-9 rounded-lg bg-[#6CBF3D]/15 group-hover:bg-primary/20 flex items-center justify-center text-[#2E7D32] transition-colors">
+                <span className="material-symbols-outlined text-[20px]">bolt</span>
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-headline-xl font-poppins font-bold text-[#0F1B2E]">{activeDealersCount}</span>
+              <span className="text-label-sm font-semibold text-secondary">
+                ({totalDealersCount > 0 ? ((activeDealersCount / totalDealersCount) * 100).toFixed(0) : 0}% activation)
+              </span>
+              <span className="ml-auto inline-flex items-center text-label-xs font-semibold text-[#2E7D32]">
+                <span className="material-symbols-outlined text-[14px]">trending_up</span> Live
+              </span>
+            </div>
           </div>
           <div className="mt-3 pt-3 border-t border-[#F1F4F9] flex items-center justify-between text-body-sm text-secondary">
             <span>Cumulative Capacity</span>
@@ -736,18 +740,20 @@ export default function DealerManagement() {
         </div>
 
         {/* Card 3 */}
-        <div className="bg-white rounded-xl border border-[#E4E7EB] p-5 shadow-[0px_2px_8px_rgba(0,0,0,0.06)] relative overflow-hidden group hover:border-amber-400/50 transition-all duration-200">
-          <div className="flex items-center justify-between">
-            <span className="text-secondary font-label-sm uppercase tracking-wider text-[11px]">Pending Verification / KYC</span>
-            <span className="w-9 h-9 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-700">
-              <span className="material-symbols-outlined text-[20px]">verified_user</span>
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-headline-xl font-poppins font-bold text-[#0F1B2E]">{pendingDealersCount}</span>
-            <span className="inline-flex items-center text-label-xs font-semibold text-[#B27204] bg-[#F9A825]/15 px-2 py-0.5 rounded-full">
-              Requires Audit
-            </span>
+        <div className="kpi-card bg-white rounded-xl border border-[#E4E7EB] p-5 shadow-sm relative overflow-hidden group flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-secondary font-label-sm uppercase tracking-wider text-[11px] group-hover:text-primary transition-colors">Pending Verification / KYC</span>
+              <span className="w-9 h-9 rounded-lg bg-amber-500/15 group-hover:bg-primary/10 flex items-center justify-center text-amber-700 transition-colors">
+                <span className="material-symbols-outlined text-[20px]">verified_user</span>
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-headline-xl font-poppins font-bold text-[#0F1B2E]">{pendingDealersCount}</span>
+              <span className="inline-flex items-center text-label-xs font-semibold text-[#B27204] bg-[#F9A825]/15 px-2 py-0.5 rounded-full">
+                Requires Audit
+              </span>
+            </div>
           </div>
           <div className="mt-3 pt-3 border-t border-[#F1F4F9] flex items-center justify-between text-body-sm text-secondary">
             <span>Avg. review SLA</span>
@@ -756,18 +762,20 @@ export default function DealerManagement() {
         </div>
 
         {/* Card 4 */}
-        <div className="bg-white rounded-xl border border-[#E4E7EB] p-5 shadow-[0px_2px_8px_rgba(0,0,0,0.06)] relative overflow-hidden group hover:border-red-300 transition-all duration-200">
-          <div className="flex items-center justify-between">
-            <span className="text-secondary font-label-sm uppercase tracking-wider text-[11px]">Suspended / Inactive</span>
-            <span className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
-              <span className="material-symbols-outlined text-[20px]">person_off</span>
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-headline-xl font-poppins font-bold text-[#0F1B2E]">{suspendedDealersCount}</span>
-            <span className="inline-flex items-center text-label-xs font-medium text-secondary bg-surface-container px-2 py-0.5 rounded-full">
-              {totalDealersCount > 0 ? ((suspendedDealersCount / totalDealersCount) * 100).toFixed(1) : 0}%
-            </span>
+        <div className="kpi-card bg-white rounded-xl border border-[#E4E7EB] p-5 shadow-sm relative overflow-hidden group flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-secondary font-label-sm uppercase tracking-wider text-[11px] group-hover:text-primary transition-colors">Suspended / Inactive</span>
+              <span className="w-9 h-9 rounded-lg bg-slate-100 group-hover:bg-primary/10 flex items-center justify-center text-slate-600 transition-colors">
+                <span className="material-symbols-outlined text-[20px]">person_off</span>
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-headline-xl font-poppins font-bold text-[#0F1B2E]">{suspendedDealersCount}</span>
+              <span className="inline-flex items-center text-label-xs font-medium text-secondary bg-surface-container px-2 py-0.5 rounded-full">
+                {totalDealersCount > 0 ? ((suspendedDealersCount / totalDealersCount) * 100).toFixed(1) : 0}%
+              </span>
+            </div>
           </div>
           <div className="mt-3 pt-3 border-t border-[#F1F4F9] text-body-sm text-secondary truncate">
             License review or dormant
