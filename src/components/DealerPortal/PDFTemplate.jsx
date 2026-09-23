@@ -153,10 +153,10 @@ export default function PDFTemplate({ quotation, activePage = 'all' }) {
             </h2>
           </div>
 
-          {/* Industrial Rooftop Tag */}
+          {/* Project Type Rooftop Tag */}
           <div className="flex items-center gap-1.5 text-xs font-black text-gray-900 uppercase my-2">
             <span className="w-1.5 h-4 bg-[#B4C400] inline-block"></span>
-            <span>INDUSTRIAL ROOFTOP :</span>
+            <span>{quotation.projectType === 'Commercial' || (typeof quotation.type === 'string' && quotation.type.includes('Commercial')) ? 'COMMERCIAL / INDUSTRIAL ROOFTOP :' : 'RESIDENTIAL ROOFTOP :'}</span>
           </div>
 
           {/* TABLE 2: PROJECT COST SUMMARY */}

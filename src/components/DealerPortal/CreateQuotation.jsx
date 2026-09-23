@@ -52,6 +52,11 @@ export default function CreateQuotation() {
   });
   const [panelBrand, setPanelBrand] = useState(initialSource?.solarModule || initialSource?.panelType || 'Waaree 585W TOPCon Bifacial (ALMM List-I)');
   const [inverterModel, setInverterModel] = useState(initialSource?.inverterType || 'Sunvine Solaryaan 5.0G (1-Phase 2 MPPT)');
+  const [projectType, setProjectType] = useState(() => {
+    if (initialSource?.projectType) return initialSource.projectType;
+    if (typeof initialSource?.type === 'string' && initialSource.type.includes('Commercial')) return 'Commercial';
+    return 'Residential';
+  });
   const [showInverterModal, setShowInverterModal] = useState(false);
 
   // Multi-Panel Quotation Toggle
@@ -110,6 +115,13 @@ export default function CreateQuotation() {
       if (source.inverterType) {
         setInverterModel(source.inverterType);
       }
+      if (source.projectType) {
+        setProjectType(source.projectType);
+      } else if (typeof source.type === 'string' && source.type.includes('Commercial')) {
+        setProjectType('Commercial');
+      } else {
+        setProjectType('Residential');
+      }
       if (source.baseRatePerKW) {
         setRatePerKw(Number(source.baseRatePerKW));
       }
@@ -149,15 +161,16 @@ export default function CreateQuotation() {
   // Total Customer Quoted Project Cost (Base Cost + Dealer Margin)
   const totalCost = baseProjectCost + dealerMarginINR;
 
-  // PM Surya Ghar Central DBT Subsidy Formula (Linked to Admin Presets)
-  const calculateSubsidy = (capacity) => {
+  // PM Surya Ghar Central DBT Subsidy Formula (Linked to Admin Presets & Project Type)
+  const calculateSubsidy = (capacity, type) => {
+    if (type === 'Commercial') return 0;
     const maxSubsidy = pricingPresets?.subsidyCap || 78000;
     if (capacity <= 1) return Math.min(30000, maxSubsidy);
     if (capacity <= 2) return Math.min(60000, maxSubsidy);
     return maxSubsidy; // Cap at subsidyCap (default ₹78,000 for 3kW+)
   };
 
-  const subsidy = calculateSubsidy(kw);
+  const subsidy = calculateSubsidy(kw, projectType);
   const finalPayable = Math.max(0, totalCost - subsidy);
   const annualGenerationUnits = Math.round(kw * 1440);
   const annualSavings = Math.round(annualGenerationUnits * 6.67);
@@ -210,6 +223,7 @@ export default function CreateQuotation() {
     setSystemCapacity('3.3');
     setPanelBrand('Waaree 585W TOPCon Bifacial (ALMM List-I)');
     setInverterModel('Sunvine Solaryaan 5.0G (1-Phase 2 MPPT)');
+    setProjectType('Residential');
     setMultiBrandComparison(false);
     setRatePerKw(pricingPresets?.baseRatePerKw || 59800);
     setDealerMarginFixed(tierConfig.defaultMarginPerKw * 3.3);
@@ -234,6 +248,8 @@ export default function CreateQuotation() {
       location: custLocation,
       city: custLocation.split(',')[0]?.trim() || 'Rajkot',
       state: 'Gujarat',
+      projectType,
+      type: `${panelBrand.split(' ')[0]} • ${projectType}`,
       systemCapacityKW: kw,
       panelType: panelBrand,
       solarModule: panelBrand,
@@ -303,6 +319,8 @@ export default function CreateQuotation() {
       location: custLocation,
       city: custLocation.split(',')[0]?.trim() || 'Rajkot',
       state: 'Gujarat',
+      projectType,
+      type: `${panelBrand.split(' ')[0]} • ${projectType}`,
       systemCapacityKW: kw,
       solarModule: panelBrand,
       selectedModuleMake: panelBrand.split(' ')[0],
@@ -498,83 +516,82 @@ export default function CreateQuotation() {
 
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {/* Capacity Selector */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="systemCapacity">
-                    System Capacity (kW)
-                  </label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-primary text-[20px] pointer-events-none">solar_power</span>
-                    <select
-                      className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
-                      id="systemCapacity"
-                      value={systemCapacity}
-                      onChange={(e) => setSystemCapacity(e.target.value)}
-                    >
-                      <option value="2.2">2.2 kW (4 Panels Rooftop)</option>
-                      <option value="3.3">3.3 kW (6 Panels Standard Field Spec)</option>
-                      <option value="4.4">4.4 kW (8 Panels Rooftop)</option>
-                      <option value="5.5">5.5 kW (10 Panels Rooftop)</option>
-                      <option value="6.6">6.6 kW (12 Panels Rooftop)</option>
-                      <option value="8">8.0 kW (14 Panels High-Capacity)</option>
-                      <option value="10">10.0 kW (Commercial / High Load)</option>
-                    </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
-                  </div>
-                </div>
-
-                {/* Panel Brand Selector with Dynamic Catalog & NEW badge */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="panelBrand">
-                      Solar Panel Brand &amp; Model
-                    </label>
-                    {(() => {
-                      const activeMod = (modulesList || []).find(m => `${m.brand} ${m.model}` === panelBrand);
-                      return activeMod && isCatalogItemNew && isCatalogItemNew(activeMod) ? (
-                        <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider animate-pulse">
-                          NEW
-                        </span>
-                      ) : null;
-                    })()}
-                  </div>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">grid_view</span>
-                    <select
-                      className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
-                      id="panelBrand"
-                      value={panelBrand}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setPanelBrand(val);
-                        const mod = (modulesList || []).find(m => `${m.brand} ${m.model}` === val);
-                        if (mod && markCatalogItemSeen) {
-                          markCatalogItemSeen(mod.id || `${mod.brand}-${mod.model}`);
-                        }
-                      }}
-                    >
-                      {(modulesList || [
-                        { brand: 'Waaree', model: '585W TOPCon Bifacial (ALMM List-I)' },
-                        { brand: 'APS', model: '600W TOPCon Bifacial (ALMM List-I)' },
-                        { brand: 'Adani', model: '550W Vertex Mono PERC' },
-                        { brand: 'Rayzone', model: '550W Bifacial TOPCon' }
-                      ]).map((mod, idx) => {
-                        const fullName = `${mod.brand} ${mod.model}`;
-                        const isNew = isCatalogItemNew ? isCatalogItemNew(mod) : false;
-                        return (
-                          <option key={mod.id || idx} value={fullName}>
-                            {fullName} {isNew ? '★ [NEW]' : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
-                  </div>
+              {/* Row 1, Col 1: Capacity Selector */}
+              <div className="flex flex-col gap-1.5">
+                <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="systemCapacity">
+                  System Capacity (kW)
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-primary text-[20px] pointer-events-none">solar_power</span>
+                  <select
+                    className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
+                    id="systemCapacity"
+                    value={systemCapacity}
+                    onChange={(e) => setSystemCapacity(e.target.value)}
+                  >
+                    <option value="2.2">2.2 kW (4 Panels Rooftop)</option>
+                    <option value="3.3">3.3 kW (6 Panels Standard Field Spec)</option>
+                    <option value="4.4">4.4 kW (8 Panels Rooftop)</option>
+                    <option value="5.5">5.5 kW (10 Panels Rooftop)</option>
+                    <option value="6.6">6.6 kW (12 Panels Rooftop)</option>
+                    <option value="8">8.0 kW (14 Panels High-Capacity)</option>
+                    <option value="10">10.0 kW (Commercial / High Load)</option>
+                  </select>
+                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
                 </div>
               </div>
 
-              {/* Inverter Configuration Selector with Dynamic Catalog & NEW badge */}
-              <div className="flex flex-col gap-1.5 pt-1">
+              {/* Row 1, Col 2: Panel Brand Selector with Dynamic Catalog & NEW badge */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="panelBrand">
+                    Solar Panel Brand &amp; Model
+                  </label>
+                  {(() => {
+                    const activeMod = (modulesList || []).find(m => `${m.brand} ${m.model}` === panelBrand);
+                    return activeMod && isCatalogItemNew && isCatalogItemNew(activeMod) ? (
+                      <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider animate-pulse">
+                        NEW
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">grid_view</span>
+                  <select
+                    className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
+                    id="panelBrand"
+                    value={panelBrand}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPanelBrand(val);
+                      const mod = (modulesList || []).find(m => `${m.brand} ${m.model}` === val);
+                      if (mod && markCatalogItemSeen) {
+                        markCatalogItemSeen(mod.id || `${mod.brand}-${mod.model}`);
+                      }
+                    }}
+                  >
+                    {(modulesList || [
+                      { brand: 'Waaree', model: '585W TOPCon Bifacial (ALMM List-I)' },
+                      { brand: 'APS', model: '600W TOPCon Bifacial (ALMM List-I)' },
+                      { brand: 'Adani', model: '550W Vertex Mono PERC' },
+                      { brand: 'Rayzone', model: '550W Bifacial TOPCon' }
+                    ]).map((mod, idx) => {
+                      const fullName = `${mod.brand} ${mod.model}`;
+                      const isNew = isCatalogItemNew ? isCatalogItemNew(mod) : false;
+                      return (
+                        <option key={mod.id || idx} value={fullName}>
+                          {fullName} {isNew ? '★ [NEW]' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
+                </div>
+              </div>
+
+              {/* Row 2, Col 1: Inverter Configuration Selector with Dynamic Catalog & NEW badge */}
+              <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <label className="font-label-sm text-label-sm text-on-surface font-semibold">Selected Inverter Unit</label>
                   {(() => {
@@ -618,6 +635,32 @@ export default function CreateQuotation() {
                   <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
                 </div>
               </div>
+
+              {/* Row 2, Col 2: Project Type Dropdown */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="projectType">
+                    Project Type / Category
+                  </label>
+                  <span className="text-[10px] text-secondary font-medium uppercase tracking-wider">
+                    {projectType === 'Residential' ? 'Subsidy Slabs' : 'Commercial EPC'}
+                  </span>
+                </div>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">apartment</span>
+                  <select
+                    className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
+                    id="projectType"
+                    value={projectType}
+                    onChange={(e) => setProjectType(e.target.value)}
+                  >
+                    <option value="Residential">Residential (PM Surya Ghar Subsidy)</option>
+                    <option value="Commercial">Commercial / Industrial (Non-Subsidy)</option>
+                  </select>
+                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
+                </div>
+              </div>
+            </div>
 
               {/* Multi-Panel Comparative Quotation Toggle */}
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-container-low border border-surface-container-high mt-1">
