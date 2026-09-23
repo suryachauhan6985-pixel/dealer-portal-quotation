@@ -488,6 +488,14 @@ const safeSetItem = (key, value) => {
   const startEditingQuotation = (quote) => {
     setEditingQuotation(quote);
     setActiveTab('create_quote');
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+      if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+      const main = document.querySelector('main');
+      if (main) main.scrollTop = 0;
+    }
   };
 
   const clearEditingQuotation = () => {

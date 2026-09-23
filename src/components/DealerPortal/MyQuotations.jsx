@@ -3,7 +3,14 @@ import { useApp } from '../../context/AppContext';
 import { openWhatsAppChat } from '../../utils/quotationShare';
 
 export default function MyQuotations() {
-  const { quotations, startEditingQuotation, setActiveTab, setPreviewQuotation } = useApp();
+  const { 
+    quotations, 
+    startEditingQuotation, 
+    clearEditingQuotation, 
+    clearActiveDraftQuote, 
+    setActiveTab, 
+    setPreviewQuotation 
+  } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -53,7 +60,11 @@ export default function MyQuotations() {
           </p>
         </div>
         <button
-          onClick={() => setActiveTab('create_quote')}
+          onClick={() => {
+            if (clearEditingQuotation) clearEditingQuotation();
+            if (clearActiveDraftQuote) clearActiveDraftQuote();
+            setActiveTab('create_quote');
+          }}
           className="self-start sm:self-auto flex items-center gap-space-xs bg-primary-container hover:bg-primary text-on-primary px-space-md py-space-sm rounded-lg shadow-sm font-label-md transition-all active:scale-95"
           type="button"
         >

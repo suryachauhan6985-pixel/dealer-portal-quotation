@@ -67,6 +67,23 @@ export default function CreateQuotation() {
   });
   const [saveStatus, setSaveStatus] = useState('');
 
+  // Always reset scroll to the very top (Customer Details) on mount or quotation switch (SR-39)
+  useEffect(() => {
+    const scrollToTop = () => {
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+        if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+        const main = document.querySelector('main');
+        if (main) main.scrollTop = 0;
+      }
+    };
+    scrollToTop();
+    const t = setTimeout(scrollToTop, 50);
+    return () => clearTimeout(t);
+  }, [editingQuotation?.id]);
+
   useEffect(() => {
     if (!editingQuotation && !activeDraftQuote && pricingPresets?.baseRatePerKw) {
       setRatePerKw(pricingPresets.baseRatePerKw);

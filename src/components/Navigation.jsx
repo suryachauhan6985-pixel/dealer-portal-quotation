@@ -12,9 +12,9 @@ export default function Navigation() {
   const mobileNotificationRef = useRef(null);
 
   const handleMenuClick = (tabId) => {
-    if (tabId === 'create_quote') {
+    if (tabId === 'create_quote' || tabId === 'dashboard' || tabId === 'my_quotes') {
       if (clearEditingQuotation) clearEditingQuotation();
-      if (clearActiveDraftQuote) clearActiveDraftQuote();
+      if (tabId === 'create_quote' && clearActiveDraftQuote) clearActiveDraftQuote();
     }
     setActiveTab(tabId);
   };
