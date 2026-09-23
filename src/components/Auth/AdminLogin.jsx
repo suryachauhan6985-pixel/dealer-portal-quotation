@@ -259,7 +259,9 @@ export default function AdminLogin() {
               >
                 {loading ? (
                   <>
-                    <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
+                    <span className="inline-flex items-center justify-center -scale-y-100" style={{ transform: 'scaleY(-1)' }}>
+                      <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
+                    </span>
                     <span>Signing in to Operations Console...</span>
                   </>
                 ) : (

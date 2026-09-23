@@ -466,16 +466,16 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Top Row: 4 Data-Driven KPI Metric Cards */}
+      {/* Top Row: 4 Data-Driven KPI Metric Cards with Interactive Hover Elevation */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         {/* Card 1: Total Active Dealers */}
-        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm hover:shadow transition-shadow flex flex-col justify-between">
+        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest hover:border-primary hover:-translate-y-1 hover:shadow-lg transition-all duration-200 p-5 shadow-sm flex flex-col justify-between cursor-default group">
           <div>
             <div className="flex items-center justify-between">
-              <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">
+              <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider group-hover:text-primary transition-colors">
                 Total Active Dealers
               </span>
-              <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+              <div className="w-8 h-8 rounded-lg bg-surface-container group-hover:bg-primary/10 group-hover:text-primary flex items-center justify-center text-primary transition-colors">
                 <span className="material-symbols-outlined text-[20px]">groups</span>
               </div>
             </div>
@@ -493,13 +493,13 @@ export default function AdminDashboard() {
         </div>
 
         {/* Card 2: Total Quotations */}
-        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm hover:shadow transition-shadow flex flex-col justify-between">
+        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest hover:border-primary hover:-translate-y-1 hover:shadow-lg transition-all duration-200 p-5 shadow-sm flex flex-col justify-between cursor-default group">
           <div>
             <div className="flex items-center justify-between">
-              <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">
+              <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider group-hover:text-primary transition-colors">
                 Total Quotations
               </span>
-              <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+              <div className="w-8 h-8 rounded-lg bg-surface-container group-hover:bg-primary/10 group-hover:text-primary flex items-center justify-center text-primary transition-colors">
                 <span className="material-symbols-outlined text-[20px]">request_quote</span>
               </div>
             </div>
@@ -515,13 +515,13 @@ export default function AdminDashboard() {
         </div>
 
         {/* Card 3: Total Capacity Quoted */}
-        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm hover:shadow transition-shadow flex flex-col justify-between">
+        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest hover:border-primary hover:-translate-y-1 hover:shadow-lg transition-all duration-200 p-5 shadow-sm flex flex-col justify-between cursor-default group">
           <div>
             <div className="flex items-center justify-between">
-              <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">
+              <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider group-hover:text-primary transition-colors">
                 Total Capacity Quoted
               </span>
-              <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+              <div className="w-8 h-8 rounded-lg bg-surface-container group-hover:bg-primary/10 group-hover:text-primary flex items-center justify-center text-primary transition-colors">
                 <span className="material-symbols-outlined text-[20px]">bolt</span>
               </div>
             </div>
@@ -537,13 +537,13 @@ export default function AdminDashboard() {
         </div>
 
         {/* Card 4: Commissioned Projects */}
-        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm hover:shadow transition-shadow flex flex-col justify-between">
+        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest hover:border-primary hover:-translate-y-1 hover:shadow-lg transition-all duration-200 p-5 shadow-sm flex flex-col justify-between cursor-default group">
           <div>
             <div className="flex items-center justify-between">
-              <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">
+              <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider group-hover:text-primary transition-colors">
                 Commissioned Projects
               </span>
-              <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+              <div className="w-8 h-8 rounded-lg bg-surface-container group-hover:bg-primary/10 group-hover:text-primary flex items-center justify-center text-primary transition-colors">
                 <span className="material-symbols-outlined text-[20px]">verified</span>
               </div>
             </div>
@@ -561,10 +561,115 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      {/* Middle Section: Asymmetrical Layout (65% Table / 35% Widgets) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* LEFT SECTION (8 Cols / ~65%): FEED & AUDIT */}
-        <section className="lg:col-span-8 flex flex-col gap-4 min-w-0 max-w-full">
+      {/* Quotation Presets & Top Performing Dealers Benchmark */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        {/* Widget 1: Quotation Presets & Live Benchmark */}
+        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm flex flex-col justify-between gap-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[20px]">tune</span>
+                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Quotation Presets</h3>
+              </div>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full font-label-xs text-label-xs font-semibold bg-primary-container/20 text-primary">
+                Live Benchmark
+              </span>
+            </div>
+            
+            <div className="flex flex-col gap-3 py-2 border-y border-surface-container-highest text-body-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-secondary">Base Rate (Mono PERC):</span>
+                <span className="font-label-md text-label-md font-bold text-on-surface tabular-nums">
+                  ₹{Number(pricingPresets?.baseRatePerKw || 59800).toLocaleString('en-IN')} / kW
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-secondary">PM Surya Ghar Subsidy:</span>
+                <span className="font-semibold text-primary font-body-sm">
+                  ₹{Number(pricingPresets?.subsidyCap || 78000).toLocaleString('en-IN')} (Cap @ 3kW)
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-secondary">Enforced Min. Margin:</span>
+                <span className="font-semibold text-on-surface font-body-sm">
+                  Min ₹{Number(pricingPresets?.minMarginPerKw || 4000).toLocaleString('en-IN')} / kW
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-secondary font-label-xs">Last Synced:</span>
+                <span className="text-secondary font-label-xs italic">
+                  {pricingPresets?.lastSynced || 'Today, 09:30 AM by Ops'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={handleOpenPresetModal}
+            type="button"
+            className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-on-surface text-on-surface font-label-md text-label-md hover:bg-surface-container-low transition-colors duration-150 cursor-pointer active:scale-95"
+          >
+            <span className="material-symbols-outlined text-[18px]">settings_suggest</span>
+            <span>Edit Presets &amp; Margins</span>
+          </button>
+        </div>
+
+        {/* Widget 2: Top Performing Dealers Leaderboard */}
+        <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm flex flex-col justify-between gap-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Top Performing Dealers</h3>
+                <p className="font-body-sm text-[12px] text-secondary mt-0.5">Ranked by closed MW &amp; revenue</p>
+              </div>
+              <div className="w-7 h-7 rounded-full bg-primary-container/20 text-primary flex items-center justify-center">
+                <span className="material-symbols-outlined text-[16px]">leaderboard</span>
+              </div>
+            </div>
+
+            {/* Dealer List (Dynamic & Data-driven) */}
+            <div className="flex flex-col divide-y divide-surface-container-highest">
+              {topDealersList.map((dlr, idx) => (
+                <div key={dlr.id || idx} className="py-2.5 flex items-center justify-between first:pt-0 last:pb-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-label-xs shrink-0 ${
+                      idx === 0 ? 'bg-primary-container text-on-primary' : 'bg-surface-container-high text-on-surface'
+                    }`}>
+                      {idx + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-label-md text-label-md font-bold text-on-surface truncate">{dlr.name}</div>
+                      <div className="text-secondary font-body-sm text-[11px] truncate">
+                        {dlr.city}, {dlr.state} • {dlr.totalKW.toFixed(0)} kW Quoted
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-semibold text-on-surface font-label-md tabular-nums">
+                      ₹{(dlr.totalRevenue / 10000000).toFixed(2)} Cr
+                    </div>
+                    <div className="text-primary font-semibold text-[11px]">{dlr.winRate}% Win Rate</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={() => setActiveTab('dealers_mgmt')}
+              type="button"
+              className="inline-flex items-center gap-1 text-primary hover:text-on-primary-fixed font-label-md text-label-md font-semibold transition-colors cursor-pointer"
+            >
+              <span>View Full Partner Directory</span>
+              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Dealer Quotation Feed & Audit Activity (Full Width) */}
+      <section className="flex flex-col gap-4 w-full min-w-0 max-w-full">
           <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest shadow-sm overflow-hidden">
             {/* Table Header Controls */}
             <div className="p-5 border-b border-surface-container-highest flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -624,7 +729,7 @@ export default function AdminDashboard() {
 
             {/* Data Table */}
             <div className="overflow-x-auto w-full">
-              <table className="w-full text-left border-collapse min-w-[780px]">
+              <table className="w-full text-left border-collapse min-w-[720px] md:min-w-full">
                 <thead>
                   <tr className="bg-inverse-surface text-on-primary font-label-sm text-label-sm h-11 border-none">
                     <th className="px-4 py-3 font-semibold tracking-wider">Quotation ID</th>
@@ -801,110 +906,6 @@ export default function AdminDashboard() {
             </div>
           </div>
         </section>
-
-        {/* RIGHT SECTION (4 Cols / ~35%): WIDGET STACK */}
-        <section className="lg:col-span-4 flex flex-col gap-6 min-w-0 max-w-full">
-          {/* Widget 1: Quotation Presets & Live Benchmark */}
-          <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">tune</span>
-                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Quotation Presets</h3>
-              </div>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full font-label-xs text-label-xs font-semibold bg-primary-container/20 text-primary">
-                Live Benchmark
-              </span>
-            </div>
-            
-            <div className="flex flex-col gap-3 py-2 border-y border-surface-container-highest text-body-sm text-body-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-secondary">Base Rate (Mono PERC):</span>
-                <span className="font-label-md text-label-md font-bold text-on-surface tabular-nums">
-                  ₹{Number(pricingPresets?.baseRatePerKw || 59800).toLocaleString('en-IN')} / kW
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-secondary">PM Surya Ghar Subsidy:</span>
-                <span className="font-semibold text-primary font-body-sm">
-                  ₹{Number(pricingPresets?.subsidyCap || 78000).toLocaleString('en-IN')} (Cap @ 3kW)
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-secondary">Enforced Min. Margin:</span>
-                <span className="font-semibold text-on-surface font-body-sm">
-                  Min ₹{Number(pricingPresets?.minMarginPerKw || 4000).toLocaleString('en-IN')} / kW
-                </span>
-              </div>
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-secondary font-label-xs">Last Synced:</span>
-                <span className="text-secondary font-label-xs italic">
-                  {pricingPresets?.lastSynced || 'Today, 09:30 AM by Ops'}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={handleOpenPresetModal}
-              type="button"
-              className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-on-surface text-on-surface font-label-md text-label-md hover:bg-surface-container-low transition-colors duration-150 cursor-pointer active:scale-95"
-            >
-              <span className="material-symbols-outlined text-[18px]">settings_suggest</span>
-              <span>Edit Presets &amp; Margins</span>
-            </button>
-          </div>
-
-          {/* Widget 2: Top Performing Dealers Leaderboard */}
-          <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest p-5 shadow-sm flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Top Performing Dealers</h3>
-                <p className="font-body-sm text-[12px] text-secondary mt-0.5">Ranked by closed MW &amp; revenue</p>
-              </div>
-              <div className="w-7 h-7 rounded-full bg-primary-container/20 text-primary flex items-center justify-center">
-                <span className="material-symbols-outlined text-[16px]">leaderboard</span>
-              </div>
-            </div>
-
-            {/* Dealer List (Dynamic & Data-driven) */}
-            <div className="flex flex-col divide-y divide-surface-container-highest">
-              {topDealersList.map((dlr, idx) => (
-                <div key={dlr.id || idx} className="py-3 flex items-center justify-between first:pt-0 last:pb-0">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-label-xs shrink-0 ${
-                      idx === 0 ? 'bg-primary-container text-on-primary' : 'bg-surface-container-high text-on-surface'
-                    }`}>
-                      {idx + 1}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-label-md text-label-md font-bold text-on-surface truncate">{dlr.name}</div>
-                      <div className="text-secondary font-body-sm text-[11px] truncate">
-                        {dlr.city}, {dlr.state} • {dlr.totalKW.toFixed(0)} kW Quoted
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-semibold text-on-surface font-label-md tabular-nums">
-                      ₹{(dlr.totalRevenue / 10000000).toFixed(2)} Cr
-                    </div>
-                    <div className="text-primary font-semibold text-[11px]">{dlr.winRate}% Win Rate</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={() => setActiveTab('dealers_mgmt')}
-                type="button"
-                className="inline-flex items-center gap-1 text-primary hover:text-on-primary-fixed font-label-md text-label-md font-semibold transition-colors cursor-pointer"
-              >
-                <span>View Full Partner Directory</span>
-                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-              </button>
-            </div>
-          </div>
-        </section>
-      </div>
 
       {/* Modal: Edit Presets & Margins */}
       {showPresetModal && (

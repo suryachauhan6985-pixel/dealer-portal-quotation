@@ -55,7 +55,7 @@ export default function PDFTemplate({ quotation, activePage = 'all' }) {
       {/* ========================================================
           PAGE 1: EXACT ORIGINAL MIRANA TECHNOCAST COVER PAGE
           ======================================================== */}
-      <div className={`pdf-page pdf-page-cover relative w-[210mm] h-[297mm] max-h-[297mm] mx-auto bg-white border border-gray-300 shadow-xl print:!border-none print:!shadow-none print:!m-0 print:!mb-0 print:!p-0 print:!h-[296mm] print:!max-h-[296mm] mb-8 overflow-hidden items-center justify-center box-border ${activePage === 'all' || activePage === 1 ? 'flex' : 'hidden print:flex'}`}>
+      <div className={`pdf-page pdf-page-cover relative w-[210mm] h-[297mm] max-h-[297mm] mx-auto bg-white border border-gray-300 shadow-xl print:!border-none print:!shadow-none print:!m-0 print:!mb-0 print:!p-0 print:!h-[295mm] print:!max-h-[295mm] mb-8 overflow-hidden items-center justify-center box-border ${activePage === 'all' || activePage === 1 ? 'flex' : 'hidden print:flex'}`}>
         <img
           src="/mirana_page1_original.jpg"
           alt="Sunvine Quotation Cover"
@@ -67,7 +67,7 @@ export default function PDFTemplate({ quotation, activePage = 'all' }) {
       {/* ========================================================
           PAGE 2: SYSTEM DETAILS & PRICE SUMMARY (EXACT MIRANA PDF)
           ======================================================== */}
-      <div className={`pdf-page pdf-page-content relative w-[210mm] h-[297mm] max-h-[297mm] mx-auto p-10 flex-col justify-between bg-white border border-gray-300 shadow-xl print:!border-none print:!shadow-none print:!m-0 print:!mb-0 mb-8 overflow-hidden box-border ${activePage === 'all' || activePage === 2 ? 'flex' : 'hidden print:flex'}`}>
+      <div className={`pdf-page pdf-page-content relative w-[210mm] h-[297mm] max-h-[297mm] mx-auto p-10 flex-col justify-between bg-white border border-gray-300 shadow-xl print:!border-none print:!shadow-none print:!m-0 print:!mb-0 print:!h-[295mm] print:!max-h-[295mm] mb-8 overflow-hidden box-border ${activePage === 'all' || activePage === 2 ? 'flex' : 'hidden print:flex'}`}>
         <div>
           {/* Top Right Logo */}
           <div className="flex justify-end pb-3">
@@ -153,10 +153,10 @@ export default function PDFTemplate({ quotation, activePage = 'all' }) {
             </h2>
           </div>
 
-          {/* Industrial Rooftop Tag */}
+          {/* Project Type Rooftop Tag */}
           <div className="flex items-center gap-1.5 text-xs font-black text-gray-900 uppercase my-2">
             <span className="w-1.5 h-4 bg-[#B4C400] inline-block"></span>
-            <span>INDUSTRIAL ROOFTOP :</span>
+            <span>{quotation.projectType === 'Commercial' || (typeof quotation.type === 'string' && quotation.type.includes('Commercial')) ? 'COMMERCIAL / INDUSTRIAL ROOFTOP :' : 'RESIDENTIAL ROOFTOP :'}</span>
           </div>
 
           {/* TABLE 2: PROJECT COST SUMMARY */}
@@ -298,7 +298,7 @@ export default function PDFTemplate({ quotation, activePage = 'all' }) {
       {/* ========================================================
           PAGE 3: BILL OF MATERIAL : SOLAR ON GRID SYSTEM (EXACT MIRANA PDF)
           ======================================================== */}
-      <div className={`pdf-page pdf-page-content relative w-[210mm] h-[297mm] max-h-[297mm] mx-auto p-10 flex-col justify-between bg-white border border-gray-300 shadow-xl print:!border-none print:!shadow-none print:!m-0 print:!mb-0 mb-8 overflow-hidden box-border ${activePage === 'all' || activePage === 3 ? 'flex' : 'hidden print:flex'}`}>
+      <div className={`pdf-page pdf-page-content relative w-[210mm] h-[297mm] max-h-[297mm] mx-auto p-10 flex-col justify-between bg-white border border-gray-300 shadow-xl print:!border-none print:!shadow-none print:!m-0 print:!mb-0 print:!h-[295mm] print:!max-h-[295mm] mb-8 overflow-hidden box-border ${activePage === 'all' || activePage === 3 ? 'flex' : 'hidden print:flex'}`}>
         <div>
           {/* Top Right Logo */}
           <div className="flex justify-end pb-3">
@@ -510,7 +510,7 @@ export default function PDFTemplate({ quotation, activePage = 'all' }) {
       {/* ========================================================
           PAGE 4: TERMS & CONDITIONS (EXACT MIRANA PDF)
           ======================================================== */}
-      <div className={`pdf-page pdf-page-content relative w-[210mm] h-[297mm] max-h-[297mm] mx-auto p-10 flex-col justify-between bg-white border border-gray-300 shadow-xl print:!border-none print:!shadow-none print:!m-0 print:!mb-0 mb-8 overflow-hidden box-border ${activePage === 'all' || activePage === 4 ? 'flex' : 'hidden print:flex'}`}>
+      <div className={`pdf-page pdf-page-content relative w-[210mm] h-[297mm] max-h-[297mm] mx-auto p-10 flex-col justify-between bg-white border border-gray-300 shadow-xl print:!border-none print:!shadow-none print:!m-0 print:!mb-0 print:!h-[295mm] print:!max-h-[295mm] mb-8 overflow-hidden box-border ${activePage === 'all' || activePage === 4 ? 'flex' : 'hidden print:flex'}`}>
         <div>
           {/* Top Right Logo */}
           <div className="flex justify-end pb-2">

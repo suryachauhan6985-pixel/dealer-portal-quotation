@@ -3,7 +3,15 @@ import { useApp } from '../../context/AppContext';
 import { openWhatsAppChat } from '../../utils/quotationShare';
 
 export default function DealerDashboard() {
-  const { currentDealer, quotations, startEditingQuotation, setActiveTab, setPreviewQuotation } = useApp();
+  const { 
+    currentDealer, 
+    quotations, 
+    startEditingQuotation, 
+    clearEditingQuotation, 
+    clearActiveDraftQuote, 
+    setActiveTab, 
+    setPreviewQuotation 
+  } = useApp();
   const [selectedTimeRange, setSelectedTimeRange] = useState('Last 30 Days');
   const [timeDropdownOpen, setTimeDropdownOpen] = useState(false);
   const timeDropdownRef = useRef(null);
@@ -347,7 +355,11 @@ export default function DealerDashboard() {
             </p>
           </div>
           <button
-            onClick={() => setActiveTab('create_quote')}
+            onClick={() => {
+              if (clearEditingQuotation) clearEditingQuotation();
+              if (clearActiveDraftQuote) clearActiveDraftQuote();
+              setActiveTab('create_quote');
+            }}
             className="shrink-0 flex items-center justify-center gap-space-sm bg-surface-container-lowest text-primary hover:bg-surface-container hover:text-on-primary-container px-space-lg py-3 rounded-lg font-label-md transition-all shadow-sm active:scale-95"
             type="button"
           >

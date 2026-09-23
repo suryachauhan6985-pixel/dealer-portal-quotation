@@ -15,6 +15,9 @@ export default function CreateQuotation() {
     updateQuotation, 
     editingQuotation, 
     clearEditingQuotation, 
+    activeDraftQuote,
+    setActiveDraftQuote,
+    clearActiveDraftQuote,
     setActiveTab, 
     setPreviewQuotation,
     addNotification,
@@ -35,64 +38,105 @@ export default function CreateQuotation() {
                         (currentDealer?.tier || '').toLowerCase().includes('silver') ? 'silver' : 'gold';
   const tierConfig = tierMargins?.[dealerTierKey] || { defaultMarginPerKw: 4500, maxMarginCapPerKw: 6000 };
 
-  // Step 1.1 Customer Details (Empty by default for dealer input)
-  const [custName, setCustName] = useState('');
-  const [custPhone, setCustPhone] = useState('');
-  const [custLocation, setCustLocation] = useState('');
+  const initialSource = editingQuotation || activeDraftQuote;
+
+  // Step 1.1 Customer Details (Persisted across multi-step navigation)
+  const [custName, setCustName] = useState(initialSource?.customerName || '');
+  const [custPhone, setCustPhone] = useState(initialSource?.customerPhone || '');
+  const [custLocation, setCustLocation] = useState(initialSource?.location || initialSource?.city || '');
 
   // Step 1.2 System Details (Standard field presets)
-  const [systemCapacity, setSystemCapacity] = useState('3.3');
-  const [panelBrand, setPanelBrand] = useState('Waaree 585W TOPCon Bifacial (ALMM List-I)');
-  const [inverterModel, setInverterModel] = useState('Sunvine Solaryaan 5.0G (1-Phase 2 MPPT)');
+  const [systemCapacity, setSystemCapacity] = useState(() => {
+    const rawKw = initialSource?.systemCapacityKW || initialSource?.capacity;
+    return rawKw ? String(parseFloat(rawKw)) : '3.3';
+  });
+  const [panelBrand, setPanelBrand] = useState(initialSource?.solarModule || initialSource?.panelType || 'Waaree 585W TOPCon Bifacial (ALMM List-I)');
+  const [inverterModel, setInverterModel] = useState(initialSource?.inverterType || 'Sunvine Solaryaan 5.0G (1-Phase 2 MPPT)');
+  const [projectType, setProjectType] = useState(() => {
+    if (initialSource?.projectType) return initialSource.projectType;
+    if (typeof initialSource?.type === 'string' && initialSource.type.includes('Commercial')) return 'Commercial';
+    return 'Residential';
+  });
   const [showInverterModal, setShowInverterModal] = useState(false);
 
   // Multi-Panel Quotation Toggle
-  const [multiBrandComparison, setMultiBrandComparison] = useState(false);
+  const [multiBrandComparison, setMultiBrandComparison] = useState(initialSource?.multiBrandComparison || false);
 
   // Step 1.3 Pricing & Subsidy (Linked to Admin Pricing Presets & Dealer Tier Margins)
-  const [ratePerKw, setRatePerKw] = useState(() => pricingPresets?.baseRatePerKw || 59800);
+  const [ratePerKw, setRatePerKw] = useState(() => Number(initialSource?.baseRatePerKW) || pricingPresets?.baseRatePerKw || 59800);
   const [marginMode, setMarginMode] = useState('amount'); // default to fixed amount matching tier
   const [dealerMarginRate, setDealerMarginRate] = useState(8); // 8%
-  const [dealerMarginFixed, setDealerMarginFixed] = useState(() => tierConfig.defaultMarginPerKw * 3.3);
+  const [dealerMarginFixed, setDealerMarginFixed] = useState(() => {
+    if (initialSource?.dealerTotalMargin) return Number(initialSource.dealerTotalMargin);
+    return tierConfig.defaultMarginPerKw * 3.3;
+  });
   const [saveStatus, setSaveStatus] = useState('');
 
+  // Always reset scroll to the very top (Customer Details) on mount or quotation switch (SR-39)
   useEffect(() => {
-    if (!editingQuotation && pricingPresets?.baseRatePerKw) {
+    const scrollToTop = () => {
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+        if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+        const main = document.querySelector('main');
+        if (main) main.scrollTop = 0;
+      }
+    };
+    scrollToTop();
+    const t = setTimeout(scrollToTop, 50);
+    return () => clearTimeout(t);
+  }, [editingQuotation?.id]);
+
+  useEffect(() => {
+    if (!editingQuotation && !activeDraftQuote && pricingPresets?.baseRatePerKw) {
       setRatePerKw(pricingPresets.baseRatePerKw);
     }
-    if (!editingQuotation && tierConfig?.defaultMarginPerKw) {
+    if (!editingQuotation && !activeDraftQuote && tierConfig?.defaultMarginPerKw) {
       setDealerMarginFixed(tierConfig.defaultMarginPerKw * (parseFloat(systemCapacity) || 5));
     }
-  }, [pricingPresets?.baseRatePerKw, tierConfig?.defaultMarginPerKw, editingQuotation, systemCapacity]);
+  }, [pricingPresets?.baseRatePerKw, tierConfig?.defaultMarginPerKw, editingQuotation, activeDraftQuote, systemCapacity]);
 
-  // Auto-populate when editing an existing quote
+  // Auto-populate when editing an existing quote or restoring draft (SR-36)
   useEffect(() => {
-    if (editingQuotation) {
-      if (editingQuotation.customerName) setCustName(editingQuotation.customerName);
-      if (editingQuotation.customerPhone) setCustPhone(editingQuotation.customerPhone);
-      if (editingQuotation.location || editingQuotation.city) {
-        setCustLocation(editingQuotation.location || `${editingQuotation.city || 'Rajkot'}, Gujarat`);
+    const source = editingQuotation || activeDraftQuote;
+    if (source) {
+      if (source.customerName !== undefined) setCustName(source.customerName);
+      if (source.customerPhone !== undefined) setCustPhone(source.customerPhone);
+      if (source.location || source.city) {
+        setCustLocation(source.location || `${source.city || 'Rajkot'}, Gujarat`);
       }
-      const rawKw = parseFloat(editingQuotation.systemCapacityKW || editingQuotation.capacity || 5);
+      const rawKw = parseFloat(source.systemCapacityKW || source.capacity);
       if (!isNaN(rawKw)) setSystemCapacity(String(rawKw));
-      if (editingQuotation.solarModule || editingQuotation.panelType) {
-        setPanelBrand(editingQuotation.solarModule || editingQuotation.panelType);
+      if (source.solarModule || source.panelType) {
+        setPanelBrand(source.solarModule || source.panelType);
       }
-      if (editingQuotation.inverterType) {
-        setInverterModel(editingQuotation.inverterType);
+      if (source.inverterType) {
+        setInverterModel(source.inverterType);
       }
-      if (editingQuotation.baseRatePerKW) {
-        setRatePerKw(Number(editingQuotation.baseRatePerKW));
+      if (source.projectType) {
+        setProjectType(source.projectType);
+      } else if (typeof source.type === 'string' && source.type.includes('Commercial')) {
+        setProjectType('Commercial');
+      } else {
+        setProjectType('Residential');
       }
-      if (editingQuotation.dealerTotalMargin) {
+      if (source.baseRatePerKW) {
+        setRatePerKw(Number(source.baseRatePerKW));
+      }
+      if (source.multiBrandComparison !== undefined) {
+        setMultiBrandComparison(source.multiBrandComparison);
+      }
+      if (source.dealerTotalMargin) {
         setMarginMode('amount');
-        setDealerMarginFixed(Number(editingQuotation.dealerTotalMargin));
-      } else if (editingQuotation.dealerMarginPerKW && rawKw > 0) {
+        setDealerMarginFixed(Number(source.dealerTotalMargin));
+      } else if (source.dealerMarginPerKW && rawKw > 0) {
         setMarginMode('amount');
-        setDealerMarginFixed(Number(editingQuotation.dealerMarginPerKW) * rawKw);
+        setDealerMarginFixed(Number(source.dealerMarginPerKW) * rawKw);
       }
     }
-  }, [editingQuotation]);
+  }, [editingQuotation, activeDraftQuote]);
 
   // Sizing Computations
   const kw = parseFloat(systemCapacity) || 3.3;
@@ -117,15 +161,16 @@ export default function CreateQuotation() {
   // Total Customer Quoted Project Cost (Base Cost + Dealer Margin)
   const totalCost = baseProjectCost + dealerMarginINR;
 
-  // PM Surya Ghar Central DBT Subsidy Formula (Linked to Admin Presets)
-  const calculateSubsidy = (capacity) => {
+  // PM Surya Ghar Central DBT Subsidy Formula (Linked to Admin Presets & Project Type)
+  const calculateSubsidy = (capacity, type) => {
+    if (type === 'Commercial') return 0;
     const maxSubsidy = pricingPresets?.subsidyCap || 78000;
     if (capacity <= 1) return Math.min(30000, maxSubsidy);
     if (capacity <= 2) return Math.min(60000, maxSubsidy);
     return maxSubsidy; // Cap at subsidyCap (default ₹78,000 for 3kW+)
   };
 
-  const subsidy = calculateSubsidy(kw);
+  const subsidy = calculateSubsidy(kw, projectType);
   const finalPayable = Math.max(0, totalCost - subsidy);
   const annualGenerationUnits = Math.round(kw * 1440);
   const annualSavings = Math.round(annualGenerationUnits * 6.67);
@@ -171,14 +216,17 @@ export default function CreateQuotation() {
 
   const handleReset = () => {
     if (clearEditingQuotation) clearEditingQuotation();
+    if (clearActiveDraftQuote) clearActiveDraftQuote();
     setCustName('');
     setCustPhone('');
     setCustLocation('');
-    setSystemCapacity('5');
+    setSystemCapacity('3.3');
+    setPanelBrand('Waaree 585W TOPCon Bifacial (ALMM List-I)');
+    setInverterModel('Sunvine Solaryaan 5.0G (1-Phase 2 MPPT)');
+    setProjectType('Residential');
+    setMultiBrandComparison(false);
     setRatePerKw(pricingPresets?.baseRatePerKw || 59800);
-    setMarginMode('percent');
-    setDealerMarginRate(8);
-    setDealerMarginFixed(25000);
+    setDealerMarginFixed(tierConfig.defaultMarginPerKw * 3.3);
   };
 
   const handleSaveDraft = async () => {
@@ -200,6 +248,8 @@ export default function CreateQuotation() {
       location: custLocation,
       city: custLocation.split(',')[0]?.trim() || 'Rajkot',
       state: 'Gujarat',
+      projectType,
+      type: `${panelBrand.split(' ')[0]} • ${projectType}`,
       systemCapacityKW: kw,
       panelType: panelBrand,
       solarModule: panelBrand,
@@ -269,6 +319,8 @@ export default function CreateQuotation() {
       location: custLocation,
       city: custLocation.split(',')[0]?.trim() || 'Rajkot',
       state: 'Gujarat',
+      projectType,
+      type: `${panelBrand.split(' ')[0]} • ${projectType}`,
       systemCapacityKW: kw,
       solarModule: panelBrand,
       selectedModuleMake: panelBrand.split(' ')[0],
@@ -298,6 +350,7 @@ export default function CreateQuotation() {
       addQuotation(quotePayload);
     }
     if (setPreviewQuotation) setPreviewQuotation(quotePayload);
+    if (setActiveDraftQuote) setActiveDraftQuote(quotePayload);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       document.documentElement.scrollTop = 0;
@@ -312,7 +365,11 @@ export default function CreateQuotation() {
       <div className="flex flex-col gap-3 mb-6">
         <div className="flex flex-col gap-1 min-w-0">
           <button
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => {
+              if (clearEditingQuotation) clearEditingQuotation();
+              if (clearActiveDraftQuote) clearActiveDraftQuote();
+              setActiveTab('dashboard');
+            }}
             className="inline-flex items-center gap-1.5 text-secondary hover:text-on-surface font-label-sm transition-colors w-fit group"
           >
             <span className="material-symbols-outlined text-[18px] group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
@@ -459,83 +516,82 @@ export default function CreateQuotation() {
 
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {/* Capacity Selector */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="systemCapacity">
-                    System Capacity (kW)
-                  </label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-primary text-[20px] pointer-events-none">solar_power</span>
-                    <select
-                      className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
-                      id="systemCapacity"
-                      value={systemCapacity}
-                      onChange={(e) => setSystemCapacity(e.target.value)}
-                    >
-                      <option value="2.2">2.2 kW (4 Panels Rooftop)</option>
-                      <option value="3.3">3.3 kW (6 Panels Standard Field Spec)</option>
-                      <option value="4.4">4.4 kW (8 Panels Rooftop)</option>
-                      <option value="5.5">5.5 kW (10 Panels Rooftop)</option>
-                      <option value="6.6">6.6 kW (12 Panels Rooftop)</option>
-                      <option value="8">8.0 kW (14 Panels High-Capacity)</option>
-                      <option value="10">10.0 kW (Commercial / High Load)</option>
-                    </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
-                  </div>
-                </div>
-
-                {/* Panel Brand Selector with Dynamic Catalog & NEW badge */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="panelBrand">
-                      Solar Panel Brand &amp; Model
-                    </label>
-                    {(() => {
-                      const activeMod = (modulesList || []).find(m => `${m.brand} ${m.model}` === panelBrand);
-                      return activeMod && isCatalogItemNew && isCatalogItemNew(activeMod) ? (
-                        <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider animate-pulse">
-                          NEW
-                        </span>
-                      ) : null;
-                    })()}
-                  </div>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">grid_view</span>
-                    <select
-                      className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
-                      id="panelBrand"
-                      value={panelBrand}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setPanelBrand(val);
-                        const mod = (modulesList || []).find(m => `${m.brand} ${m.model}` === val);
-                        if (mod && markCatalogItemSeen) {
-                          markCatalogItemSeen(mod.id || `${mod.brand}-${mod.model}`);
-                        }
-                      }}
-                    >
-                      {(modulesList || [
-                        { brand: 'Waaree', model: '585W TOPCon Bifacial (ALMM List-I)' },
-                        { brand: 'APS', model: '600W TOPCon Bifacial (ALMM List-I)' },
-                        { brand: 'Adani', model: '550W Vertex Mono PERC' },
-                        { brand: 'Rayzone', model: '550W Bifacial TOPCon' }
-                      ]).map((mod, idx) => {
-                        const fullName = `${mod.brand} ${mod.model}`;
-                        const isNew = isCatalogItemNew ? isCatalogItemNew(mod) : false;
-                        return (
-                          <option key={mod.id || idx} value={fullName}>
-                            {fullName} {isNew ? '★ [NEW]' : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
-                  </div>
+              {/* Row 1, Col 1: Capacity Selector */}
+              <div className="flex flex-col gap-1.5">
+                <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="systemCapacity">
+                  System Capacity (kW)
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-primary text-[20px] pointer-events-none">solar_power</span>
+                  <select
+                    className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
+                    id="systemCapacity"
+                    value={systemCapacity}
+                    onChange={(e) => setSystemCapacity(e.target.value)}
+                  >
+                    <option value="2.2">2.2 kW (4 Panels Rooftop)</option>
+                    <option value="3.3">3.3 kW (6 Panels Standard Field Spec)</option>
+                    <option value="4.4">4.4 kW (8 Panels Rooftop)</option>
+                    <option value="5.5">5.5 kW (10 Panels Rooftop)</option>
+                    <option value="6.6">6.6 kW (12 Panels Rooftop)</option>
+                    <option value="8">8.0 kW (14 Panels High-Capacity)</option>
+                    <option value="10">10.0 kW (Commercial / High Load)</option>
+                  </select>
+                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
                 </div>
               </div>
 
-              {/* Inverter Configuration Selector with Dynamic Catalog & NEW badge */}
-              <div className="flex flex-col gap-1.5 pt-1">
+              {/* Row 1, Col 2: Panel Brand Selector with Dynamic Catalog & NEW badge */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="panelBrand">
+                    Solar Panel Brand &amp; Model
+                  </label>
+                  {(() => {
+                    const activeMod = (modulesList || []).find(m => `${m.brand} ${m.model}` === panelBrand);
+                    return activeMod && isCatalogItemNew && isCatalogItemNew(activeMod) ? (
+                      <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider animate-pulse">
+                        NEW
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">grid_view</span>
+                  <select
+                    className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
+                    id="panelBrand"
+                    value={panelBrand}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPanelBrand(val);
+                      const mod = (modulesList || []).find(m => `${m.brand} ${m.model}` === val);
+                      if (mod && markCatalogItemSeen) {
+                        markCatalogItemSeen(mod.id || `${mod.brand}-${mod.model}`);
+                      }
+                    }}
+                  >
+                    {(modulesList || [
+                      { brand: 'Waaree', model: '585W TOPCon Bifacial (ALMM List-I)' },
+                      { brand: 'APS', model: '600W TOPCon Bifacial (ALMM List-I)' },
+                      { brand: 'Adani', model: '550W Vertex Mono PERC' },
+                      { brand: 'Rayzone', model: '550W Bifacial TOPCon' }
+                    ]).map((mod, idx) => {
+                      const fullName = `${mod.brand} ${mod.model}`;
+                      const isNew = isCatalogItemNew ? isCatalogItemNew(mod) : false;
+                      return (
+                        <option key={mod.id || idx} value={fullName}>
+                          {fullName} {isNew ? '★ [NEW]' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
+                </div>
+              </div>
+
+              {/* Row 2, Col 1: Inverter Configuration Selector with Dynamic Catalog & NEW badge */}
+              <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <label className="font-label-sm text-label-sm text-on-surface font-semibold">Selected Inverter Unit</label>
                   {(() => {
@@ -579,6 +635,32 @@ export default function CreateQuotation() {
                   <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
                 </div>
               </div>
+
+              {/* Row 2, Col 2: Project Type Dropdown */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-label-sm text-label-sm text-on-surface font-semibold" htmlFor="projectType">
+                    Project Type / Category
+                  </label>
+                  <span className="text-[10px] text-secondary font-medium uppercase tracking-wider">
+                    {projectType === 'Residential' ? 'Subsidy Slabs' : 'Commercial EPC'}
+                  </span>
+                </div>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">apartment</span>
+                  <select
+                    className="w-full h-10 pl-10 pr-9 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md outline-none shadow-sm border border-surface-container-high focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
+                    id="projectType"
+                    value={projectType}
+                    onChange={(e) => setProjectType(e.target.value)}
+                  >
+                    <option value="Residential">Residential (PM Surya Ghar Subsidy)</option>
+                    <option value="Commercial">Commercial / Industrial (Non-Subsidy)</option>
+                  </select>
+                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">arrow_drop_down</span>
+                </div>
+              </div>
+            </div>
 
               {/* Multi-Panel Comparative Quotation Toggle */}
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface-container-low border border-surface-container-high mt-1">

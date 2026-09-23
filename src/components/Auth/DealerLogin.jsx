@@ -212,7 +212,9 @@ export default function DealerLogin() {
             >
               {loading ? (
                 <>
-                  <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
+                  <span className="inline-flex items-center justify-center -scale-y-100" style={{ transform: 'scaleY(-1)' }}>
+                    <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
+                  </span>
                   <span>Authenticating Dealer...</span>
                 </>
               ) : (
@@ -483,7 +485,9 @@ export default function DealerLogin() {
                 >
                   {loading ? (
                     <>
-                      <span className="material-symbols-outlined animate-spin text-base">sync</span>
+                      <span className="inline-flex items-center justify-center -scale-y-100" style={{ transform: 'scaleY(-1)' }}>
+                        <span className="material-symbols-outlined animate-spin text-base">sync</span>
+                      </span>
                       <span>Authenticating Dealer...</span>
                     </>
                   ) : (

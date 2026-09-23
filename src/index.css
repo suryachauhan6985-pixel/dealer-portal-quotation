@@ -75,13 +75,21 @@
     display: none !important;
   }
 
-  #root, #root > div, main, main > div, .quotation-preview-container, .quotation-preview-container > div, .pdf-scalable-viewport {
+  /* Reset all structural wrappers and intermediate scaling containers */
+  #root, #root > div, main, main > div,
+  .quotation-preview-container, .quotation-preview-container > div,
+  .pdf-scalable-viewport, .pdf-scalable-viewport > div {
     margin: 0 !important;
     margin-top: 0 !important;
+    margin-bottom: 0 !important;
     padding: 0 !important;
     padding-top: 0 !important;
+    padding-bottom: 0 !important;
     width: 210mm !important;
     max-width: 210mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
     transform: none !important;
     position: static !important;
     overflow: visible !important;
@@ -97,6 +105,7 @@
     margin-bottom: 0 !important;
     padding: 0 !important;
     width: 210mm !important;
+    height: auto !important;
   }
 
   .pdf-document {
@@ -116,9 +125,9 @@
     break-after: page !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    height: 296mm !important;
-    max-height: 296mm !important;
-    min-height: 296mm !important;
+    height: 295mm !important;
+    max-height: 295mm !important;
+    min-height: 295mm !important;
     width: 210mm !important;
     max-width: 210mm !important;
     margin: 0 !important;
@@ -140,14 +149,16 @@
     padding: 0 !important;
     margin: 0 !important;
     margin-top: 0 !important;
-    height: 296mm !important;
-    max-height: 296mm !important;
+    height: 295mm !important;
+    max-height: 295mm !important;
+    overflow: hidden !important;
   }
 
   .pdf-page-cover img {
     width: 210mm !important;
-    height: 296mm !important;
-    max-height: 296mm !important;
+    max-width: 210mm !important;
+    height: 295mm !important;
+    max-height: 295mm !important;
     object-fit: cover !important;
     display: block !important;
     margin: 0 !important;
@@ -155,7 +166,7 @@
   }
 
   .pdf-page-content {
-    padding: 8mm 12mm !important;
+    padding: 7mm 12mm !important;
   }
 }
 

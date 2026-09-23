@@ -252,6 +252,12 @@ const safeSetItem = (key, value) => {
   // Active quotation loaded for Editing in CreateQuotation
   const [editingQuotation, setEditingQuotation] = useState(null);
 
+  // Active in-progress draft quotation for multi-step navigation persistence (SR-36)
+  const [activeDraftQuote, setActiveDraftQuote] = useState(null);
+  const clearActiveDraftQuote = () => {
+    setActiveDraftQuote(null);
+  };
+
   // System & Compliance Notifications
   const [notifications, setNotifications] = useState(() => {
     if (!isDbUpToDate) return DEFAULT_NOTIFICATIONS;
@@ -482,6 +488,14 @@ const safeSetItem = (key, value) => {
   const startEditingQuotation = (quote) => {
     setEditingQuotation(quote);
     setActiveTab('create_quote');
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+      if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+      const main = document.querySelector('main');
+      if (main) main.scrollTop = 0;
+    }
   };
 
   const clearEditingQuotation = () => {
@@ -690,6 +704,9 @@ const safeSetItem = (key, value) => {
         editingQuotation,
         startEditingQuotation,
         clearEditingQuotation,
+        activeDraftQuote,
+        setActiveDraftQuote,
+        clearActiveDraftQuote,
         updateQuotationStatus,
         previewQuotation,
         setPreviewQuotation,

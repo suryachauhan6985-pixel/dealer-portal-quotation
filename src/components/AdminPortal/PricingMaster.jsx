@@ -551,10 +551,8 @@ export default function PricingMaster() {
         </button>
       </div>
 
-      {/* Main Workspace Two-Column Bento Layout */}
-      <div className="grid grid-cols-12 gap-6 mt-6 items-start">
-        {/* LEFT CONFIGURATION STACK (8 Cols) — Conditionally renders only active tab content */}
-        <div className="col-span-12 xl:col-span-8 flex flex-col gap-6">
+      {/* Main Workspace Full-Width Layout (SR-45) */}
+      <div className="w-full flex flex-col gap-6 mt-6">
 
           {/* ========================================================================= */}
           {/* TAB 1: BASE PRICING & SUBSIDY SLABS                                      */}
@@ -617,8 +615,8 @@ export default function PricingMaster() {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse min-w-[960px]">
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-left border-collapse min-w-[760px] md:min-w-full">
                     <thead>
                       <tr className="bg-inverse-surface text-surface-container-lowest text-label-sm font-semibold h-10 border-none">
                         <th className="px-3 py-2 text-xs whitespace-nowrap">KW</th>
@@ -1787,133 +1785,6 @@ export default function PricingMaster() {
               </div>
             </>
           )}
-
-        </div>
-
-        {/* RIGHT COLUMN: LIVE IMPACT PREVIEW (4 Cols) */}
-        <div className="col-span-12 xl:col-span-4 sticky top-20 flex flex-col gap-6">
-          <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-5 shadow-sm">
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-surface-container-low">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary-container text-xl">preview</span>
-                <h3 className="font-headline-sm text-headline-sm text-inverse-surface">Live Proposal Preview</h3>
-              </div>
-              <span className="font-label-xs text-label-xs bg-inverse-surface text-surface-container-lowest px-2 py-0.5 rounded font-mono">
-                Gujarat Simulated
-              </span>
-            </div>
-            <p className="font-body-sm text-body-sm text-secondary mb-4 leading-relaxed">
-              Real-time test of how these master rates render inside dealer quotation builders before you broadcast changes across {totalDealersCount} partner portal accounts.
-            </p>
-
-            {/* Scenario A */}
-            <div className="rounded-lg border border-surface-container-highest p-4 bg-surface-container-low mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-label-md text-label-md font-bold text-inverse-surface">Scenario A: 5.0 kW Residential</span>
-                <span className="font-label-xs text-label-xs bg-surface-container px-2 py-0.5 rounded text-secondary font-medium">Rajkot Circle (PGVCL)</span>
-              </div>
-              <div className="space-y-1.5 text-body-sm text-body-sm pt-2 border-t border-surface-container-highest/60">
-                <div className="flex justify-between text-secondary">
-                  <span>Base Rate (5 kW × ₹{Number(rate3to10).toLocaleString()})</span>
-                  <span className="text-on-surface font-medium whitespace-nowrap">₹ {(5 * Number(rate3to10)).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-secondary">
-                  <span>Discom &amp; Net Meter Fees</span>
-                  <span className="text-on-surface font-medium whitespace-nowrap">+ ₹ 7,000</span>
-                </div>
-                <div className="flex justify-between text-secondary">
-                  <span>GST (13.8% composite EPC)</span>
-                  <span className="text-on-surface font-medium whitespace-nowrap">+ ₹ {Math.round(5 * Number(rate3to10) * 0.138).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-on-surface font-semibold pt-1 border-t border-surface-container-highest/50">
-                  <span>Gross Project Cost</span>
-                  <span className="whitespace-nowrap">₹ {Math.round(5 * Number(rate3to10) * 1.138 + 7000).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-primary font-medium">
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">energy_savings_leaf</span>
-                    PM Surya Ghar DBT Subsidy
-                  </span>
-                  <span className="whitespace-nowrap">- ₹ 78,000</span>
-                </div>
-              </div>
-              <div className="mt-3 p-3 rounded-lg bg-primary-container/15 border border-primary-container/30 flex items-center justify-between">
-                <div>
-                  <span className="font-label-xs text-label-xs text-primary uppercase font-bold tracking-wider block">Net Customer Investment</span>
-                  <span className="font-headline-md text-headline-md font-bold text-primary whitespace-nowrap">
-                    ₹ {Math.round(5 * Number(rate3to10) * 1.138 + 7000 - 78000).toLocaleString()}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="font-label-xs text-label-xs text-secondary block">Dealer Margin Room</span>
-                  <span className="font-label-md text-label-md font-bold text-on-surface whitespace-nowrap">₹ 26,000 (~8%)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Scenario B */}
-            <div className="rounded-lg border border-surface-container-highest p-4 bg-surface-container-low mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-label-md text-label-md font-bold text-inverse-surface">Scenario B: 280 kW C&amp;I Rooftop</span>
-                <span className="font-label-xs text-label-xs bg-surface-container px-2 py-0.5 rounded text-secondary font-medium">Gujarat GIDC (Metoda)</span>
-              </div>
-              <div className="space-y-1.5 text-body-sm text-body-sm pt-2 border-t border-surface-container-highest/60">
-                <div className="flex justify-between text-secondary">
-                  <span>Base Rate (280 kW × ₹{Number(rateCommercial).toLocaleString()})</span>
-                  <span className="text-on-surface font-medium whitespace-nowrap">₹ {(280 * Number(rateCommercial)).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-on-surface font-semibold pt-1 border-t border-surface-container-highest/50">
-                  <span>Gross Turnkey Estimate</span>
-                  <span className="text-headline-sm font-headline-sm font-bold text-on-surface whitespace-nowrap">
-                    ₹ {((280 * Number(rateCommercial)) / 100000).toFixed(2)} Lakhs
-                  </span>
-                </div>
-                <div className="flex justify-between text-tertiary font-medium">
-                  <span>Expected Annual Energy Savings</span>
-                  <span className="whitespace-nowrap">₹ 19.4 Lakhs / yr</span>
-                </div>
-                <div className="text-label-xs text-label-xs text-secondary text-right">
-                  Payback Estimate: ~3.4 Years
-                </div>
-              </div>
-            </div>
-
-            {/* System Sync Checklist */}
-            <div className="border-t border-surface-container-highest pt-4">
-              <h4 className="font-label-md text-label-md font-bold text-on-surface mb-2.5">System Sync Checklist</h4>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-body-sm text-body-sm text-on-surface">
-                  <span className="material-symbols-outlined text-primary-container text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                  <span>{totalDealersCount} Authorized Gujarat Dealers Ready to Receive</span>
-                </div>
-                <div className="flex items-center gap-2 text-body-sm text-body-sm text-on-surface">
-                  <span className="material-symbols-outlined text-primary-container text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                  <span>Discom Tariff Grids Synced (PGVCL / DGVCL / UGVCL / MGVCL)</span>
-                </div>
-                <div className="flex items-center gap-2 text-body-sm text-body-sm text-on-surface">
-                  <span className="material-symbols-outlined text-primary-container text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                  <span>ALMM Approved Module List Validated</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => triggerToast('Broadcasted updated pricing catalog to WhatsApp dealer groups!')}
-                className="w-full mt-5 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border border-primary-container bg-surface-container-lowest hover:bg-primary-container/10 text-primary font-label-md text-label-md transition-colors font-semibold cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-lg">forum</span>
-                <span>Broadcast Price Update to WhatsApp</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-inverse-surface text-surface-container-lowest rounded-xl p-4 flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary-container text-2xl shrink-0">verified_user</span>
-            <div className="text-body-sm text-body-sm">
-              <span className="font-semibold text-surface-container-lowest block">Immutable Audit Log</span>
-              <span className="text-surface-variant/80 text-[12px]">All changes to these rates are stamped with your Executive cryptographic key.</span>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* ========================================================================= */}
