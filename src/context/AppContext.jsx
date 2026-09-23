@@ -76,6 +76,9 @@ export const AppProvider = ({ children }) => {
     const effectiveTab = newTab === 'profile' ? 'dealer_settings' : newTab;
     setActiveTabState(effectiveTab);
     if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
       const targetPath = TAB_TO_PATH[effectiveTab] || '/dashboard';
       if (window.location.pathname !== targetPath) {
         if (replace) {
@@ -110,6 +113,11 @@ export const AppProvider = ({ children }) => {
   // Update URL on initial load if logged in
   useEffect(() => {
     if (isAuthenticated && typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.get('view') === 'quote') {
+        // Do not overwrite public quotation proposal view URL
+        return;
+      }
       if (window.location.pathname === '/profile') {
         window.history.replaceState({ tab: 'dealer_settings' }, '', '/settings');
         setActiveTabState('dealer_settings');

@@ -42,12 +42,13 @@ function MainApp() {
   // 0. Public Proposal Viewer (Accessible by customer via WhatsApp link)
   const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const isPublicProposalView = urlParams.get('view') === 'quote';
+  const publicQuoteId = urlParams.get('id');
 
   if (isPublicProposalView) {
     return (
-      <div className="min-h-screen bg-[#F6F8F7] text-[#0F1B2E] font-sans antialiased py-4 px-2 sm:px-6">
+      <div className="min-h-screen bg-[#F6F8F7] text-[#0F1B2E] font-sans antialiased py-0">
         <main className="max-w-5xl mx-auto">
-          <QuotationPreview isPublicView={true} />
+          <QuotationPreview isPublicView={true} publicQuoteId={publicQuoteId} />
         </main>
       </div>
     );
@@ -114,10 +115,16 @@ function MainApp() {
       <UpdateNotificationPopup />
 
       {/* Main Content Area */}
-      <main className="md:pl-64 pt-16 pb-24 md:pb-8 transition-all w-full min-w-0 max-w-full overflow-x-hidden">
-        <div className="p-3 sm:p-4 lg:p-6 xl:p-8 w-full max-w-[1600px] mx-auto min-w-0">
-          {renderView()}
-        </div>
+      <main className="md:pl-64 pt-16 pb-24 md:pb-8 transition-all w-full min-w-0 max-w-full overflow-x-clip">
+        {activeTab === 'preview_quote' ? (
+          <div className="w-full min-w-0">
+            {renderView()}
+          </div>
+        ) : (
+          <div className="p-3 sm:p-4 lg:p-6 xl:p-8 w-full max-w-[1600px] mx-auto min-w-0">
+            {renderView()}
+          </div>
+        )}
       </main>
 
       {/* Real-time Network Offline / Restored Status Banner */}

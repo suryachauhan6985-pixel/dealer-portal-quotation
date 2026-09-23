@@ -94,7 +94,7 @@ export default function Navigation() {
         <div className="flex items-center gap-space-md min-w-0 shrink">
           <div className="flex items-center gap-space-xs text-secondary font-label-sm min-w-0">
             <span className="material-symbols-outlined text-[18px] shrink-0">solar_power</span>
-            <span className="hidden xl:inline truncate">Channel Network • Dealer Operations</span>
+            <span className="hidden xl:inline truncate">Dealer Operations</span>
             <span className="xl:hidden text-xs truncate">Sunvine Network</span>
           </div>
         </div>

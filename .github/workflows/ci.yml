@@ -1,0 +1,30 @@
+name: CI Build & Verification Gate
+
+on:
+  push:
+    branches:
+      - devlopment
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-verify:
+    name: Verify Build & Compile Integrity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Compile Production Build
+        run: npm run build
