@@ -596,6 +596,25 @@ const safeSetItem = (key, value) => {
     }
   }, [role]);
 
+  // Persistent dismissed notification IDs across sessions (SR-46)
+  const [dismissedNotifIds, setDismissedNotifIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`sunvine_dismissed_notifs_${role}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`sunvine_dismissed_notifs_${role}`);
+      setDismissedNotifIds(saved ? JSON.parse(saved) : []);
+    } catch (e) {
+      setDismissedNotifIds([]);
+    }
+  }, [role]);
+
   const persistReadIds = (ids) => {
     setReadNotifIds(ids);
     safeSetItem(`sunvine_read_notifs_${role}`, ids);
@@ -610,10 +629,11 @@ const safeSetItem = (key, value) => {
     });
   };
 
-  // Role-partitioned visible notifications with real-time persistent read status
+  // Role-partitioned visible notifications with real-time persistent read and dismissal status
   const visibleNotifications = useMemo(() => {
     return notifications
       .filter(n => {
+        if (dismissedNotifIds.includes(n.id)) return false;
         const aud = n.audience || 'all';
         if (aud === 'all') return true;
         return aud === role;
@@ -622,7 +642,7 @@ const safeSetItem = (key, value) => {
         ...n,
         read: readNotifIds.includes(n.id)
       }));
-  }, [notifications, role, readNotifIds]);
+  }, [notifications, role, readNotifIds, dismissedNotifIds]);
 
   const unreadNotificationsCount = useMemo(() => {
     return visibleNotifications.filter(n => !n.read).length;
@@ -641,15 +661,23 @@ const safeSetItem = (key, value) => {
   };
 
   const deleteNotification = (id) => {
+    setDismissedNotifIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      safeSetItem(`sunvine_dismissed_notifs_${role}`, updated);
+      return updated;
+    });
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   const clearAllNotifications = () => {
-    setNotifications(prev => prev.filter(n => {
-      const aud = n.audience || 'all';
-      if (aud === 'all') return false;
-      return aud !== role;
-    }));
+    const visibleIds = visibleNotifications.map(n => n.id);
+    setDismissedNotifIds(prev => {
+      const updated = Array.from(new Set([...prev, ...visibleIds]));
+      safeSetItem(`sunvine_dismissed_notifs_${role}`, updated);
+      return updated;
+    });
+    setNotifications(prev => prev.filter(n => !visibleIds.includes(n.id)));
   };
 
   const addNotification = (notif) => {
@@ -719,6 +747,7 @@ const safeSetItem = (key, value) => {
         addNotification,
         dismissedPopupIds,
         dismissPopupNotification,
+        dismissedNotifIds,
         pdfBosMatrix,
         setPdfBosMatrix,
         pdfBomSpecs: PDF_BOM_SPECIFICATIONS,

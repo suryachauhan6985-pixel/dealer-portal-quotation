@@ -10,6 +10,7 @@ import {
   GUJARAT_DEALERS,
   GUJARAT_QUOTATIONS
 } from './gujaratDatabase';
+import { APP_VERSION, CURRENT_RELEASE_CHANGELOG } from '../config/version';
 
 export {
   SUNVINE_OFFICIAL_PROFILE,
@@ -185,13 +186,13 @@ export const DEFAULT_NOTIFICATIONS = [
 
   // General System Broadcast
   {
-    id: 'notif-sys-001',
+    id: `notif-sys-${APP_VERSION}`,
     audience: 'all',
     type: 'info',
     icon: 'system_update',
-    title: 'Platform v2.0.0 Online',
-    description: 'Production hardening, Gujarat ledger sync, and offline network support activated.',
-    createdAt: '2026-09-22T09:00:00.000Z',
+    title: `Platform v${APP_VERSION} Online`,
+    description: `${CURRENT_RELEASE_CHANGELOG?.title || 'System Update'}: ${(CURRENT_RELEASE_CHANGELOG?.highlights?.slice(0, 2) || []).join(' | ')}.`,
+    createdAt: '2026-09-24T00:00:00.000Z',
     targetTab: 'dashboard'
   }
 ];

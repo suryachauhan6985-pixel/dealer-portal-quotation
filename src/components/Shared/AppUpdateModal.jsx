@@ -8,10 +8,13 @@ export const CURRENT_APP_VERSION = `v${APP_VERSION}`;
 const RELEASE_NOTIF_ID = `release-${APP_VERSION}`;
 
 export default function AppUpdateModal() {
-  const { addNotification, notifications } = useApp();
+  const { addNotification, notifications, dismissedNotifIds } = useApp();
 
   useEffect(() => {
     if (!addNotification) return;
+
+    // Do not re-seed if user has explicitly dismissed this notification (SR-46)
+    if (dismissedNotifIds?.includes(RELEASE_NOTIF_ID)) return;
 
     // Always ensure the current-version notification exists in the list.
     // Using a stable ID means addNotification can safely de-duplicate.
