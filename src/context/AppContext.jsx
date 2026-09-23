@@ -504,6 +504,13 @@ const safeSetItem = (key, value) => {
     setDealers(prev => prev.map(d => d.id === id ? { ...d, maxMarginCapPerKw: Number(newCap) } : d));
   };
 
+  const updateDealerPassword = (id, newPassword) => {
+    setDealers(prev => prev.map(d => d.id === id ? { ...d, password: newPassword } : d));
+    if (currentDealer?.id === id) {
+      setCurrentDealer(prev => ({ ...prev, password: newPassword }));
+    }
+  };
+
   const updatePricingMaster = (newMaster) => {
     setPricingMaster(newMaster);
   };
@@ -676,6 +683,7 @@ const safeSetItem = (key, value) => {
         addDealer,
         toggleDealerStatus,
         updateDealerMarginCap,
+        updateDealerPassword,
         quotations,
         addQuotation,
         updateQuotation,
