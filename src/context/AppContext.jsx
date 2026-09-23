@@ -648,6 +648,8 @@ const safeSetItem = (key, value) => {
     return visibleNotifications.filter(n => !n.read).length;
   }, [visibleNotifications]);
 
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
   const markNotificationAsRead = (id) => {
     if (!readNotifIds.includes(id)) {
       persistReadIds([...readNotifIds, id]);
@@ -740,6 +742,8 @@ const safeSetItem = (key, value) => {
         setPreviewQuotation,
         notifications: visibleNotifications,
         unreadNotificationsCount,
+        notificationsOpen,
+        setNotificationsOpen,
         markNotificationAsRead,
         markAllNotificationsAsRead,
         deleteNotification,

@@ -9,7 +9,8 @@ export default function UpdateNotificationPopup() {
     markNotificationAsRead,
     setActiveTab,
     dismissedPopupIds,
-    dismissPopupNotification
+    dismissPopupNotification,
+    setNotificationsOpen
   } = useApp();
 
   const [sessionDismissedIds, setSessionDismissedIds] = useState([]);
@@ -106,14 +107,18 @@ export default function UpdateNotificationPopup() {
     });
   };
 
-  const handleAction = () => {
+  const handleAction = (e) => {
+    e?.stopPropagation?.();
     const targetId = activeNotif.id;
     const tab = activeNotif.targetTab;
+    if (tab) setActiveTab(tab);
+    setTimeout(() => {
+      if (setNotificationsOpen) setNotificationsOpen(true);
+    }, 50);
     animateOut(() => {
       markNotificationAsRead(targetId);
       dismissPopupNotification(targetId);
       setSessionDismissedIds(prev => [...prev, targetId]);
-      if (tab) setActiveTab(tab);
     });
   };
 
@@ -180,7 +185,8 @@ export default function UpdateNotificationPopup() {
         lastTickRef.current = performance.now();
         setIsPaused(false);
       }}
-      className="no-print fixed top-20 right-3 sm:right-6 z-[60] max-w-sm sm:max-w-md w-[calc(100vw-1.5rem)] bg-surface-container-lowest/95 backdrop-blur-xl border border-primary/25 rounded-2xl shadow-[0_16px_48px_rgba(0,0,0,0.16)] overflow-hidden select-none animate-in slide-in-from-top-4 sm:slide-in-from-right-8 fade-in duration-300"
+      onClick={handleAction}
+      className="no-print fixed top-20 right-3 sm:right-6 z-[60] max-w-sm sm:max-w-md w-[calc(100vw-1.5rem)] bg-surface-container-lowest/95 backdrop-blur-xl border border-primary/25 rounded-2xl shadow-[0_16px_48px_rgba(0,0,0,0.16)] overflow-hidden select-none animate-in slide-in-from-top-4 sm:slide-in-from-right-8 fade-in duration-300 cursor-pointer"
     >
       {/* Auto-dismiss progress countdown bar */}
       <div className="h-[3px] w-full bg-surface-container-high/60">
