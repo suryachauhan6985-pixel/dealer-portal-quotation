@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+
 export default function DealerManagement() {
   const { dealers, addDealer, toggleDealerStatus, updateDealerPassword, tierMargins, updateTierMargins, addNotification, setActiveTab } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
@@ -675,6 +676,7 @@ export default function DealerManagement() {
             onClick={handleExportDirectory}
             className="h-10 px-3.5 sm:px-4 bg-white border border-[#0F1B2E] text-[#0F1B2E] font-label-md rounded-lg hover:bg-[#F6F8F7] transition-all duration-150 flex items-center gap-2 shadow-xs text-xs sm:text-sm cursor-pointer"
             type="button"
+            title="Export Gujarat dealer directory as CSV"
           >
             <span className="material-symbols-outlined text-[18px]">download</span>
             <span>Export Directory</span>
