@@ -201,6 +201,85 @@ export default function SolarStructure3DViewer({
       }
     }
 
+    // 4b. 3D Obstacles (Staircase Mumty Room & Water Tank / Tanki)
+    (activeRoof.obstacles || []).forEach((obs) => {
+      const ox = (obs.xRelFt || 0) * 0.3048;
+      const oz = (obs.zRelFt || 0) * 0.3048;
+
+      if (obs.type === 'box') {
+        const bw = (obs.widthFt || 7) * 0.3048;
+        const bd = (obs.depthFt || 16) * 0.3048;
+        const bh = (obs.heightFt || 7) * 0.3048;
+
+        const mumtyGroup = new THREE.Group();
+        mumtyGroup.position.set(ox, 0, oz);
+
+        // Room Solid Brick Walls
+        const roomGeo = new THREE.BoxGeometry(bw, bh, bd);
+        const roomMesh = new THREE.Mesh(roomGeo, parapetMat);
+        roomMesh.position.y = bh / 2;
+        roomMesh.castShadow = true;
+        roomMesh.receiveShadow = true;
+        mumtyGroup.add(roomMesh);
+
+        // Mumty Terrace Coping Slab
+        const mumtyRoofGeo = new THREE.BoxGeometry(bw + 0.15, 0.08, bd + 0.15);
+        const mumtyRoof = new THREE.Mesh(mumtyRoofGeo, copingMat);
+        mumtyRoof.position.y = bh + 0.04;
+        mumtyRoof.castShadow = true;
+        mumtyGroup.add(mumtyRoof);
+
+        // Door Indicator
+        const doorMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
+        const doorGeo = new THREE.BoxGeometry(0.8, 1.8, 0.02);
+        const doorMesh = new THREE.Mesh(doorGeo, doorMat);
+        doorMesh.position.set(0, 0.9, bd / 2 + 0.01);
+        mumtyGroup.add(doorMesh);
+
+        scene.add(mumtyGroup);
+      }
+
+      if (obs.type === 'cylinder') {
+        const r = (obs.radiusFt || 1.8) * 0.3048;
+        const h = (obs.heightFt || 3) * 0.3048;
+
+        const tankGroup = new THREE.Group();
+        tankGroup.position.set(ox, 0, oz);
+
+        // 4 Concrete Pedestals / Legs
+        const pedGeo = new THREE.BoxGeometry(0.12, 0.25, 0.12);
+        [
+          [-r * 0.6, -r * 0.6],
+          [r * 0.6, -r * 0.6],
+          [-r * 0.6, r * 0.6],
+          [r * 0.6, r * 0.6]
+        ].forEach(([px, pz]) => {
+          const ped = new THREE.Mesh(pedGeo, copingMat);
+          ped.position.set(px, 0.125, pz);
+          ped.castShadow = true;
+          tankGroup.add(ped);
+        });
+
+        // Water Tank Cylinder Body (Sintex Blue)
+        const tankMat = new THREE.MeshStandardMaterial({ color: 0x0284C7, roughness: 0.3, metalness: 0.2 });
+        const tankGeo = new THREE.CylinderGeometry(r, r, h - 0.25, 24);
+        const tankMesh = new THREE.Mesh(tankGeo, tankMat);
+        tankMesh.position.y = 0.25 + (h - 0.25) / 2;
+        tankMesh.castShadow = true;
+        tankMesh.receiveShadow = true;
+        tankGroup.add(tankMesh);
+
+        // Top Lid
+        const lidGeo = new THREE.CylinderGeometry(r * 0.45, r * 0.45, 0.08, 16);
+        const lidMesh = new THREE.Mesh(lidGeo, new THREE.MeshStandardMaterial({ color: 0x0369A1 }));
+        lidMesh.position.y = h + 0.04;
+        lidMesh.castShadow = true;
+        tankGroup.add(lidMesh);
+
+        scene.add(tankGroup);
+      }
+    });
+
     // 5. Structure Elements (GI Steel Materials & Hardware)
     const giMat = new THREE.MeshStandardMaterial({
       color: 0xD1D5DB,
@@ -413,6 +492,11 @@ export default function SolarStructure3DViewer({
 
       startLocalZ += panelH;
     });
+
+    // Position solar array structure in the optimal shadow-free zone
+    const mountOffsetX = ((activeRoof.safeSolarZone?.centerXFt || 0) * 0.3048);
+    const mountOffsetZ = ((activeRoof.safeSolarZone?.centerZFt || 0) * 0.3048);
+    structureGroup.position.set(mountOffsetX, 0, mountOffsetZ);
 
     structureGroup.add(tiltedPlaneGroup);
     scene.add(structureGroup);
