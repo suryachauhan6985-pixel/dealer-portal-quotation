@@ -178,6 +178,23 @@ export default function HardwareMaster() {
         dimensions: moduleForm.dimensions?.trim() || editingModule.dimensions || '2278 × 1134 × 30 mm | 28 kg'
       };
 
+      const isUnchanged =
+        editingModule.brand === updatedMod.brand &&
+        editingModule.model === updatedMod.model &&
+        editingModule.cellTech === updatedMod.cellTech &&
+        Number(editingModule.wattage) === Number(updatedMod.wattage) &&
+        (editingModule.efficiency || '') === (updatedMod.efficiency || '') &&
+        (editingModule.ratePerWp || '') === (updatedMod.ratePerWp || '') &&
+        (editingModule.warranty || '') === (updatedMod.warranty || '') &&
+        (editingModule.dimensions || '') === (updatedMod.dimensions || '');
+
+      if (isUnchanged) {
+        setShowAddModal(false);
+        setEditingModule(null);
+        triggerToast('No changes detected in module specifications.');
+        return;
+      }
+
       if (setModulesList) {
         setModulesList(prev => prev.map(m => m.id === editingModule.id ? updatedMod : m));
       }
@@ -525,6 +542,23 @@ Adani Solar,550W Vertex Dual Glass,Mono PERC,550,21.5%,18.90,25 Years Performanc
   };
 
   const handleSaveBulkPrices = () => {
+    let hasChanges = false;
+    (modulesList || []).forEach(m => {
+      if (bulkRates[m.id] !== undefined) {
+        const currentRate = parseFloat(String(m.ratePerWp).replace(/[^0-9.]/g, '')) || 0;
+        const newRate = Number(bulkRates[m.id]);
+        if (Math.abs(currentRate - newRate) > 0.001) {
+          hasChanges = true;
+        }
+      }
+    });
+
+    if (!hasChanges) {
+      setShowBulkPriceModal(false);
+      triggerToast('No changes detected in bulk module pricing.');
+      return;
+    }
+
     if (setModulesList) {
       setModulesList(prev => (prev || []).map(m => {
         if (bulkRates[m.id] !== undefined) {

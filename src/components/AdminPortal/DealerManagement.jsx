@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useToast } from '../Shared/Toast';
 import ViewModeToggle, { useTableViewMode } from '../Shared/ViewModeToggle';
 
 export default function DealerManagement() {
   const { dealers, addDealer, updateDealer, toggleDealerStatus, updateDealerPassword, tierMargins, updateTierMargins, addNotification, setActiveTab } = useApp();
+  const { addToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTabFilter, setActiveTabFilter] = useState('all');
   const [discomFilter, setDiscomFilter] = useState('all');
@@ -267,6 +269,34 @@ export default function DealerManagement() {
         password: newPassword.trim() || editingDealer.password || 'dealer123'
       };
 
+      const isUnchanged =
+        editingDealer.firmName === updatedDealerObj.firmName &&
+        editingDealer.contactPerson === updatedDealerObj.contactPerson &&
+        editingDealer.mobile === updatedDealerObj.mobile &&
+        (editingDealer.email || '') === (updatedDealerObj.email || '') &&
+        editingDealer.city === updatedDealerObj.city &&
+        editingDealer.discom === updatedDealerObj.discom &&
+        editingDealer.tier === updatedDealerObj.tier &&
+        Number(editingDealer.maxMarginCapPerKw) === Number(updatedDealerObj.maxMarginCapPerKw) &&
+        (editingDealer.address || '') === (updatedDealerObj.address || '') &&
+        (editingDealer.gstin || '') === (updatedDealerObj.gstin || '') &&
+        (editingDealer.pan || '') === (updatedDealerObj.pan || '') &&
+        (editingDealer.discomLicense || editingDealer.gedaLicenseNo || '') === (updatedDealerObj.discomLicense || '') &&
+        (editingDealer.password || 'dealer123') === (updatedDealerObj.password || 'dealer123');
+
+      if (isUnchanged) {
+        if (addToast) {
+          addToast({
+            title: 'No Changes Detected',
+            message: 'Dealer partner profile is already up to date.',
+            type: 'info'
+          });
+        }
+        setShowAddModal(false);
+        setEditingDealer(null);
+        return;
+      }
+
       if (updateDealer) {
         updateDealer(updatedDealerObj);
       }
@@ -277,6 +307,13 @@ export default function DealerManagement() {
           type: 'success',
           icon: 'edit',
           audience: 'admin'
+        });
+      }
+      if (addToast) {
+        addToast({
+          title: 'Dealer Updated',
+          message: `${newFirm.trim()} profile was updated successfully.`,
+          type: 'success'
         });
       }
     } else {
@@ -1462,8 +1499,35 @@ export default function DealerManagement() {
               <button
                 type="button"
                 onClick={() => {
+                  const hasChanges = Object.keys(tempTierMargins || {}).some(key => {
+                    const existing = tierMargins?.[key];
+                    const updated = tempTierMargins?.[key];
+                    if (!existing || !updated) return true;
+                    return Number(existing.defaultMarginPerKw) !== Number(updated.defaultMarginPerKw) ||
+                           Number(existing.maxMarginCapPerKw) !== Number(updated.maxMarginCapPerKw);
+                  });
+
+                  if (!hasChanges) {
+                    if (addToast) {
+                      addToast({
+                        title: 'No Changes Detected',
+                        message: 'Tier default margins are unchanged.',
+                        type: 'info'
+                      });
+                    }
+                    setShowTierModal(false);
+                    return;
+                  }
+
                   if (updateTierMargins) {
                     updateTierMargins(tempTierMargins);
+                  }
+                  if (addToast) {
+                    addToast({
+                      title: 'Tier Margins Updated',
+                      message: 'Default tier margins updated successfully.',
+                      type: 'success'
+                    });
                   }
                   setShowTierModal(false);
                 }}
@@ -1596,6 +1660,19 @@ export default function DealerManagement() {
                 type="button"
                 onClick={() => {
                   if (!editPassword.trim()) return;
+                  const currentPass = credModalDealer.password || 'dealer123';
+                  if (editPassword.trim() === currentPass) {
+                    if (addToast) {
+                      addToast({
+                        title: 'No Changes Detected',
+                        message: 'Password was not modified.',
+                        type: 'info'
+                      });
+                    }
+                    setCredModalDealer(null);
+                    return;
+                  }
+
                   if (updateDealerPassword) {
                     updateDealerPassword(credModalDealer.id, editPassword.trim());
                   }
@@ -1607,6 +1684,13 @@ export default function DealerManagement() {
                       type: 'success',
                       icon: 'key',
                       audience: 'admin'
+                    });
+                  }
+                  if (addToast) {
+                    addToast({
+                      title: 'Password Updated',
+                      message: `Login password for ${credModalDealer.firmName} updated.`,
+                      type: 'success'
                     });
                   }
                   setTimeout(() => {

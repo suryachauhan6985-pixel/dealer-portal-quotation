@@ -619,6 +619,12 @@ const safeSetItem = (key, value) => {
   };
 
   const updatePricingPresets = (newPresets) => {
+    const isDifferent = Object.keys(newPresets || {}).some(key => {
+      if (key === 'lastSynced') return false;
+      return String(newPresets[key]) !== String(pricingPresets[key]);
+    });
+    if (!isDifferent) return;
+
     const timeStr = new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date());
     const updated = {
       ...pricingPresets,
@@ -636,6 +642,15 @@ const safeSetItem = (key, value) => {
   };
 
   const updateTierMargins = (newTiers) => {
+    const isDifferent = Object.keys(newTiers || {}).some(tierKey => {
+      const existing = tierMargins?.[tierKey];
+      const updated = newTiers[tierKey];
+      if (!existing || !updated) return true;
+      return Number(existing.defaultMarginPerKw) !== Number(updated.defaultMarginPerKw) ||
+             Number(existing.maxMarginCapPerKw) !== Number(updated.maxMarginCapPerKw);
+    });
+    if (!isDifferent) return;
+
     const updated = { ...tierMargins, ...newTiers };
     setTierMargins(updated);
     safeSetItem('sunvine_tier_margins', updated);
@@ -649,6 +664,11 @@ const safeSetItem = (key, value) => {
   };
 
   const updateGovernanceSettings = (newSettings) => {
+    const isDifferent = Object.keys(newSettings || {}).some(key => {
+      return String(newSettings[key]) !== String(governanceSettings?.[key]);
+    });
+    if (!isDifferent) return;
+
     const updated = { ...governanceSettings, ...newSettings };
     setGovernanceSettings(updated);
     safeSetItem('sunvine_governance_settings', updated);

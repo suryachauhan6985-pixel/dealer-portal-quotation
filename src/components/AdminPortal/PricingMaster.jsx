@@ -293,6 +293,11 @@ ${origin}/?tab=pricing_master
   // Handle saving matrix changes
   const handleSaveMatrix = (updatedMatrix) => {
     const matrixToSave = updatedMatrix || localBosMatrix;
+    if (pdfBosMatrix && JSON.stringify(matrixToSave) === JSON.stringify(pdfBosMatrix)) {
+      setIsInlineEditingMatrix(false);
+      triggerToast('No changes detected in BOS Price Matrix.');
+      return;
+    }
     if (setPdfBosMatrix) {
       setPdfBosMatrix(matrixToSave);
     }
@@ -1399,6 +1404,19 @@ ${origin}/?tab=pricing_master
                   <button
                     type="button"
                     onClick={() => {
+                      const hasChanges = Object.keys(localTierMargins || {}).some(key => {
+                        const existing = tierMargins?.[key];
+                        const updated = localTierMargins?.[key];
+                        if (!existing || !updated) return true;
+                        return Number(existing.defaultMarginPerKw) !== Number(updated.defaultMarginPerKw) ||
+                               Number(existing.maxMarginCapPerKw) !== Number(updated.maxMarginCapPerKw);
+                      });
+
+                      if (!hasChanges) {
+                        triggerToast('No changes detected in tier default margins.');
+                        return;
+                      }
+
                       if (updateTierMargins) {
                         updateTierMargins(localTierMargins);
                       }
