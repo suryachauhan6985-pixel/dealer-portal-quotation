@@ -79,11 +79,24 @@ export function calculateHardwareBOM(layout) {
   // 5. Hardware fasteners (Hex bolt + nut + plain + spring washers)
   const fastenerSetsCount = (jBoltsCount + midClampsCount + endClampsCount + (totalLegs * 6));
 
+  // 6. MC4 Connectors calculation (Research based)
+  // Each module comes with factory pre-attached leads that plug directly in series.
+  // External MC4 connectors are needed for:
+  // - 1 Pair (1 Male + 1 Female) for Inverter DC Home-Run termination per string
+  // - 1 Pair for jumper cables if the array is split into separate tables
+  const isMultiString = totalPanels > 12;
+  const homeRunPairs = isMultiString ? 2 : 1;
+  const jumperPairs = layout.isSplit ? 1 : 0;
+  const mc4Pairs = homeRunPairs + jumperPairs;
+  const mc4ConnectorsCount = mc4Pairs * 2; // Each pair = 1 Male + 1 Female
+
   return {
     jBoltsCount,
     midClampsCount,
     endClampsCount,
     totalClamps: midClampsCount + endClampsCount,
+    mc4Pairs,
+    mc4ConnectorsCount,
     frontLegs: legPairs,
     rearLegs: legPairs,
     totalLegs,
@@ -92,6 +105,125 @@ export function calculateHardwareBOM(layout) {
     lAnglesCount,
     fastenerSetsCount,
     estimatedSteelWeightKg: Math.round(totalPanels * 22.5) // approx 22.5 kg structural steel per panel
+  };
+}
+
+/**
+ * Calculates Leg Heights and Elevation profile
+ */
+export function calculateLegHeights(layout, frontLegHeightFt = 2.5, tiltDegrees = 18) {
+  const depthFt = (layout.depthMm || 2278) / 304.8;
+  const tiltRad = (tiltDegrees * Math.PI) / 180;
+  const deltaHeightFt = Number((depthFt * Math.sin(tiltRad)).toFixed(2));
+  const rearLegHeightFt = Number((frontLegHeightFt + deltaHeightFt).toFixed(2));
+  const slopeLengthFt = Number((depthFt / Math.cos(tiltRad)).toFixed(2));
+
+  return {
+    tiltDegrees,
+    frontLegHeightFt: Number(frontLegHeightFt.toFixed(2)),
+    rearLegHeightFt,
+    deltaHeightFt,
+    slopeLengthFt,
+    frontLegHeightMm: Math.round(frontLegHeightFt * 304.8),
+    rearLegHeightMm: Math.round(rearLegHeightFt * 304.8)
+  };
+}
+
+/**
+ * 1D Bin Packing Cutting Optimization for Standard 20-ft GI Pipes
+ */
+function packCutsIntoPipes(cuts, pipeLengthFt = 20) {
+  const sorted = [...cuts].sort((a, b) => b.lengthFt - a.lengthFt);
+  const pipes = [];
+
+  sorted.forEach(cut => {
+    let placed = false;
+    for (const p of pipes) {
+      if (p.remainingFt >= cut.lengthFt) {
+        p.cuts.push(cut);
+        p.usedFt = Number((p.usedFt + cut.lengthFt).toFixed(2));
+        p.remainingFt = Number((pipeLengthFt - p.usedFt).toFixed(2));
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      pipes.push({
+        pipeIndex: pipes.length + 1,
+        totalLengthFt: pipeLengthFt,
+        usedFt: Number(cut.lengthFt.toFixed(2)),
+        remainingFt: Number((pipeLengthFt - cut.lengthFt).toFixed(2)),
+        cuts: [cut]
+      });
+    }
+  });
+
+  return pipes;
+}
+
+/**
+ * Calculates GI Pipe Cuts and Quantities (60x40 for Columns/Legs & 40x40 for Rafters/Purlins)
+ */
+export function calculateGiPipeSections(layout, frontLegHeightFt = 2.5, tiltDegrees = 18) {
+  const elevation = calculateLegHeights(layout, frontLegHeightFt, tiltDegrees);
+  const legPairs = layout.bom?.frontLegs || 2;
+  const arrayWidthFt = (layout.widthMm || 2278) / 304.8;
+  const rowCount = layout.rows?.length || 1;
+
+  // 1. 60x40 mm Pipe Cuts (Legs / Columns)
+  const cuts60x40 = [];
+  for (let i = 0; i < legPairs; i++) {
+    cuts60x40.push({ id: `R${i + 1}`, label: `Rear Leg #${i + 1}`, lengthFt: elevation.rearLegHeightFt, type: 'rear_leg' });
+    cuts60x40.push({ id: `F${i + 1}`, label: `Front Leg #${i + 1}`, lengthFt: elevation.frontLegHeightFt, type: 'front_leg' });
+  }
+
+  const pipes60x40 = packCutsIntoPipes(cuts60x40, 20);
+  const totalLength60x40Ft = Number(cuts60x40.reduce((acc, c) => acc + c.lengthFt, 0).toFixed(1));
+
+  // 2. 40x40 mm Pipe Cuts (Rafters + Purlins)
+  const cuts40x40 = [];
+  for (let i = 0; i < legPairs; i++) {
+    if (elevation.slopeLengthFt > 20) {
+      const half = Number((elevation.slopeLengthFt / 2).toFixed(2));
+      cuts40x40.push({ id: `RAF_${i + 1}A`, label: `Rafter #${i + 1} (Sec A)`, lengthFt: half, type: 'rafter' });
+      cuts40x40.push({ id: `RAF_${i + 1}B`, label: `Rafter #${i + 1} (Sec B)`, lengthFt: half, type: 'rafter' });
+    } else {
+      cuts40x40.push({ id: `RAF_${i + 1}`, label: `Rafter #${i + 1} (Slope)`, lengthFt: elevation.slopeLengthFt, type: 'rafter' });
+    }
+  }
+
+  const totalPurlins = rowCount * 2;
+  const purlinLenFt = Number(arrayWidthFt.toFixed(2));
+  for (let i = 0; i < totalPurlins; i++) {
+    if (purlinLenFt > 20) {
+      const half = Number((purlinLenFt / 2).toFixed(2));
+      cuts40x40.push({ id: `PUR_${i + 1}A`, label: `Purlin #${i + 1} (Sec A)`, lengthFt: half, type: 'purlin' });
+      cuts40x40.push({ id: `PUR_${i + 1}B`, label: `Purlin #${i + 1} (Sec B)`, lengthFt: half, type: 'purlin' });
+    } else {
+      cuts40x40.push({ id: `PUR_${i + 1}`, label: `Purlin #${i + 1}`, lengthFt: purlinLenFt, type: 'purlin' });
+    }
+  }
+
+  const pipes40x40 = packCutsIntoPipes(cuts40x40, 20);
+  const totalLength40x40Ft = Number(cuts40x40.reduce((acc, c) => acc + c.lengthFt, 0).toFixed(1));
+
+  return {
+    elevation,
+    pipeLengthStandardFt: 20,
+    legs60x40: {
+      totalPipesCount: pipes60x40.length,
+      totalLengthFt: totalLength60x40Ft,
+      totalPipesFeet: pipes60x40.length * 20,
+      cuts: cuts60x40,
+      pipes: pipes60x40
+    },
+    raftersPurlins40x40: {
+      totalPipesCount: pipes40x40.length,
+      totalLengthFt: totalLength40x40Ft,
+      totalPipesFeet: pipes40x40.length * 20,
+      cuts: cuts40x40,
+      pipes: pipes40x40
+    }
   };
 }
 

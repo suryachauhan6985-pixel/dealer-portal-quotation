@@ -270,6 +270,8 @@ export default function CreateQuotation() {
       selectedInverterMake: inverterModel.split(' ')[0],
       multiBrandComparison,
       multiBrandPackages: multiBrandComparison ? multiBrandPackages : null,
+      moduleCount: moduleCount,
+      structureLayout: selectedStructureLayout || null,
       inverterType: inverterModel,
       inverterCapacity: `${kw} kW`,
       baseCost: baseProjectCost,

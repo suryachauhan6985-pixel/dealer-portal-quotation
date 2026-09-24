@@ -2,10 +2,13 @@ import React, { useState, useMemo, useRef } from 'react';
 import {
   generateDynamicLayouts,
   parseModuleDimensions,
+  calculateLegHeights,
+  calculateGiPipeSections,
   mmToMeters,
   mmToFeet,
   DEFAULT_MODULE_DIMS
 } from '../../utils/solarLayoutEngine';
+import SolarStructure3DViewer from './SolarStructure3DViewer';
 
 export default function PanelLayoutVisualizer({
   initialPanelCount = 6,
@@ -18,6 +21,9 @@ export default function PanelLayoutVisualizer({
   const [panelCount, setPanelCount] = useState(initialPanelCount || 6);
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedId, setSelectedId] = useState(selectedLayoutId || 'portrait_2x3');
+  const [activeViewTab, setActiveViewTab] = useState('2d'); // '2d', '3d', 'pipes'
+  const [frontLegHeightFt, setFrontLegHeightFt] = useState(2.5);
+  const [tiltDegrees, setTiltDegrees] = useState(18);
 
   // Manual hardware override states (editable by dealer)
   const [manualFrontLegs, setManualFrontLegs] = useState('');
@@ -84,6 +90,9 @@ export default function PanelLayoutVisualizer({
     const rLegs = parseInt(manualRearLegs, 10) || activeSelectedLayout.bom.rearLegs;
     const mClamps = parseInt(manualMidClamps, 10) || activeSelectedLayout.bom.midClampsCount;
     const eClamps = parseInt(manualEndClamps, 10) || activeSelectedLayout.bom.endClampsCount;
+    const fHeight = parseFloat(frontLegHeightFt) || 2.5;
+
+    const elevation = calculateLegHeights(activeSelectedLayout, fHeight, tiltDegrees);
 
     onSelectLayout({
       ...activeSelectedLayout,
@@ -94,13 +103,18 @@ export default function PanelLayoutVisualizer({
         totalLegs: fLegs + rLegs,
         midClampsCount: mClamps,
         endClampsCount: eClamps,
-        totalClamps: mClamps + eClamps
+        totalClamps: mClamps + eClamps,
+        frontLegHeightFt: elevation.frontLegHeightFt,
+        rearLegHeightFt: elevation.rearLegHeightFt,
+        tiltDegrees
       },
       manualOverrides: {
         frontLegs: fLegs,
         rearLegs: rLegs,
         midClamps: mClamps,
-        endClamps: eClamps
+        endClamps: eClamps,
+        frontLegHeightFt: elevation.frontLegHeightFt,
+        rearLegHeightFt: elevation.rearLegHeightFt
       }
     });
   };
@@ -147,8 +161,66 @@ export default function PanelLayoutVisualizer({
         )}
       </div>
 
-      {/* 2. Interactive Panel Count & Filter Controller */}
-      <div className="p-4 sm:p-5 bg-surface-container-low border-b border-surface-container-high flex flex-col gap-3.5">
+      {/* Sub-Header Studio Mode Switcher: 2D | 3D WebGL | 20-ft GI Pipe Cutting */}
+      <div className="px-4 sm:px-5 py-2.5 bg-[#0B1524] border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-white">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-400">View Mode:</span>
+          <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-700/80">
+            <button
+              type="button"
+              onClick={() => setActiveViewTab('2d')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeViewTab === '2d'
+                  ? 'bg-[#6CBF3D] text-slate-950 shadow-xs'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">grid_view</span>
+              <span>📐 2D Layouts ({filteredLayouts.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveViewTab('3d')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeViewTab === '3d'
+                  ? 'bg-[#6CBF3D] text-slate-950 shadow-xs'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">view_in_ar</span>
+              <span>🌐 3D Structure Model</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveViewTab('pipes')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeViewTab === 'pipes'
+                  ? 'bg-[#6CBF3D] text-slate-950 shadow-xs'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">content_cut</span>
+              <span>✂️ 20-ft GI Pipe Cutting</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
+          <span>Active: <b className="text-[#6CBF3D]">{activeSelectedLayout?.name}</b></span>
+          <span>•</span>
+          <span>J-Bolts: <b className="text-amber-400">{activeSelectedLayout?.bom?.jBoltsCount} Pcs</b></span>
+          <span>•</span>
+          <span>MC4: <b className="text-blue-400">{activeSelectedLayout?.bom?.mc4ConnectorsCount} Pcs ({activeSelectedLayout?.bom?.mc4Pairs} Pair)</b></span>
+        </div>
+      </div>
+
+      {/* Active Tab View: 2D Studio Presets */}
+      {activeViewTab === '2d' && (
+        <>
+          {/* 2. Interactive Panel Count & Filter Controller */}
+          <div className="p-4 sm:p-5 bg-surface-container-low border-b border-surface-container-high flex flex-col gap-3.5">
         {/* Row 1: Panel Count Stepper & Quick Presets */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-surface-container-highest shadow-xs">
           <div className="flex items-center gap-3">
@@ -373,48 +445,74 @@ export default function PanelLayoutVisualizer({
                   </div>
                 </div>
 
-                {/* Bottom BOM Area: Highlight ONLY J-Bolts as requested */}
+                {/* Bottom BOM Area: J-Bolts & MC4 Connectors Only (Dealer fills legs/clamps manually if needed) */}
                 <div className="p-4 bg-surface-container-lowest flex flex-col gap-3">
-                  {/* Dedicated Clean J-Bolt Card */}
-                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-amber-500/20 text-amber-700 flex items-center justify-center font-black text-lg">
-                        ⚡
-                      </div>
-                      <div>
-                        <span className="text-xs font-bold text-amber-950 block">
-                          Total J-Bolts Required
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {/* J-Bolts */}
+                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-950 flex items-center gap-1">
+                          <span>⚡</span> J-Bolts
                         </span>
-                        <span className="text-[11px] text-amber-800">
-                          {layout.totalPanels} Panels × 4 J-Bolts per panel
+                        <span className="text-xl font-black text-amber-950">
+                          {layout.bom.jBoltsCount} <span className="text-[10px] font-bold text-amber-800">Pcs</span>
                         </span>
                       </div>
+                      <span className="text-[10px] text-amber-900/90 mt-1 font-semibold">
+                        4 J-Bolts × {layout.totalPanels} panels
+                      </span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-2xl font-black text-amber-950 block leading-tight">
-                        {layout.bom.jBoltsCount} <span className="text-xs font-bold text-amber-800">Pcs</span>
+
+                    {/* MC4 Connectors */}
+                    <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-blue-950 flex items-center gap-1">
+                          <span>🔌</span> MC4 Connectors
+                        </span>
+                        <span className="text-xl font-black text-blue-950">
+                          {layout.bom.mc4ConnectorsCount} <span className="text-[10px] font-bold text-blue-800">Pcs</span>
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-blue-900/90 mt-1 font-semibold">
+                        {layout.bom.mc4Pairs} Pair ({layout.bom.mc4Pairs}M + {layout.bom.mc4Pairs}F) Home-Run
                       </span>
                     </div>
                   </div>
 
-                  {/* Select Button */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSelect(layout);
-                    }}
-                    className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
-                      isSelected
-                        ? 'bg-primary text-white ring-2 ring-primary/30'
-                        : 'bg-surface-container-high text-on-surface hover:bg-primary hover:text-white'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">
-                      {isSelected ? 'check_circle' : 'touch_app'}
-                    </span>
-                    <span>{isSelected ? 'Selected Layout Active' : 'Select This Mounting Layout'}</span>
-                  </button>
+                  {/* Action Buttons: Select Layout + 3D View */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelect(layout);
+                      }}
+                      className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                        isSelected
+                          ? 'bg-primary text-white ring-2 ring-primary/30'
+                          : 'bg-surface-container-high text-on-surface hover:bg-primary hover:text-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[17px]">
+                        {isSelected ? 'check_circle' : 'touch_app'}
+                      </span>
+                      <span>{isSelected ? 'Selected Active' : 'Select Layout'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelect(layout);
+                        setActiveViewTab('3d');
+                      }}
+                      className="py-2.5 px-3 rounded-xl text-xs font-bold bg-[#0F1B2E] hover:bg-slate-800 text-white transition-all flex items-center justify-center gap-1 cursor-pointer shrink-0 shadow-xs"
+                      title="Inspect this layout in 3D Three.js Structure Viewer"
+                    >
+                      <span className="material-symbols-outlined text-[16px] text-[#6CBF3D]">view_in_ar</span>
+                      <span>3D Model</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -448,7 +546,7 @@ export default function PanelLayoutVisualizer({
         </div>
 
         {showManualInputs && (
-          <div className="p-4 rounded-xl bg-white border border-surface-container-highest shadow-xs grid grid-cols-2 sm:grid-cols-4 gap-3 animate-in fade-in duration-150">
+          <div className="p-4 rounded-xl bg-white border border-surface-container-highest shadow-xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 animate-in fade-in duration-150">
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-bold text-secondary">Front Legs (आगे के पैर)</label>
               <input
@@ -476,7 +574,27 @@ export default function PanelLayoutVisualizer({
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-secondary">Mid Clamps (बीच के क्लैम्प)</label>
+              <label className="text-[11px] font-bold text-secondary">Front Leg Ht (ft)</label>
+              <input
+                type="number"
+                min="1.0"
+                max="8.0"
+                step="0.1"
+                value={frontLegHeightFt}
+                onChange={(e) => setFrontLegHeightFt(parseFloat(e.target.value) || 2.5)}
+                className="h-9 px-3 rounded-lg border border-surface-container-highest text-xs font-bold text-primary outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-bold text-secondary">Rear Leg Ht (18° Tilt)</label>
+              <div className="h-9 px-3 rounded-lg bg-surface-container-low border border-surface-container-highest text-xs font-black text-amber-700 flex items-center">
+                {calculateLegHeights(activeSelectedLayout, frontLegHeightFt, tiltDegrees).rearLegHeightFt} ft
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-bold text-secondary">Mid Clamps (बीच के)</label>
               <input
                 type="number"
                 min="0"
@@ -489,7 +607,7 @@ export default function PanelLayoutVisualizer({
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-secondary">End Clamps (कोने के क्लैम्प)</label>
+              <label className="text-[11px] font-bold text-secondary">End Clamps (कोने के)</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -498,7 +616,7 @@ export default function PanelLayoutVisualizer({
                   value={manualEndClamps}
                   onChange={(e) => setManualEndClamps(e.target.value)}
                   placeholder={String(activeSelectedLayout?.bom?.endClampsCount || 4)}
-                  className="h-9 px-3 w-full rounded-lg border border-surface-container-highest text-xs font-bold text-on-surface outline-none focus:border-primary"
+                  className="h-9 px-2.5 w-full rounded-lg border border-surface-container-highest text-xs font-bold text-on-surface outline-none focus:border-primary"
                 />
                 <button
                   type="button"
@@ -512,6 +630,49 @@ export default function PanelLayoutVisualizer({
           </div>
         )}
       </div>
+      </>
+    )}
+
+      {/* Active Tab View: 3D Three.js Structure Model */}
+      {activeViewTab === '3d' && (
+        <div className="p-4 sm:p-6 bg-slate-950 flex flex-col gap-4 animate-in fade-in duration-150">
+          <div className="flex items-center justify-between text-white flex-wrap gap-2 pb-2 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#6CBF3D]">view_in_ar</span>
+              <span className="text-sm font-bold">Interactive 3D Rooftop Structure View:</span>
+              <span className="text-xs text-[#6CBF3D] font-bold">({activeSelectedLayout?.name})</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveViewTab('2d')}
+              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all cursor-pointer flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+              <span>Back to 2D Presets</span>
+            </button>
+          </div>
+
+          <SolarStructure3DViewer
+            layout={activeSelectedLayout}
+            moduleDims={moduleDims}
+            initialFrontLegHeightFt={frontLegHeightFt}
+            tiltDegrees={tiltDegrees}
+          />
+        </div>
+      )}
+
+      {/* Active Tab View: 20-ft GI Pipe Cutting Optimization */}
+      {activeViewTab === 'pipes' && (
+        <div className="animate-in fade-in duration-150">
+          <GiPipeCuttingSchedule
+            layout={activeSelectedLayout}
+            frontLegFt={frontLegHeightFt}
+            tiltDegrees={tiltDegrees}
+            onUpdateFrontLeg={setFrontLegHeightFt}
+            onBackTo2D={() => setActiveViewTab('2d')}
+          />
+        </div>
+      )}
 
       {/* 5. Footer Info */}
       <div className="p-3 bg-surface-container-low border-t border-surface-container-high flex flex-wrap items-center justify-between text-xs text-secondary">
@@ -720,3 +881,251 @@ function Render2DArraySvg({ layout }) {
     </svg>
   );
 }
+
+/**
+ * 20-Ft Standard Commercial GI Pipe Cutting Schedule
+ * Shows 1D bin packing cut list and scrap percentage for 60x40 and 40x40 GI pipes
+ */
+function GiPipeCuttingSchedule({ layout, frontLegFt = 2.5, tiltDegrees = 18, onUpdateFrontLeg, onBackTo2D }) {
+  const pipeSections = useMemo(() => {
+    return calculateGiPipeSections(layout, frontLegFt, tiltDegrees);
+  }, [layout, frontLegFt, tiltDegrees]);
+
+  const { elevation, legs60x40, raftersPurlins40x40 } = pipeSections;
+
+  return (
+    <div className="p-4 sm:p-6 bg-slate-950 text-white flex flex-col gap-6">
+      {/* Top Bar with Elevation Specs & Back Button */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#6CBF3D] text-[24px]">content_cut</span>
+            <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">
+              20-Ft Standard Commercial GI Pipe Cutting Schedule
+            </h3>
+            <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase">
+              1D Bin Packing
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            20 फीट के स्टैंडर्ड GI पाइप से 60x40 (कॉलम/पैर) और 40x40 (राफ्टर एवं पर्लिन) के सटीक कट पीस एवं वेस्टेज की गणना।
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {onBackTo2D && (
+            <button
+              type="button"
+              onClick={onBackTo2D}
+              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all cursor-pointer flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+              <span>Back to 2D Presets</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Elevation & Slope Geometry Card */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-900/90 p-4 rounded-xl border border-slate-800">
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] text-slate-400 font-semibold">Front Leg Height (आगे का पैर)</span>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="1.0"
+              max="8.0"
+              step="0.1"
+              value={frontLegFt}
+              onChange={(e) => onUpdateFrontLeg && onUpdateFrontLeg(parseFloat(e.target.value) || 2.5)}
+              className="w-18 h-8 px-2 rounded bg-slate-800 border border-slate-700 font-black text-xs text-[#6CBF3D] outline-none"
+            />
+            <span className="text-xs font-bold text-[#6CBF3D]">ft</span>
+          </div>
+          <span className="text-[10px] text-slate-500">~{elevation.frontLegHeightMm} mm</span>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] text-slate-400 font-semibold">Rear Leg Height (पीछे का पैर)</span>
+          <span className="text-sm font-black text-amber-400 leading-8">
+            {elevation.rearLegHeightFt} ft
+          </span>
+          <span className="text-[10px] text-slate-500">~{elevation.rearLegHeightMm} mm (Auto {elevation.tiltDegrees}° Tilt)</span>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] text-slate-400 font-semibold">Rafter Slope Length (ढलान)</span>
+          <span className="text-sm font-black text-white leading-8">
+            {elevation.slopeLengthFt} ft
+          </span>
+          <span className="text-[10px] text-slate-500">Depth / cos({elevation.tiltDegrees}°)</span>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] text-slate-400 font-semibold">Array Table Width (चौड़ाई)</span>
+          <span className="text-sm font-black text-white leading-8">
+            {mmToFeet(layout.widthMm)} ft
+          </span>
+          <span className="text-[10px] text-slate-500">Purlin Span Length</span>
+        </div>
+      </div>
+
+      {/* Section 1: 60mm x 40mm GI Pipe (Columns / Legs) */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+            <h4 className="text-sm font-bold text-white">
+              1. 60mm × 40mm GI Pipe Cuts (Front &amp; Rear Legs / Columns)
+            </h4>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-md text-xs font-black bg-blue-500/20 text-blue-300 border border-blue-500/30">
+              Total: {legs60x40.totalPipesCount} Pipes (20 ft each = {legs60x40.totalPipesFeet} ft)
+            </span>
+            <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-slate-800 text-slate-300">
+              Cut Length: {legs60x40.totalLengthFt} ft
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {legs60x40.pipes.map((pipe) => {
+            const usedPct = ((pipe.usedFt / 20) * 100).toFixed(1);
+            return (
+              <div key={pipe.pipeIndex} className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col gap-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-white flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-blue-400">linear_scale</span>
+                    Pipe #{pipe.pipeIndex} (Standard 20'-0")
+                  </span>
+                  <span className="text-slate-300">
+                    Used: <b className="text-white">{pipe.usedFt} ft</b> ({usedPct}%) | Scrap: <b className="text-amber-400">{pipe.remainingFt} ft</b>
+                  </span>
+                </div>
+
+                {/* Visual 1D Pipe Cutting Bar */}
+                <div className="w-full h-7 rounded-lg overflow-hidden flex bg-slate-800 border border-slate-700 p-0.5">
+                  {pipe.cuts.map((c, cIdx) => {
+                    const widthPct = (c.lengthFt / 20) * 100;
+                    const isRear = c.type === 'rear_leg';
+                    return (
+                      <div
+                        key={cIdx}
+                        style={{ width: `${widthPct}%` }}
+                        className={`h-full flex items-center justify-center text-[10px] font-black border-r border-slate-900/60 truncate px-1 transition-all ${
+                          isRear ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500 text-slate-950'
+                        }`}
+                        title={`${c.label}: ${c.lengthFt} ft`}
+                      >
+                        {c.id} ({c.lengthFt}')
+                      </div>
+                    );
+                  })}
+                  {pipe.remainingFt > 0 && (
+                    <div
+                      style={{ width: `${(pipe.remainingFt / 20) * 100}%` }}
+                      className="h-full bg-slate-700/60 flex items-center justify-center text-[9px] font-bold text-slate-400 truncate px-1"
+                      title={`Scrap / Offcut: ${pipe.remainingFt} ft`}
+                    >
+                      Scrap {pipe.remainingFt}'
+                    </div>
+                  )}
+                </div>
+
+                {/* Cut details list */}
+                <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
+                  {pipe.cuts.map((c, cIdx) => (
+                    <span key={cIdx} className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 flex items-center gap-1">
+                      <span className={`w-2 h-2 rounded-full ${c.type === 'rear_leg' ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
+                      <span>{c.label}: <b>{c.lengthFt} ft</b></span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Section 2: 40mm x 40mm GI Pipe (Rafters & Purlins) */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
+            <h4 className="text-sm font-bold text-white">
+              2. 40mm × 40mm GI Pipe Cuts (Rafters along slope &amp; Purlins along width)
+            </h4>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-md text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              Total: {raftersPurlins40x40.totalPipesCount} Pipes (20 ft each = {raftersPurlins40x40.totalPipesFeet} ft)
+            </span>
+            <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-slate-800 text-slate-300">
+              Cut Length: {raftersPurlins40x40.totalLengthFt} ft
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {raftersPurlins40x40.pipes.map((pipe) => {
+            const usedPct = ((pipe.usedFt / 20) * 100).toFixed(1);
+            return (
+              <div key={pipe.pipeIndex} className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col gap-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-white flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-emerald-400">linear_scale</span>
+                    Pipe #{pipe.pipeIndex} (Standard 20'-0")
+                  </span>
+                  <span className="text-slate-300">
+                    Used: <b className="text-white">{pipe.usedFt} ft</b> ({usedPct}%) | Scrap: <b className="text-amber-400">{pipe.remainingFt} ft</b>
+                  </span>
+                </div>
+
+                {/* Visual 1D Pipe Cutting Bar */}
+                <div className="w-full h-7 rounded-lg overflow-hidden flex bg-slate-800 border border-slate-700 p-0.5">
+                  {pipe.cuts.map((c, cIdx) => {
+                    const widthPct = (c.lengthFt / 20) * 100;
+                    const isRafter = c.type === 'rafter';
+                    return (
+                      <div
+                        key={cIdx}
+                        style={{ width: `${widthPct}%` }}
+                        className={`h-full flex items-center justify-center text-[10px] font-black border-r border-slate-900/60 truncate px-1 transition-all ${
+                          isRafter ? 'bg-indigo-500 text-white' : 'bg-cyan-500 text-slate-950'
+                        }`}
+                        title={`${c.label}: ${c.lengthFt} ft`}
+                      >
+                        {c.id} ({c.lengthFt}')
+                      </div>
+                    );
+                  })}
+                  {pipe.remainingFt > 0 && (
+                    <div
+                      style={{ width: `${(pipe.remainingFt / 20) * 100}%` }}
+                      className="h-full bg-slate-700/60 flex items-center justify-center text-[9px] font-bold text-slate-400 truncate px-1"
+                      title={`Scrap / Offcut: ${pipe.remainingFt} ft`}
+                    >
+                      Scrap {pipe.remainingFt}'
+                    </div>
+                  )}
+                </div>
+
+                {/* Cut details list */}
+                <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
+                  {pipe.cuts.map((c, cIdx) => (
+                    <span key={cIdx} className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 flex items-center gap-1">
+                      <span className={`w-2 h-2 rounded-full ${c.type === 'rafter' ? 'bg-indigo-400' : 'bg-cyan-400'}`}></span>
+                      <span>{c.label}: <b>{c.lengthFt} ft</b></span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
