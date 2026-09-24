@@ -146,7 +146,7 @@ export default function DealerManagement() {
         escapeCsv(d.email),
         escapeCsv(d.city || 'Gujarat'),
         escapeCsv('Gujarat'),
-        escapeCsv(`${d.discom || 'PGVCL'} Circle`),
+        escapeCsv((d.discom || '').includes('Circle') ? d.discom : `${d.discom || 'PGVCL'} Circle`),
         escapeCsv(d.tier || conf.tierName || 'Gold EPC Partner'),
         escapeCsv(defaultMargin),
         escapeCsv(marginCap),
@@ -983,19 +983,19 @@ export default function DealerManagement() {
 
       {/* DATA TABLE */}
       <div className="bg-white rounded-xl border border-[#E4E7EB] shadow-[0px_2px_8px_rgba(0,0,0,0.06)] overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1240px]">
+        <div className="overflow-x-auto xl:overflow-x-hidden">
+          <table className="w-full text-left border-collapse table-auto">
             <thead>
               <tr className="bg-[#0F1B2E] text-white text-label-xs uppercase tracking-wider h-11 select-none">
-                <th className="py-3 px-4 font-semibold text-left w-32">Dealer ID</th>
-                <th className="py-3 px-4 font-semibold text-left min-w-[240px]">Dealer / Firm Name</th>
-                <th className="py-3 px-4 font-semibold text-left min-w-[170px]">Region &amp; DISCOM</th>
-                <th className="py-3 px-4 font-semibold text-left min-w-[160px]">Pricing &amp; Margin</th>
-                <th className="py-3 px-4 font-semibold text-right w-36">Quotes Issued</th>
-                <th className="py-3 px-4 font-semibold text-right min-w-[140px]">Capacity Sold</th>
-                <th className="py-3 px-4 font-semibold text-left w-48">KYC &amp; GSTIN</th>
-                <th className="py-3 px-4 font-semibold text-center w-28">Portal Status</th>
-                <th className="py-3 px-4 font-semibold text-center w-36">Actions</th>
+                <th className="py-3 px-3.5 font-semibold text-left whitespace-nowrap min-w-[120px]">Dealer ID</th>
+                <th className="py-3 px-3.5 font-semibold text-left min-w-[210px]">Dealer / Firm Name</th>
+                <th className="py-3 px-3 font-semibold text-left min-w-[130px]">Region &amp; DISCOM</th>
+                <th className="py-3 px-3 font-semibold text-left min-w-[135px]">Pricing &amp; Margin</th>
+                <th className="py-3 px-3 font-semibold text-right min-w-[95px]">Quotes Issued</th>
+                <th className="py-3 px-3 font-semibold text-right min-w-[110px]">Capacity Sold</th>
+                <th className="py-3 px-3 font-semibold text-left min-w-[135px]">KYC &amp; GSTIN</th>
+                <th className="py-3 px-3 font-semibold text-center min-w-[90px]">Portal Status</th>
+                <th className="py-3 px-3 font-semibold text-center min-w-[95px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E4E7EB] text-body-sm">
@@ -1019,47 +1019,53 @@ export default function DealerManagement() {
                     ? 'bg-amber-50 text-amber-800 border-amber-200'
                     : 'bg-gray-100 text-gray-800 border-gray-300';
                   const initials = (d.firmName || 'ST').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+                  const discomText = (d.discom || '').includes('Circle') ? d.discom : `${d.discom || 'PGVCL'} Circle`;
 
                   return (
                     <tr key={d.id} className="bg-white hover:bg-[#F0F4F2] transition-colors duration-150 group">
-                      <td className="py-3 px-4">
-                        <span className="font-mono text-label-xs font-semibold text-[#0F1B2E] bg-surface-container px-2 py-1 rounded">
+                      <td className="py-4 px-3.5 align-top whitespace-nowrap">
+                        <span className="font-mono text-label-xs font-semibold text-[#0F1B2E] bg-surface-container px-2 py-1 rounded inline-block whitespace-nowrap">
                           #{d.id}
                         </span>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
+                      <td className="py-4 px-3.5 align-top">
+                        <div className="flex items-start gap-2.5">
                           {d.avatar ? (
                             <img
                               alt={d.contactPerson}
-                              className="w-10 h-10 rounded-full object-cover ring-2 ring-[#6CBF3D]/40 shrink-0"
+                              className="w-9 h-9 rounded-full object-cover ring-2 ring-[#6CBF3D]/40 shrink-0 mt-0.5"
                               src={d.avatar}
                             />
                           ) : (
-                            <div className="w-10 h-10 rounded-full bg-surface-container-high text-primary font-bold flex items-center justify-center text-xs shrink-0 border border-primary/20">
+                            <div className="w-9 h-9 rounded-full bg-surface-container-high text-primary font-bold flex items-center justify-center text-xs shrink-0 border border-primary/20 mt-0.5">
                               {initials}
                             </div>
                           )}
-                          <div className="min-w-0">
-                            <div className="font-poppins font-semibold text-on-surface group-hover:text-primary transition-colors truncate max-w-[220px]">
+                          <div className="min-w-0 flex-1">
+                            {/* Line 1: Firm Name */}
+                            <div className="font-poppins font-semibold text-on-surface group-hover:text-primary transition-colors text-[13px] leading-tight">
                               {d.firmName}
                             </div>
-                            <div className="text-[12px] text-secondary flex items-center gap-2">
-                              <span className="font-medium text-on-surface truncate">{d.contactPerson}</span>
-                              <span className="text-outline-variant">•</span>
-                              <span className="shrink-0">{d.mobile}</span>
+                            {/* Line 2: Contact Person */}
+                            <div className="text-[12px] font-medium text-on-surface/90 mt-1 leading-tight">
+                              {d.contactPerson}
                             </div>
-                            <div className="text-[11px] text-secondary/70 truncate">{d.email}</div>
+                            {/* Line 3: Phone & Email */}
+                            <div className="text-[11px] text-secondary flex items-center gap-1.5 mt-1 leading-tight flex-wrap font-mono">
+                              <span>{d.mobile}</span>
+                              <span className="text-outline-variant font-sans">•</span>
+                              <span className="truncate max-w-[170px]">{d.email}</span>
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-on-surface">{d.city}, Gujarat</div>
-                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
-                          {d.discom} Circle
+                      <td className="py-4 px-3 align-top">
+                        <div className="font-medium text-on-surface text-[13px] leading-tight">{d.city}, Gujarat</div>
+                        <span className="inline-block mt-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap">
+                          {discomText}
                         </span>
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-4 px-3 align-top">
                         {(() => {
                           const tierKey = (d.tier || '').toLowerCase().includes('diamond') ? 'diamond' :
                                           (d.tier || '').toLowerCase().includes('platinum') ? 'platinum' :
@@ -1067,43 +1073,43 @@ export default function DealerManagement() {
                           const conf = tierMargins?.[tierKey] || { defaultMarginPerKw: 4500, maxMarginCapPerKw: 6000 };
                           return (
                             <>
-                              <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${tierColor}`}>
+                              <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${tierColor} whitespace-nowrap`}>
                                 <span className="material-symbols-outlined text-[13px]">military_tech</span> {d.tier || conf.tierName}
                               </div>
-                              <div className="text-[11px] text-secondary mt-1">
-                                Margin: <strong className="text-on-surface font-semibold">₹{conf.defaultMarginPerKw.toLocaleString('en-IN')}/kW</strong>
+                              <div className="text-[11px] text-secondary mt-1 leading-tight">
+                                Margin: <strong className="text-on-surface font-semibold whitespace-nowrap">₹{conf.defaultMarginPerKw.toLocaleString('en-IN')}/kW</strong>
                               </div>
-                              <div className="text-[10px] text-secondary">
+                              <div className="text-[10px] text-secondary mt-0.5 leading-tight whitespace-nowrap">
                                 Cap: ₹{(d.maxMarginCapPerKw || conf.maxMarginCapPerKw).toLocaleString('en-IN')}/kW
                               </div>
                             </>
                           );
                         })()}
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="font-semibold text-on-surface font-poppins">{d.totalQuotes} Quotes</div>
-                        <div className="text-[11px] text-[#2E7D32]">Active partner</div>
+                      <td className="py-4 px-3 text-right align-top">
+                        <div className="font-semibold text-on-surface font-poppins text-[13px]">{d.totalQuotes} Quotes</div>
+                        <div className="text-[11px] text-[#2E7D32] mt-0.5">Active partner</div>
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="font-bold text-on-surface font-poppins">
+                      <td className="py-4 px-3 text-right align-top">
+                        <div className="font-bold text-on-surface font-poppins text-[13px]">
                           {d.totalCapacityKw >= 1000 ? `${(d.totalCapacityKw / 1000).toFixed(2)} MW` : `${d.totalCapacityKw} kW`}
                         </div>
-                        <div className="w-24 ml-auto mt-1.5 bg-surface-container rounded-full h-1.5 overflow-hidden">
+                        <div className="w-20 ml-auto mt-1.5 bg-surface-container rounded-full h-1.5 overflow-hidden">
                           <div className="bg-[#6CBF3D] h-full rounded-full" style={{ width: `${Math.min(100, Math.max(20, (d.totalCapacityKw / 30)))}%` }}></div>
                         </div>
-                        <div className="text-[10px] text-secondary mt-0.5">Gujarat Solar Grid</div>
+                        <div className="text-[10px] text-secondary mt-0.5">Gujarat Grid</div>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-on-surface font-medium">
+                      <td className="py-4 px-3 align-top">
+                        <div className="flex items-center gap-1 font-mono text-[11px] text-on-surface font-medium whitespace-nowrap">
                           <span>{d.gstin || '24AFPFS7402A1Z7'}</span>
-                          <span className="material-symbols-outlined text-[15px] text-[#2E7D32]" title="GSTIN Active & Verified">check_circle</span>
+                          <span className="material-symbols-outlined text-[14px] text-[#2E7D32]" title="GSTIN Active & Verified">check_circle</span>
                         </div>
                         <div className="flex items-center gap-1 mt-1">
-                          <span className="px-1.5 py-0.2 rounded text-[10px] bg-green-50 text-green-700 font-semibold">PAN OK</span>
-                          <span className="px-1.5 py-0.2 rounded text-[10px] bg-green-50 text-green-700 font-semibold">Aadhaar e-KYC</span>
+                          <span className="px-1.5 py-0.2 rounded text-[10px] bg-green-50 text-green-700 font-semibold whitespace-nowrap">PAN OK</span>
+                          <span className="px-1.5 py-0.2 rounded text-[10px] bg-green-50 text-green-700 font-semibold whitespace-nowrap">Aadhaar e-KYC</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-4 px-3 text-center align-top whitespace-nowrap">
                         <div className={`text-[10px] font-semibold inline-flex items-center gap-1 ${
                           d.status === 'Active' ? 'text-[#2E7D32]' : d.status === 'Pending' ? 'text-amber-700' : 'text-slate-500'
                         }`}>
@@ -1112,7 +1118,7 @@ export default function DealerManagement() {
                           }`}></span> {d.status}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-4 px-3 text-center align-top whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => {
