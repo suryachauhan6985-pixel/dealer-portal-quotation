@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import ViewModeToggle, { useTableViewMode } from '../Shared/ViewModeToggle';
 
 export default function HardwareMaster() {
   const { modulesList, setModulesList, invertersList, setInvertersList, addNotification, pdfBomSpecs, dealers } = useApp();
@@ -12,6 +13,8 @@ export default function HardwareMaster() {
   const [toastMessage, setToastMessage] = useState('');
   const [showAddModuleModal, setShowAddModuleModal] = useState(false);
   const [showAddInverterModal, setShowAddInverterModal] = useState(false);
+  const [modulesViewMode, setModulesViewMode] = useTableViewMode('admin_hw_modules');
+  const [invertersViewMode, setInvertersViewMode] = useTableViewMode('admin_hw_inverters');
 
   // Import Specs Modal state (SR-22)
   const [showImportModal, setShowImportModal] = useState(false);
@@ -829,10 +832,105 @@ Adani Solar,550W Vertex Dual Glass,Mono PERC,550,21.5%,18.90,25 Years Performanc
               >
                 Archived ({(modulesList || []).filter(m => m.isArchived).length})
               </button>
+              <ViewModeToggle viewMode={modulesViewMode} onViewModeChange={setModulesViewMode} />
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+
+          {modulesViewMode === 'card' ? (
+            <div className="p-4 sm:p-5">
+              {filteredModules.length === 0 ? (
+                <div className="py-12 text-center text-secondary">
+                  <span className="material-symbols-outlined text-4xl text-secondary/40 block mb-2">search_off</span>
+                  No solar modules match your current filter criteria.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filteredModules.map((mod, idx) => {
+                    const initial = mod.brand ? mod.brand.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'PV';
+                    return (
+                      <div key={mod.id || idx} className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-4 shadow-xs flex flex-col justify-between gap-3 hover:border-primary/50 transition-all">
+                        {/* Header */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-lg bg-surface-container-low text-inverse-surface font-bold text-xs flex items-center justify-center border border-surface-container-highest">
+                              {initial}
+                            </span>
+                            <div>
+                              <span className="font-bold text-inverse-surface text-sm block">{mod.brand}</span>
+                              <span className="text-[11px] text-secondary font-mono">{mod.model}</span>
+                            </div>
+                          </div>
+                          {mod.isArchived ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-secondary px-2 py-0.5 rounded-full bg-surface-container">
+                              <span className="w-1.5 h-1.5 rounded-full bg-secondary/60"></span> Archived
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary px-2 py-0.5 rounded-full bg-primary-container/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary-container"></span> Active
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Cell Tech & Specs */}
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-surface-container-highest text-xs">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-label-xs font-semibold ${
+                            (mod.cellTech || '').includes('TOPCon')
+                              ? 'bg-tertiary-container/20 text-tertiary'
+                              : 'bg-secondary-container text-on-secondary-fixed'
+                          }`}>
+                            {mod.cellTech || 'TOPCon Mono Bifacial'}
+                          </span>
+                          <span className="font-bold text-inverse-surface font-mono text-sm">{mod.wattage} WP</span>
+                        </div>
+
+                        {/* 3-Col Stats */}
+                        <div className="grid grid-cols-3 gap-1 bg-surface-container-low/40 p-2 rounded-lg text-center text-xs">
+                          <div>
+                            <span className="text-[10px] text-secondary block">Efficiency</span>
+                            <span className="font-bold text-primary font-mono">{mod.efficiency || '22.4%'}</span>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-[10px] text-secondary block">Rate / Wp</span>
+                            <span className="font-bold text-inverse-surface font-mono">{mod.ratePerWp || '₹ 18.50 / Wp'}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-[11px] text-secondary font-mono">
+                          {mod.dimensions || '2278 × 1134 × 30 mm | 28 kg'}
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div className="flex items-center justify-between pt-2 border-t border-surface-container-highest text-xs">
+                          <span className="text-secondary text-[11px]">{mod.warranty || '30 Yrs Warranty'}</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleEditModule(mod)}
+                              className="px-2 py-1 rounded border border-surface-container-highest hover:border-inverse-surface text-secondary hover:text-inverse-surface flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Edit Spec"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">edit</span>
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              onClick={() => handleToggleArchiveModule(mod)}
+                              className={`p-1 rounded border border-surface-container-highest transition-colors cursor-pointer ${
+                                mod.isArchived ? 'hover:text-primary text-secondary' : 'hover:text-error text-secondary'
+                              }`}
+                              title={mod.isArchived ? 'Restore to Catalog' : 'Archive Spec'}
+                            >
+                              <span className="material-symbols-outlined text-[16px]">{mod.isArchived ? 'unarchive' : 'archive'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-inverse-surface text-surface-container-lowest text-label-sm font-semibold h-11 border-b border-surface-container-lowest/10">
                   <th className="px-4 py-2 font-label-sm">OEM Brand / Make</th>
@@ -913,6 +1011,7 @@ Adani Solar,550W Vertex Dual Glass,Mono PERC,550,21.5%,18.90,25 Years Performanc
               </tbody>
             </table>
           </div>
+        )}
         </div>
       )}
 
@@ -957,10 +1056,81 @@ Adani Solar,550W Vertex Dual Glass,Mono PERC,550,21.5%,18.90,25 Years Performanc
               >
                 3-Phase
               </button>
+              <ViewModeToggle viewMode={invertersViewMode} onViewModeChange={setInvertersViewMode} />
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+
+          {invertersViewMode === 'card' ? (
+            <div className="p-4 sm:p-5">
+              {filteredInverters.length === 0 ? (
+                <div className="py-12 text-center text-secondary">
+                  <span className="material-symbols-outlined text-4xl text-secondary/40 block mb-2">search_off</span>
+                  No solar inverters match your current filter criteria.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filteredInverters.map((inv, idx) => {
+                    const initial = inv.brand ? inv.brand.slice(0, 2).toUpperCase() : 'IN';
+                    return (
+                      <div key={inv.id || idx} className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-4 shadow-xs flex flex-col justify-between gap-3 hover:border-primary/50 transition-all">
+                        {/* Header */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-lg bg-primary-container/20 text-primary font-bold text-xs flex items-center justify-center border border-primary-container/40">
+                              {initial}
+                            </span>
+                            <div>
+                              <span className="font-bold text-inverse-surface text-sm block">{inv.brand}</span>
+                              <span className="text-[11px] text-secondary font-mono">{inv.model}</span>
+                            </div>
+                          </div>
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary px-2 py-0.5 rounded-full bg-primary-container/20">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary-container"></span> Active
+                          </span>
+                        </div>
+
+                        {/* Specs & Phase */}
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-surface-container-highest text-xs">
+                          <span className="inline-block px-2 py-0.5 rounded-full text-label-xs font-semibold bg-surface-container-high text-on-surface">
+                            {inv.phase || '3-Phase'}
+                          </span>
+                          <span className="font-bold text-inverse-surface font-mono text-sm">{getInverterCapacityText(inv)}</span>
+                        </div>
+
+                        {/* 3-Col Stats */}
+                        <div className="grid grid-cols-2 gap-2 bg-surface-container-low/40 p-2.5 rounded-lg text-center text-xs">
+                          <div>
+                            <span className="text-[10px] text-secondary block">Euro Efficiency</span>
+                            <span className="font-bold text-primary font-mono">{inv.efficiency || '98.6%'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-secondary block">Base Price</span>
+                            <span className="font-bold text-inverse-surface font-mono">{inv.basePrice || '₹ 54,000'}</span>
+                          </div>
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div className="flex items-center justify-between pt-2 border-t border-surface-container-highest text-xs">
+                          <span className="text-secondary text-[11px]">{inv.warranty || '8 Yrs Warranty'}</span>
+                          <div className="flex items-center gap-1">
+                            <button className="px-2 py-1 rounded border border-surface-container-highest hover:border-inverse-surface text-secondary hover:text-inverse-surface flex items-center gap-1 transition-colors cursor-pointer" title="Edit Spec">
+                              <span className="material-symbols-outlined text-[15px]">edit</span>
+                              <span>Edit</span>
+                            </button>
+                            <button className="p-1 rounded border border-surface-container-highest hover:border-primary text-secondary hover:text-primary transition-colors cursor-pointer" title="Specs Sheet PDF">
+                              <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-inverse-surface text-surface-container-lowest text-label-sm font-semibold h-11 border-b border-surface-container-lowest/10">
                   <th className="px-4 py-2 font-label-sm">Brand / OEM</th>
@@ -1014,6 +1184,7 @@ Adani Solar,550W Vertex Dual Glass,Mono PERC,550,21.5%,18.90,25 Years Performanc
               </tbody>
             </table>
           </div>
+        )}
         </div>
       )}
 
