@@ -9,6 +9,7 @@ import {
   DEFAULT_MODULE_DIMS
 } from '../../utils/solarLayoutEngine';
 import SolarStructure3DViewer from './SolarStructure3DViewer';
+import RooftopDesigner, { DEFAULT_ROOF_CONFIG } from './RooftopDesigner';
 
 export default function PanelLayoutVisualizer({
   initialPanelCount = 6,
@@ -21,7 +22,8 @@ export default function PanelLayoutVisualizer({
   const [panelCount, setPanelCount] = useState(initialPanelCount || 6);
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedId, setSelectedId] = useState(selectedLayoutId || 'portrait_2x3');
-  const [activeViewTab, setActiveViewTab] = useState('2d'); // '2d', '3d', 'pipes'
+  const [activeViewTab, setActiveViewTab] = useState('2d'); // '2d', 'roof', '3d', 'pipes'
+  const [roofConfig, setRoofConfig] = useState(DEFAULT_ROOF_CONFIG);
   const [frontLegHeightFt, setFrontLegHeightFt] = useState(2.5);
   const [tiltDegrees, setTiltDegrees] = useState(18);
 
@@ -177,6 +179,19 @@ export default function PanelLayoutVisualizer({
             >
               <span className="material-symbols-outlined text-[16px]">grid_view</span>
               <span>📐 2D Layouts ({filteredLayouts.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveViewTab('roof')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeViewTab === 'roof'
+                  ? 'bg-[#6CBF3D] text-slate-950 shadow-xs'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">roofing</span>
+              <span>🏠 House Rooftop Designer</span>
             </button>
 
             <button
@@ -633,6 +648,17 @@ export default function PanelLayoutVisualizer({
       </>
     )}
 
+      {/* Active Tab View: House & Rooftop Boundary Designer */}
+      {activeViewTab === 'roof' && (
+        <div className="animate-in fade-in duration-150">
+          <RooftopDesigner
+            roofConfig={roofConfig}
+            onSaveRoofConfig={setRoofConfig}
+            onOpen3D={() => setActiveViewTab('3d')}
+          />
+        </div>
+      )}
+
       {/* Active Tab View: 3D Three.js Structure Model */}
       {activeViewTab === '3d' && (
         <div className="p-4 sm:p-6 bg-slate-950 flex flex-col gap-4 animate-in fade-in duration-150">
@@ -642,14 +668,24 @@ export default function PanelLayoutVisualizer({
               <span className="text-sm font-bold">Interactive 3D Rooftop Structure View:</span>
               <span className="text-xs text-[#6CBF3D] font-bold">({activeSelectedLayout?.name})</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveViewTab('2d')}
-              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all cursor-pointer flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-              <span>Back to 2D Presets</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveViewTab('roof')}
+                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all cursor-pointer flex items-center gap-1 border border-white/10"
+              >
+                <span className="material-symbols-outlined text-[16px] text-amber-400">roofing</span>
+                <span>House Roof Designer</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveViewTab('2d')}
+                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all cursor-pointer flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                <span>Back to 2D Presets</span>
+              </button>
+            </div>
           </div>
 
           <SolarStructure3DViewer
@@ -657,6 +693,8 @@ export default function PanelLayoutVisualizer({
             moduleDims={moduleDims}
             initialFrontLegHeightFt={frontLegHeightFt}
             tiltDegrees={tiltDegrees}
+            roofConfig={roofConfig}
+            onOpenRoofDesigner={() => setActiveViewTab('roof')}
           />
         </div>
       )}
