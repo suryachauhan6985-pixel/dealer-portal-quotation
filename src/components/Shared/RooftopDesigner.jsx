@@ -577,7 +577,7 @@ export default function RooftopDesigner({
       const dataUrl = event.target?.result;
       setUploadPreview(dataUrl);
       setIsScanning(true);
-      setScanStatusMessage(geminiKey ? 'Connecting to Google Gemini 2.0 Flash Vision AI...' : 'Analyzing drawing with In-Browser Computer Vision...');
+      setScanStatusMessage(geminiKey ? 'Connecting to Google Gemini Vision AI...' : 'Analyzing drawing with In-Browser Computer Vision...');
 
       try {
         const result = await scanRoofSketch(dataUrl, geminiKey);
@@ -591,7 +591,7 @@ export default function RooftopDesigner({
           const du = parseFloat(d.dUpperFt) || 25;
           const ws = parseFloat(d.wShelfFt) || 10;
           const dl = parseFloat(d.dLowerFt) || 15;
-          const mLoc = d.mumty?.location || 'bottom-left';
+          const mLoc = d.mumty?.location || 'none';
           const mW = parseFloat(d.mumty?.widthFt) || 3;
           const mD = parseFloat(d.mumty?.depthFt) || 6;
           const mH = parseFloat(d.mumty?.heightFt) || 7;
@@ -607,14 +607,29 @@ export default function RooftopDesigner({
           setMumtyH(mH);
           setHasWaterTank(Boolean(d.waterTank?.detected));
 
-          const newVerts = buildOrthogonalSteppedVertices(wt, du, ws, dl);
-          const wTotal = wt + ws;
-          const dTotal = du + dl;
+          let newVerts;
+          let wTotal = wt + ws;
+          let dTotal = du + dl;
+
+          if (d.customVertices && Array.isArray(d.customVertices) && d.customVertices.length >= 3) {
+            newVerts = d.customVertices;
+            const xs = newVerts.map(v => v.x);
+            const zs = newVerts.map(v => v.z);
+            const minX = Math.min(...xs);
+            const maxX = Math.max(...xs);
+            const minZ = Math.min(...zs);
+            const maxZ = Math.max(...zs);
+            wTotal = Math.max(parseFloat(d.widthFt) || 0, Math.round(maxX - minX));
+            dTotal = Math.max(parseFloat(d.depthFt) || 0, Math.round(maxZ - minZ));
+          } else {
+            newVerts = buildOrthogonalSteppedVertices(wt, du, ws, dl);
+          }
+
           const halfW = wTotal / 2;
           const halfD = dTotal / 2;
 
           let newObstacles = [];
-          if (mLoc !== 'none') {
+          if (mLoc && mLoc !== 'none') {
             let mx = -halfW + mW / 2;
             let mz = halfD - mD / 2;
             if (mLoc === 'top-left') {
@@ -651,16 +666,21 @@ export default function RooftopDesigner({
             });
           }
 
+          const minVX = newVerts ? Math.min(...newVerts.map(v => v.x)) : -halfW;
+          const maxVX = newVerts ? Math.max(...newVerts.map(v => v.x)) : halfW;
+          const minVZ = newVerts ? Math.min(...newVerts.map(v => v.z)) : -halfD;
+          const maxVZ = newVerts ? Math.max(...newVerts.map(v => v.z)) : halfD;
+
           const safeZone = {
-            centerXFt: Number((-halfW + wt / 2).toFixed(1)),
-            centerZFt: Number((-halfD + du / 2).toFixed(1)),
-            availableWidthFt: Math.max(16, wt - 6),
-            availableDepthFt: Math.max(16, du - 4),
-            description: '100% Shadow-Free Open Terrace'
+            centerXFt: Number(((minVX + maxVX) / 2).toFixed(1)),
+            centerZFt: Number((minVZ + (maxVZ - minVZ) * 0.35).toFixed(1)),
+            availableWidthFt: Math.max(16, Math.round(wTotal * 0.75)),
+            availableDepthFt: Math.max(16, Math.round(dTotal * 0.45)),
+            description: '100% Shadow-Free Open Terrace (South Sunlight)'
           };
 
           const updated = {
-            type: d.shapeType || 'stepped_l',
+            type: d.shapeType || (newVerts.length > 6 ? 'custom_polygon' : 'stepped_l'),
             name: d.roofName || `Uploaded Sketch (${wTotal}×${dTotal}ft)`,
             widthFt: wTotal,
             depthFt: dTotal,
@@ -685,7 +705,7 @@ export default function RooftopDesigner({
             provider: result.modelUsed,
             message: `Sketch Analyzed by ${result.modelUsed}!`,
             explanation: d.explanation,
-            wallsCount: d.walls?.length || 6,
+            wallsCount: d.walls?.length || newVerts.length || 6,
             obstaclesDetected: (d.mumty?.detected ? 1 : 0) + (d.waterTank?.detected ? 1 : 0),
             parapetHeight: `${pHeight} ft`,
             warning: result.warning
@@ -1080,7 +1100,7 @@ export default function RooftopDesigner({
                     <span className="text-xs font-bold text-white">AI Vision Engine:</span>
                     {geminiKey ? (
                       <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                        ✨ Google Gemini 2.0 Flash Active
+                        ✨ Google Gemini Vision AI Active
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">

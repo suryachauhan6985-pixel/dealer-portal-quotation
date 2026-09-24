@@ -68,60 +68,56 @@ Analyze this uploaded hand-drawn rooftop sketch or architectural drawing.
 Extract all measurements (in feet), roof outline walls, obstacles (Mumty / staircase room, water tank, etc.), and parapet height.
 
 Key guidelines:
-1. Identify all wall lengths (e.g., 30ft, 40ft, 25ft, 10ft, 15ft, 50ft).
-2. Determine roof shape: 'stepped_l' (L-shape with cutouts/steps), 'rectangle', 'l_shape', or 'custom_polygon'.
-3. For stepped_l or L-shape:
-   - wTopFt: Top/North/South wall width
-   - dUpperFt: Upper drop depth
-   - wShelfFt: Shelf step horizontal offset
-   - dLowerFt: Lower drop depth
-   - widthFt: Total maximum width in feet
-   - depthFt: Total maximum depth in feet
-4. Obstacles:
-   - Mumty (सीढ़ी का कमरा / Staircase room): location ('bottom-left', 'top-left', 'top-right', 'bottom-right'), widthFt, depthFt, heightFt (default 7ft).
-   - Water Tank (पानी की टंकी / Tanki): whether present (true/false), count, radiusFt (default 1.8ft), heightFt (default 3ft).
-5. Parapet wall height (मुंडेर): default 3.0 ft unless written differently.
-6. Provide an easy-to-read explanation in Hindi & English describing the roof geometry and walls.
+1. Identify all wall lengths written on the drawing (e.g., 30ft, 10ft, 8ft, 7ft, 4ft, 16ft, 5ft, 10ft, 10ft, 60ft etc.).
+2. Follow all walls in order (clockwise starting from Top-Left corner) to form a closed polygon boundary.
+3. Compute 2D polygon vertex coordinates { x, z, label } in feet centered around (0,0) where:
+   - x is horizontal axis (West to East, positive East/Right)
+   - z is vertical axis (North to South, positive Down/South or vice-versa)
+4. Determine total bounding widthFt (max X - min X) and depthFt (max Z - min Z).
+5. Obstacles:
+   - Mumty (सीढ़ी का कमरा / Staircase room): detected (true/false), location ('bottom-left', 'top-left', 'top-right', 'bottom-right', 'none'), widthFt, depthFt, heightFt (default 7ft).
+   - Water Tank (पानी की टंकी): detected (true/false), count, radiusFt, heightFt.
+6. Parapet wall height (मुंडेर): default 3.0 ft unless written differently.
+7. Provide an easy-to-read explanation in Hindi & English describing the roof geometry and walls.
 
-Respond ONLY with a valid JSON object matching this exact structure:
+Respond ONLY with a valid JSON object matching this structure:
 {
-  "shapeType": "stepped_l",
-  "roofName": "Extracted Roof Sketch",
-  "widthFt": 40,
-  "depthFt": 40,
-  "wTopFt": 30,
-  "dUpperFt": 25,
-  "wShelfFt": 10,
-  "dLowerFt": 15,
+  "shapeType": "custom_polygon",
+  "roofName": "Hand-Drawn Rooftop Blueprint",
+  "widthFt": 30,
+  "depthFt": 60,
   "walls": [
-    { "side": 1, "name": "Top South Wall", "lengthFt": 30, "direction": "top" },
-    { "side": 2, "name": "East Upper Drop", "lengthFt": 25, "direction": "right-down" },
-    { "side": 3, "name": "East Shelf Step", "lengthFt": 10, "direction": "right" },
-    { "side": 4, "name": "East Lower Drop", "lengthFt": 15, "direction": "down" },
-    { "side": 5, "name": "Bottom South/North Wall", "lengthFt": 40, "direction": "bottom" },
-    { "side": 6, "name": "West Straight Wall", "lengthFt": 40, "direction": "left-up" }
+    { "side": 1, "name": "Top South Wall", "lengthFt": 30, "direction": "right" },
+    { "side": 2, "name": "Upper Right Drop", "lengthFt": 10, "direction": "down" }
+  ],
+  "customVertices": [
+    { "x": -15, "z": -30, "label": "NW Corner" },
+    { "x": 15, "z": -30, "label": "NE Corner (30ft South Wall)" }
   ],
   "mumty": {
-    "detected": true,
-    "location": "bottom-left",
-    "widthFt": 3,
-    "depthFt": 6,
-    "heightFt": 7,
-    "name": "Staircase Mumty (सीढ़ी का कमरा)"
+    "detected": false,
+    "location": "none",
+    "widthFt": 0,
+    "depthFt": 0,
+    "heightFt": 0
   },
   "waterTank": {
     "detected": false,
-    "count": 0,
-    "radiusFt": 1.8,
-    "heightFt": 3
+    "count": 0
   },
   "parapetHeightFt": 3.0,
-  "explanation": "40×40 ft L-shaped roof detected with 6 orthogonal walls. Staircase Mumty is located at the bottom-left corner."
+  "explanation": "Detailed explanation..."
 }
 `;
 
-  // Try Gemini 2.0 Flash first, fallback to 1.5 Flash
-  const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+  // Active Gemini models for Google AI Studio API keys (3.5-flash verified working)
+  const models = [
+    'gemini-3.5-flash',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-flash-latest',
+    'gemini-3.8-flash'
+  ];
   let lastError = null;
 
   for (const model of models) {
@@ -168,6 +164,55 @@ Respond ONLY with a valid JSON object matching this exact structure:
       else if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```/, '').replace(/```$/, '').trim();
 
       const parsed = JSON.parse(cleaned);
+
+      // Validate and sanitize customVertices
+      if (Array.isArray(parsed.customVertices) && parsed.customVertices.length >= 3) {
+        parsed.customVertices = parsed.customVertices.map((v, i) => ({
+          x: parseFloat(v.x) || 0,
+          z: parseFloat(v.z) || 0,
+          label: v.label || `Wall Corner ${i + 1}`
+        }));
+
+        const xs = parsed.customVertices.map(v => v.x);
+        const zs = parsed.customVertices.map(v => v.z);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minZ = Math.min(...zs);
+        const maxZ = Math.max(...zs);
+
+        parsed.widthFt = Math.max(parseFloat(parsed.widthFt) || 0, Math.round(maxX - minX));
+        parsed.depthFt = Math.max(parseFloat(parsed.depthFt) || 0, Math.round(maxZ - minZ));
+      } else if (Array.isArray(parsed.walls) && parsed.walls.length >= 3) {
+        // Derive customVertices if Gemini gave walls but no vertices
+        let cx = 0;
+        let cz = 0;
+        const pts = [{ x: cx, z: cz, label: parsed.walls[0].name || 'Corner 1' }];
+        for (let i = 0; i < parsed.walls.length - 1; i++) {
+          const w = parsed.walls[i];
+          const len = parseFloat(w.lengthFt) || 10;
+          const dir = (w.direction || '').toLowerCase();
+          if (dir.includes('right') || dir.includes('east')) cx += len;
+          else if (dir.includes('left') || dir.includes('west')) cx -= len;
+          else if (dir.includes('down') || dir.includes('south')) cz += len;
+          else if (dir.includes('up') || dir.includes('north')) cz -= len;
+          else cz += len;
+          pts.push({ x: cx, z: cz, label: w.name || `Corner ${i + 2}` });
+        }
+        const minX = Math.min(...pts.map(p => p.x));
+        const maxX = Math.max(...pts.map(p => p.x));
+        const minZ = Math.min(...pts.map(p => p.z));
+        const maxZ = Math.max(...pts.map(p => p.z));
+        const midX = (minX + maxX) / 2;
+        const midZ = (minZ + maxZ) / 2;
+        parsed.customVertices = pts.map(p => ({
+          x: Number((p.x - midX).toFixed(1)),
+          z: Number((p.z - midZ).toFixed(1)),
+          label: p.label
+        }));
+        parsed.widthFt = Math.max(parseFloat(parsed.widthFt) || 0, Math.round(maxX - minX));
+        parsed.depthFt = Math.max(parseFloat(parsed.depthFt) || 0, Math.round(maxZ - minZ));
+      }
+
       return {
         success: true,
         modelUsed: model,
