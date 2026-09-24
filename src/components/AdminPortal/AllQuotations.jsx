@@ -781,10 +781,10 @@ export default function AllQuotations() {
             </button>
           </div>
           <div className="flex items-center gap-3">
-            <div className="relative w-72 sm:w-80">
-              <span className="material-symbols-outlined absolute left-3 top-2.5 text-gray-400 text-sm">search</span>
+            <div className="relative w-72 sm:w-80 flex items-center">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px] pointer-events-none select-none">search</span>
               <input
-                className="w-full bg-[#FFFFFF] border border-[#E4E7EB] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#1B1F23] placeholder-gray-400 focus:outline-none focus:border-[#6CBF3D] focus:ring-2 focus:ring-[#6CBF3D]/20 transition-all font-body-sm"
+                className="w-full h-9 bg-[#FFFFFF] border border-[#E4E7EB] rounded-lg pl-9 pr-3 text-xs text-[#1B1F23] placeholder-gray-400 focus:outline-none focus:border-[#6CBF3D] focus:ring-2 focus:ring-[#6CBF3D]/20 transition-all font-body-sm"
                 placeholder="Search Quote #, Customer, Dealer, City..."
                 type="text"
                 value={searchTerm}
@@ -815,7 +815,7 @@ export default function AllQuotations() {
                 <th className="py-3.5 px-4 font-semibold tracking-wider uppercase text-[11px]">Customer / Enterprise</th>
                 <th className="py-3.5 px-4 font-semibold tracking-wider uppercase text-[11px]">System Size &amp; Type</th>
                 <th className="py-3.5 px-4 font-semibold tracking-wider uppercase text-[11px] text-right">Base Price</th>
-                <th className="py-3.5 px-4 font-semibold tracking-wider uppercase text-[11px] text-center">Dealer Margin</th>
+                <th className="py-3.5 px-4 font-semibold tracking-wider uppercase text-[11px] text-center whitespace-nowrap min-w-[190px]">Dealer Margin</th>
                 <th className="py-3.5 px-4 font-semibold tracking-wider uppercase text-[11px] text-right">Total Quoted</th>
                 <th className="py-3.5 px-4 font-semibold tracking-wider uppercase text-[11px] text-center">Lifecycle Stage</th>
                 <th className="py-3.5 px-4 font-semibold tracking-wider uppercase text-[11px] text-center">Actions</th>
@@ -859,20 +859,20 @@ export default function AllQuotations() {
                     <td className="py-3.5 px-4 text-right font-medium text-secondary">
                       ₹ {baseCost.toLocaleString('en-IN')}
                     </td>
-                    <td className="py-3.5 px-4 text-center">
+                    <td className="py-3.5 px-4 text-center whitespace-nowrap min-w-[190px]">
                       <div className="inline-flex flex-col items-center">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${
                           isFlagged
                             ? 'bg-red-100 text-red-700 border border-red-300'
                             : 'bg-[rgba(108,191,61,0.15)] text-[#2E7D32]'
                         }`}>
-                          <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>
+                          <span className="material-symbols-outlined text-xs shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
                             {isFlagged ? 'warning' : 'check_circle'}
                           </span>
-                          ₹ {(q.dealerTotalMargin || (marginPerKw * (q.systemCapacityKW || 5))).toLocaleString('en-IN')}
-                          <span className="font-normal font-mono">(₹{marginPerKw}/kW)</span>
+                          <span className="whitespace-nowrap font-mono">₹{(q.dealerTotalMargin || (marginPerKw * (q.systemCapacityKW || 5))).toLocaleString('en-IN')}</span>
+                          <span className="font-normal font-mono whitespace-nowrap text-[10px] opacity-90">(₹{marginPerKw.toLocaleString('en-IN')}/kW)</span>
                         </span>
-                        {isFlagged && <span className="text-[10px] text-red-600 font-bold mt-0.5">Flagged for Audit</span>}
+                        {isFlagged && <span className="text-[10px] text-red-600 font-bold mt-0.5 whitespace-nowrap">Flagged for Audit</span>}
                       </div>
                     </td>
                     <td className="py-3.5 px-4 text-right font-bold text-[#0F1B2E] text-sm">
