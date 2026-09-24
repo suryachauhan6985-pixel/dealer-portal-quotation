@@ -122,6 +122,17 @@ export const INITIAL_QUOTATIONS = GUJARAT_QUOTATIONS;
 export const DEFAULT_NOTIFICATIONS = [
   // Latest System Release Notification (Available to All)
   {
+    id: 'release-2.2.1',
+    audience: 'all',
+    type: 'success',
+    icon: 'system_update',
+    title: 'System Updated to v2.2.1',
+    description: 'v2.2.1 Hotfix. Resolved partner tier margin hook synchronization in Dealer Management console and verified system stability.',
+    createdAt: '2026-09-24T23:15:00.000Z',
+    isRelease: true,
+    version: 'v2.2.1'
+  },
+  {
     id: 'release-2.2.0',
     audience: 'all',
     type: 'success',
