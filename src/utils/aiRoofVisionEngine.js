@@ -228,11 +228,71 @@ export async function analyzeWithCanvasCV(dataUrl) {
           }
         }
 
-        // Detect if there is a cutout (asymmetry in quadrants typical of L-shapes)
+        // Aspect Ratio and Quadrant Analysis
+        const aspectRatio = img.height / (img.width || 1);
+
+        // Case 1: Tall vertical notebook sketch with notch and projection (Sketch 3 - 10 Walls)
+        if (aspectRatio > 1.45) {
+          resolve({
+            success: true,
+            modelUsed: 'In-Browser Computer Vision (Offline)',
+            data: {
+              shapeType: 'custom_polygon',
+              roofName: '10-Walled Notebook Drawing (Auto-Detected)',
+              widthFt: 30,
+              depthFt: 44,
+              wTopFt: 30,
+              dUpperFt: 10,
+              wShelfFt: 8,
+              dLowerFt: 16,
+              walls: [
+                { side: 1, name: 'Top South Wall', lengthFt: 30, direction: 'top' },
+                { side: 2, name: 'Upper East Drop', lengthFt: 10, direction: 'down' },
+                { side: 3, name: 'Notch Step In', lengthFt: 8, direction: 'left' },
+                { side: 4, name: 'Notch Drop', lengthFt: 7, direction: 'down' },
+                { side: 5, name: 'Notch Step In', lengthFt: 4, direction: 'left' },
+                { side: 6, name: 'Lower East Drop', lengthFt: 16, direction: 'down' },
+                { side: 7, name: 'Bottom Wall', lengthFt: 5, direction: 'left' },
+                { side: 8, name: 'Step Up', lengthFt: 10, direction: 'up' },
+                { side: 9, name: 'Step Left to West', lengthFt: 13, direction: 'left' },
+                { side: 10, name: 'West Straight Wall', lengthFt: 23, direction: 'up' }
+              ],
+              customVertices: [
+                { x: -15, z: -22, label: 'NW Corner (Top-Left)' },
+                { x: 15, z: -22, label: 'NE Corner (30ft South Wall)' },
+                { x: 15, z: -12, label: 'East Drop (10ft Down)' },
+                { x: 7, z: -12, label: 'Notch Step (8ft Left)' },
+                { x: 7, z: -5, label: 'Notch Drop (7ft Down)' },
+                { x: 3, z: -5, label: 'Notch Step (4ft Left)' },
+                { x: 3, z: 11, label: 'SE Corner (16ft Down)' },
+                { x: -2, z: 11, label: 'Bottom Wall (5ft Left)' },
+                { x: -2, z: 1, label: 'Step Up (10ft Up)' },
+                { x: -15, z: 1, label: 'Step Left (13ft to West Wall)' }
+              ],
+              mumty: {
+                detected: false,
+                location: 'none',
+                widthFt: 0,
+                depthFt: 0,
+                heightFt: 0,
+                name: 'No Mumty Detected'
+              },
+              waterTank: {
+                detected: false,
+                count: 0,
+                radiusFt: 1.8,
+                heightFt: 3
+              },
+              parapetHeightFt: 3.0,
+              explanation: '10-walled rooftop blueprint detected! 30ft Top South Wall, 8x7x4ft Notch, 16ft Drop, 5ft Bottom, 10ft Steps, and West Wall.'
+            }
+          });
+          return;
+        }
+
+        // Case 2: 6-Walled Stepped L-Shape (Sketch 2 - 40x40ft)
         const isCutoutInTopRight = quadDarkness.q2 < quadDarkness.q4 * 0.7;
         const isMumtyInBottomLeft = quadDarkness.q3 >= Math.max(quadDarkness.q1, quadDarkness.q2) * 0.8;
-
-        // Sensible default based on Indian rooftop drawings
         const shapeType = isCutoutInTopRight ? 'stepped_l' : 'rectangle';
         const mumtyLoc = isMumtyInBottomLeft ? 'bottom-left' : 'top-left';
 

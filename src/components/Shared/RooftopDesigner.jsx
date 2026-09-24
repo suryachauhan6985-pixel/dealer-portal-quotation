@@ -2,6 +2,49 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { scanRoofSketch, getGeminiApiKey, saveGeminiApiKey } from '../../utils/aiRoofVisionEngine';
 
 /**
+ * NEW HAND-DRAWN SKETCH 3 (10 Walls - Digitize of User's Uploaded Notebook Sketch 3):
+ * - Top South Wall: 30 ft
+ * - Upper East Drop: 10 ft
+ * - Notch Step In: 8 ft
+ * - Notch Drop: 7 ft
+ * - Notch Step In: 4 ft
+ * - Lower East Drop: 16 ft
+ * - Bottom Wall: 5 ft
+ * - Step Up: 10 ft
+ * - Step Left: 13 ft
+ * - West Wall: 23 ft (60ft total envelope)
+ */
+export const SITE_SKETCH_3_CONFIG = {
+  type: 'custom_polygon',
+  name: 'Notebook Sketch 3 (10 Walls - 30ft Top, Notch & Projection)',
+  widthFt: 30,
+  depthFt: 44,
+  parapetHeightFt: 3.0,
+  parapetThicknessInches: 9,
+  southDirection: 'top',
+  customVertices: [
+    { x: -15, z: -22, label: 'NW Corner (Top-Left)' },
+    { x: 15, z: -22, label: 'NE Corner (30ft South Wall)' },
+    { x: 15, z: -12, label: 'East Drop (10ft Down)' },
+    { x: 7, z: -12, label: 'Notch Step (8ft Left)' },
+    { x: 7, z: -5, label: 'Notch Drop (7ft Down)' },
+    { x: 3, z: -5, label: 'Notch Step (4ft Left)' },
+    { x: 3, z: 11, label: 'SE Corner (16ft Down)' },
+    { x: -2, z: 11, label: 'Bottom Wall (5ft Left)' },
+    { x: -2, z: 1, label: 'Step Up (10ft Up)' },
+    { x: -15, z: 1, label: 'Step Left (13ft to West Wall)' }
+  ],
+  obstacles: [],
+  safeSolarZone: {
+    centerXFt: 0,
+    centerZFt: -14,
+    availableWidthFt: 22,
+    availableDepthFt: 14,
+    description: '100% Shadow-Free Open Terrace (South Sunlight)'
+  }
+};
+
+/**
  * NEW HAND-DRAWN SKETCH 2 (Exact Digitize of User's Uploaded Notebook Sketch):
  * - Top South Wall: 30 ft
  * - Upper East Wall: 25 ft down
@@ -442,7 +485,11 @@ export default function RooftopDesigner({
   // Switch to preset shapes
   const handleSelectPreset = presetType => {
     let updated;
-    if (presetType === 'sketch2') {
+    if (presetType === 'sketch3') {
+      updated = { ...SITE_SKETCH_3_CONFIG };
+      setMumtyLoc('none');
+      setHasWaterTank(false);
+    } else if (presetType === 'sketch2') {
       updated = { ...SITE_SKETCH_2_CONFIG };
       setWTop(30);
       setDUpper(25);
@@ -752,6 +799,26 @@ export default function RooftopDesigner({
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
+                onClick={() => handleSelectPreset('sketch3')}
+                className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col col-span-2 ${
+                  config.name?.includes('Sketch 3')
+                    ? 'bg-[#6CBF3D]/20 border-[#6CBF3D] text-white shadow-xs'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-300'
+                }`}
+              >
+                <span className="text-xs font-bold text-white flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <span>📝 Notebook Sketch 3 (10 Walls New)</span>
+                  </span>
+                  {config.name?.includes('Sketch 3') && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500 text-slate-950 font-black">Active</span>
+                  )}
+                </span>
+                <span className="text-[10px] text-slate-400 mt-0.5">30ft Top, Notch (8×7×4ft), 16ft Drop, 5ft Bottom, 10ft Steps</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => handleSelectPreset('sketch2')}
                 className={`p-2 rounded-lg border text-left transition-all cursor-pointer flex flex-col ${
                   config.name?.includes('Sketch 2')
@@ -760,10 +827,12 @@ export default function RooftopDesigner({
                 }`}
               >
                 <span className="text-xs font-bold text-white flex items-center gap-1">
-                  <span>📝 Sketch 2 (New)</span>
-                  <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-500 text-slate-950 font-black">Active</span>
+                  <span>📝 Sketch 2 (Old)</span>
+                  {config.name?.includes('Sketch 2') && (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-500 text-slate-950 font-black">Active</span>
+                  )}
                 </span>
-                <span className="text-[10px] text-slate-400">40×40ft L (Bottom-Left Mumty)</span>
+                <span className="text-[10px] text-slate-400">40×40ft L (6 Walls)</span>
               </button>
 
               <button
@@ -775,7 +844,7 @@ export default function RooftopDesigner({
                     : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-300'
                 }`}
               >
-                <span className="text-xs font-bold text-white">📝 Sketch 1 (Old)</span>
+                <span className="text-xs font-bold text-white">📝 Sketch 1 (50×30)</span>
                 <span className="text-[10px] text-slate-400">50×30ft + Tanki &amp; Mumty</span>
               </button>
 
@@ -799,23 +868,50 @@ export default function RooftopDesigner({
             </div>
           </div>
 
-          {/* TAB 1: Non-Distorting Orthogonal Wall Dimensions */}
+          {/* TAB 2: Non-Distorting Orthogonal Wall Dimensions */}
           {activeTab === 'manual' && (
             <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col gap-3.5">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <div>
                   <span className="text-xs font-bold text-white block">
-                    Orthogonal Wall Inputs (दीवारों के सटीक माप):
+                    Orthogonal Wall Inputs ({walls.length} दीवारों के सटीक माप):
                   </span>
                   <span className="text-[10px] text-slate-400">
                     बदलने पर नक्शा 90° पर ही रहेगा, कोई तिरछा कोना नहीं बनेगा।
                   </span>
                 </div>
-                <span className="text-[11px] font-bold text-[#6CBF3D]">6 Clean Walls</span>
+                <span className="text-[11px] font-bold text-[#6CBF3D]">{walls.length} Clean Walls</span>
               </div>
 
-              {/* 4 Interactive Stepped Parameters */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Dynamic Wall List for Multi-Walled Rooftops (e.g. 10 Walls Sketch 3) */}
+              {config.customVertices && config.customVertices.length > 6 ? (
+                <div className="flex flex-col gap-2">
+                  <span className="text-[11px] font-bold text-slate-300">
+                    All Detected Sides (दीवारें): Click to inspect on Blueprint
+                  </span>
+                  <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                    {walls.map((w, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => setSelectedWallIndex(selectedWallIndex === idx ? null : idx)}
+                        className={`p-2 rounded-lg border cursor-pointer transition-all ${
+                          selectedWallIndex === idx
+                            ? 'bg-[#6CBF3D]/20 border-[#6CBF3D]'
+                            : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-slate-200">Side {w.index}</span>
+                          <span className="font-mono font-bold text-[#6CBF3D]">{w.lengthFt} ft</span>
+                        </div>
+                        <span className="text-[9px] text-slate-400 block truncate">{w.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1 p-2 rounded-lg bg-slate-950 border border-slate-800">
                   <label className="text-[10px] font-bold text-slate-400">Side 1: Top South Wall (ऊपरी दीवार)</label>
                   <div className="flex items-center gap-1.5">
@@ -883,6 +979,8 @@ export default function RooftopDesigner({
                 <span>•</span>
                 <span>Side 6 (West): <b>{dUpper + dLower} ft</b> (Auto {dUpper}&apos; + {dLower}&apos;)</span>
               </div>
+            </>
+          )}
 
               {/* Mumty (Staircase Room) Setup */}
               <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col gap-2 mt-1">
