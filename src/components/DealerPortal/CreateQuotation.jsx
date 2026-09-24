@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { quotationService } from '../../services/quotationService';
 import { useToast } from '../Shared/Toast';
+import PanelLayoutVisualizer from '../Shared/PanelLayoutVisualizer';
 
 const formatINR = (val) => {
   if (val === undefined || val === null || isNaN(val)) return '₹\u00A00';
@@ -58,6 +59,13 @@ export default function CreateQuotation() {
     return 'Residential';
   });
   const [showInverterModal, setShowInverterModal] = useState(false);
+
+  // 2D Solar Panel Structure & Mounting Layout Studio
+  const [showLayoutStudio, setShowLayoutStudio] = useState(false);
+  const [isInlineLayoutOpen, setIsInlineLayoutOpen] = useState(false);
+  const [selectedStructureLayout, setSelectedStructureLayout] = useState(() => {
+    return initialSource?.structureLayout || null;
+  });
 
   // Multi-Panel Quotation Toggle
   const [multiBrandComparison, setMultiBrandComparison] = useState(initialSource?.multiBrandComparison || false);
@@ -344,6 +352,7 @@ export default function CreateQuotation() {
       multiBrandComparison,
       multiBrandPackages: multiBrandComparison ? multiBrandPackages : null,
       moduleCount: moduleCount,
+      structureLayout: selectedStructureLayout || null,
       pvModuleSize: '4 * 8',
       inverterCapacity: `${kw} kW`,
       inverterType: inverterModel,
@@ -749,8 +758,106 @@ export default function CreateQuotation() {
                   </span>
                 </div>
               </div>
+
+              {/* 2D Solar Structure & Panel Layout Presets Studio (Interactive 2D Presets) */}
+              <div className="mt-3 rounded-xl bg-gradient-to-r from-[#0F1B2E] via-[#1E293B] to-[#0F1B2E] text-white p-4 shadow-md border border-slate-700/80 flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-[#6CBF3D]/20 text-[#6CBF3D] flex items-center justify-center shrink-0 border border-[#6CBF3D]/40 shadow-xs">
+                      <span className="material-symbols-outlined text-[24px]">grid_view</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-bold text-sm text-white">2D Structure &amp; Panel Layout Presets</h4>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#6CBF3D] text-[#0F1B2E] uppercase">
+                          Dynamic 2D
+                        </span>
+                        {selectedStructureLayout?.excelTag && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-400 text-slate-950 uppercase">
+                            {selectedStructureLayout.excelTag}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        Active Layout: <span className="text-[#6CBF3D] font-bold">{selectedStructureLayout?.name || `2 Rows × 3 Columns (3×2 Khadi Grid)`}</span>
+                        <span className="text-slate-400 ml-1.5 hidden md:inline">
+                          • J-Bolts: <b className="text-white">{selectedStructureLayout?.bom?.jBoltsCount || moduleCount * 4}</b> • Legs: <b className="text-white">{selectedStructureLayout?.bom?.totalLegs || 6}</b>
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setIsInlineLayoutOpen(!isInlineLayoutOpen)}
+                      className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        {isInlineLayoutOpen ? 'expand_less' : 'expand_more'}
+                      </span>
+                      <span>{isInlineLayoutOpen ? 'Collapse 2D Studio' : 'Inline Studio'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowLayoutStudio(true)}
+                      className="px-3.5 py-1.5 bg-[#6CBF3D] hover:bg-[#5ca633] text-[#0F1B2E] font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">open_in_full</span>
+                      <span>Full 2D Studio ({moduleCount}P)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inline Collapsible Studio when active */}
+                {isInlineLayoutOpen && (
+                  <div className="mt-2 pt-3 border-t border-slate-700/80">
+                    <PanelLayoutVisualizer
+                      initialPanelCount={moduleCount}
+                      moduleSpecs={(modulesList || []).find(m => `${m.brand} ${m.model}` === panelBrand)}
+                      selectedLayoutId={selectedStructureLayout?.id}
+                      onSelectLayout={(layout) => {
+                        setSelectedStructureLayout(layout);
+                        if (addToast) {
+                          addToast({
+                            title: '2D Layout Selected',
+                            message: `Selected ${layout.name} with ${layout.bom.jBoltsCount} J-Bolts and ${layout.bom.totalLegs} Legs.`,
+                            type: 'success'
+                          });
+                        }
+                      }}
+                      onClose={() => setIsInlineLayoutOpen(false)}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </section>
+
+          {/* Full 2D Layout Studio Modal */}
+          {showLayoutStudio && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
+              <div className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl">
+                <PanelLayoutVisualizer
+                  initialPanelCount={moduleCount}
+                  moduleSpecs={(modulesList || []).find(m => `${m.brand} ${m.model}` === panelBrand)}
+                  selectedLayoutId={selectedStructureLayout?.id}
+                  onSelectLayout={(layout) => {
+                    setSelectedStructureLayout(layout);
+                    if (addToast) {
+                      addToast({
+                        title: '2D Layout Selected',
+                        message: `Selected ${layout.name} with ${layout.bom.jBoltsCount} J-Bolts and ${layout.bom.totalLegs} Legs.`,
+                        type: 'success'
+                      });
+                    }
+                  }}
+                  onClose={() => setShowLayoutStudio(false)}
+                  isModal={true}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Visual Context Imagery Preview */}
           <div className="relative w-full h-44 rounded-xl overflow-hidden shadow-sm border border-surface-container-high">
