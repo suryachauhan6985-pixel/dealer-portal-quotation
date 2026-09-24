@@ -780,8 +780,8 @@ export default function CreateQuotation() {
                       </div>
                       <p className="text-xs text-slate-300 mt-0.5">
                         Active Layout: <span className="text-[#6CBF3D] font-bold">{selectedStructureLayout?.name || `2 Rows × 3 Columns (3×2 Khadi Grid)`}</span>
-                        <span className="text-slate-400 ml-1.5 hidden md:inline">
-                          • J-Bolts: <b className="text-white">{selectedStructureLayout?.bom?.jBoltsCount || moduleCount * 4}</b> • Legs: <b className="text-white">{selectedStructureLayout?.bom?.totalLegs || 6}</b>
+                        <span className="text-amber-400 font-bold ml-2">
+                          • J-Bolts: {selectedStructureLayout?.bom?.jBoltsCount || moduleCount * 4} Pcs
                         </span>
                       </p>
                     </div>
@@ -821,7 +821,7 @@ export default function CreateQuotation() {
                         if (addToast) {
                           addToast({
                             title: '2D Layout Selected',
-                            message: `Selected ${layout.name} with ${layout.bom.jBoltsCount} J-Bolts and ${layout.bom.totalLegs} Legs.`,
+                            message: `Selected ${layout.name} with ${layout.bom.jBoltsCount} J-Bolts.`,
                             type: 'success'
                           });
                         }
@@ -837,7 +837,7 @@ export default function CreateQuotation() {
           {/* Full 2D Layout Studio Modal */}
           {showLayoutStudio && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
-              <div className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl">
+              <div className="relative w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl">
                 <PanelLayoutVisualizer
                   initialPanelCount={moduleCount}
                   moduleSpecs={(modulesList || []).find(m => `${m.brand} ${m.model}` === panelBrand)}
@@ -847,7 +847,7 @@ export default function CreateQuotation() {
                     if (addToast) {
                       addToast({
                         title: '2D Layout Selected',
-                        message: `Selected ${layout.name} with ${layout.bom.jBoltsCount} J-Bolts and ${layout.bom.totalLegs} Legs.`,
+                        message: `Selected ${layout.name} with ${layout.bom.jBoltsCount} J-Bolts.`,
                         type: 'success'
                       });
                     }

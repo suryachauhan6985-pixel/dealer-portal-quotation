@@ -1,10 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   generateDynamicLayouts,
   parseModuleDimensions,
   mmToMeters,
   mmToFeet,
-  sqMmToSqFt,
   DEFAULT_MODULE_DIMS
 } from '../../utils/solarLayoutEngine';
 
@@ -19,6 +18,15 @@ export default function PanelLayoutVisualizer({
   const [panelCount, setPanelCount] = useState(initialPanelCount || 6);
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedId, setSelectedId] = useState(selectedLayoutId || 'portrait_2x3');
+
+  // Manual hardware override states (editable by dealer)
+  const [manualFrontLegs, setManualFrontLegs] = useState('');
+  const [manualRearLegs, setManualRearLegs] = useState('');
+  const [manualMidClamps, setManualMidClamps] = useState('');
+  const [manualEndClamps, setManualEndClamps] = useState('');
+  const [showManualInputs, setShowManualInputs] = useState(false);
+
+  const scrollContainerRef = useRef(null);
 
   // Derive module dimensions from props or fallback to standard 550W-600W
   const moduleDims = useMemo(() => {
@@ -44,33 +52,86 @@ export default function PanelLayoutVisualizer({
     return allLayouts;
   }, [allLayouts, activeCategory]);
 
+  // Selected layout object
+  const activeSelectedLayout = useMemo(() => {
+    return allLayouts.find(l => l.id === selectedId) || allLayouts[0] || null;
+  }, [allLayouts, selectedId]);
+
   const handleSelect = (layout) => {
     setSelectedId(layout.id);
+    // Pre-populate manual hardware inputs
+    setManualFrontLegs(String(layout.bom.frontLegs));
+    setManualRearLegs(String(layout.bom.rearLegs));
+    setManualMidClamps(String(layout.bom.midClampsCount));
+    setManualEndClamps(String(layout.bom.endClampsCount));
+
     if (onSelectLayout) {
-      onSelectLayout(layout);
+      onSelectLayout({
+        ...layout,
+        manualOverrides: {
+          frontLegs: layout.bom.frontLegs,
+          rearLegs: layout.bom.rearLegs,
+          midClamps: layout.bom.midClampsCount,
+          endClamps: layout.bom.endClampsCount
+        }
+      });
     }
+  };
+
+  const handleSaveManualHardware = () => {
+    if (!activeSelectedLayout || !onSelectLayout) return;
+    const fLegs = parseInt(manualFrontLegs, 10) || activeSelectedLayout.bom.frontLegs;
+    const rLegs = parseInt(manualRearLegs, 10) || activeSelectedLayout.bom.rearLegs;
+    const mClamps = parseInt(manualMidClamps, 10) || activeSelectedLayout.bom.midClampsCount;
+    const eClamps = parseInt(manualEndClamps, 10) || activeSelectedLayout.bom.endClampsCount;
+
+    onSelectLayout({
+      ...activeSelectedLayout,
+      bom: {
+        ...activeSelectedLayout.bom,
+        frontLegs: fLegs,
+        rearLegs: rLegs,
+        totalLegs: fLegs + rLegs,
+        midClampsCount: mClamps,
+        endClampsCount: eClamps,
+        totalClamps: mClamps + eClamps
+      },
+      manualOverrides: {
+        frontLegs: fLegs,
+        rearLegs: rLegs,
+        midClamps: mClamps,
+        endClamps: eClamps
+      }
+    });
   };
 
   const handlePanelCountChange = (delta) => {
     setPanelCount(prev => Math.max(1, Math.min(36, Number(prev) + delta)));
   };
 
+  const scroll = (direction) => {
+    if (scrollContainerRef.current) {
+      const scrollAmount = direction === 'left' ? -480 : 480;
+      scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
+
   return (
-    <div className="flex flex-col w-full bg-surface-container-lowest rounded-2xl border border-surface-container-high shadow-lg overflow-hidden">
+    <div className="flex flex-col w-full bg-surface-container-lowest rounded-2xl border border-surface-container-high shadow-xl overflow-hidden">
       {/* 1. Header Bar */}
-      <div className="p-4 sm:p-6 bg-gradient-to-r from-[#0F1B2E] via-[#1E293B] to-[#0F1B2E] text-white flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-container-highest">
+      <div className="p-4 sm:p-5 bg-gradient-to-r from-[#0F1B2E] via-[#1E293B] to-[#0F1B2E] text-white flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-container-highest">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="material-symbols-outlined text-[#6CBF3D] text-[26px]">grid_view</span>
             <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">
               2D Solar Structure &amp; Panel Layout Studio
             </h3>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#6CBF3D]/20 text-[#6CBF3D] border border-[#6CBF3D]/40 uppercase">
-              Dynamic 2D Presets
+              Side-by-Side 2D Presets
             </span>
           </div>
           <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-            पैनल संख्या के आधार पर सभी व्यावहारिक 2D स्ट्रक्चर माउंटिंग विकल्प (Pure Portrait, Pure Landscape, Hybrid Khadi+Aadi) और हार्डवेयर BOM लाइव देखें।
+            सभी डिज़ाइन्स साइड-बाय-साइड देखें। प्रत्येक कार्ड में सटीक J-Bolt संख्या दी गई है। अपनी पसंद का लेआउट चुनें।
           </p>
         </div>
 
@@ -86,9 +147,9 @@ export default function PanelLayoutVisualizer({
         )}
       </div>
 
-      {/* 2. Controls & Filter Bar */}
-      <div className="p-4 sm:p-5 bg-surface-container-low border-b border-surface-container-high flex flex-col gap-4">
-        {/* Row 1: Interactive Panel Count Controller */}
+      {/* 2. Interactive Panel Count & Filter Controller */}
+      <div className="p-4 sm:p-5 bg-surface-container-low border-b border-surface-container-high flex flex-col gap-3.5">
+        {/* Row 1: Panel Count Stepper & Quick Presets */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-surface-container-highest shadow-xs">
           <div className="flex items-center gap-3">
             <span className="text-xs sm:text-sm font-bold text-on-surface flex items-center gap-1.5">
@@ -128,12 +189,12 @@ export default function PanelLayoutVisualizer({
                 +
               </button>
             </div>
-            <span className="text-xs font-semibold text-primary hidden sm:inline-block">
-              ~{(panelCount * 0.55).toFixed(1)} kW System
+            <span className="text-xs font-bold text-primary hidden sm:inline-block">
+              ~{(panelCount * 0.55).toFixed(1)} kW Array
             </span>
           </div>
 
-          {/* Quick Preset Buttons */}
+          {/* Quick Presets */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] font-semibold text-secondary mr-1">Quick Presets:</span>
             {[
@@ -159,14 +220,13 @@ export default function PanelLayoutVisualizer({
             ))}
           </div>
 
-          {/* Module Specs Info Chip */}
           <div className="text-[11px] text-secondary flex items-center gap-1 bg-surface-container-high px-2.5 py-1 rounded-md">
             <span className="material-symbols-outlined text-[14px]">straighten</span>
-            <span>Module Spec: <b>{moduleDims.lengthMm} × {moduleDims.widthMm} mm</b> (~2:1 Ratio)</span>
+            <span>Module: <b>{moduleDims.lengthMm} × {moduleDims.widthMm} mm</b> (~2:1 Ratio)</span>
           </div>
         </div>
 
-        {/* Row 2: Category Filter Tabs */}
+        {/* Row 2: Category Filter Tabs & Horizontal Scroll Arrows */}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
             {[
@@ -193,16 +253,38 @@ export default function PanelLayoutVisualizer({
             ))}
           </div>
 
-          <div className="text-xs text-secondary font-medium">
-            Showing <b className="text-on-surface">{filteredLayouts.length}</b> design combinations
+          {/* Side-by-Side Scroll Control Buttons */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-secondary font-medium mr-1">
+              Scroll Layouts:
+            </span>
+            <button
+              type="button"
+              onClick={() => scroll('left')}
+              className="w-8 h-8 rounded-lg bg-white border border-surface-container-highest hover:bg-surface-container-low text-on-surface flex items-center justify-center shadow-2xs transition-colors cursor-pointer"
+              title="Scroll left"
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => scroll('right')}
+              className="w-8 h-8 rounded-lg bg-white border border-surface-container-highest hover:bg-surface-container-low text-on-surface flex items-center justify-center shadow-2xs transition-colors cursor-pointer"
+              title="Scroll right"
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* 3. Layout Cards Grid */}
-      <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-h-[70vh] overflow-y-auto bg-surface-container-lowest">
+      {/* 3. Horizontal Scrollable Cards (Side-by-Side with Generous Width) */}
+      <div
+        ref={scrollContainerRef}
+        className="p-4 sm:p-6 flex flex-row overflow-x-auto gap-6 bg-surface-container-lowest scroll-smooth snap-x pb-6"
+      >
         {filteredLayouts.length === 0 ? (
-          <div className="col-span-full py-12 text-center text-secondary">
+          <div className="w-full py-12 text-center text-secondary">
             <span className="material-symbols-outlined text-4xl opacity-50 mb-2">grid_off</span>
             <p className="text-sm font-semibold">No layout combinations found for this category filter.</p>
             <button
@@ -214,7 +296,7 @@ export default function PanelLayoutVisualizer({
             </button>
           </div>
         ) : (
-          filteredLayouts.map((layout, idx) => {
+          filteredLayouts.map((layout) => {
             const isSelected = selectedId === layout.id;
             const widthM = mmToMeters(layout.widthMm);
             const depthM = mmToMeters(layout.depthMm);
@@ -227,9 +309,9 @@ export default function PanelLayoutVisualizer({
               <div
                 key={layout.id}
                 onClick={() => handleSelect(layout)}
-                className={`rounded-2xl border transition-all duration-200 flex flex-col justify-between overflow-hidden cursor-pointer ${
+                className={`min-w-[420px] sm:min-w-[460px] max-w-[480px] shrink-0 snap-start rounded-2xl border transition-all duration-200 flex flex-col justify-between overflow-hidden cursor-pointer ${
                   isSelected
-                    ? 'border-primary ring-2 ring-primary/30 shadow-md bg-white'
+                    ? 'border-primary ring-2 ring-primary/40 shadow-lg bg-white'
                     : 'border-surface-container-highest hover:border-primary/50 hover:shadow-md bg-white'
                 }`}
               >
@@ -237,115 +319,101 @@ export default function PanelLayoutVisualizer({
                 <div className="p-4 border-b border-surface-container-high bg-surface-container-lowest flex items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs font-bold text-on-surface">{layout.name}</span>
+                      <span className="text-sm font-extrabold text-on-surface">{layout.name}</span>
                       {layout.excelTag && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-300">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-300">
                           {layout.excelTag}
                         </span>
                       )}
                       {layout.isRecommended && !layout.excelTag && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-0.5">
-                          <span className="material-symbols-outlined text-[11px]">star</span>
+                          <span className="material-symbols-outlined text-[12px]">star</span>
                           Popular
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-secondary mt-0.5 flex items-center gap-2">
+                    <div className="text-xs text-secondary mt-1 flex items-center gap-2">
                       <span className="font-semibold text-primary">{layout.category}</span>
                       <span>•</span>
-                      <span>{layout.totalPanels} Modules</span>
+                      <span className="font-bold text-on-surface">{layout.totalPanels} Solar Panels</span>
                     </div>
                   </div>
 
                   <div className="shrink-0">
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-                      isSelected ? 'bg-primary text-white' : 'border border-surface-container-highest text-transparent'
+                    <span className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
+                      isSelected ? 'bg-primary text-white shadow-xs' : 'border border-surface-container-highest text-transparent'
                     }`}>
-                      <span className="material-symbols-outlined text-[16px]">check</span>
+                      <span className="material-symbols-outlined text-[18px]">check</span>
                     </span>
                   </div>
                 </div>
 
-                {/* 2D Visual Architectural Drawing Area */}
-                <div className="p-4 bg-[#F8FAFC] flex flex-col items-center justify-center min-h-[220px] relative border-b border-surface-container-high">
-                  {/* Compass / True South Indicator */}
-                  <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded bg-white/90 border border-slate-200 text-[10px] font-bold text-slate-700 shadow-2xs">
-                    <span className="material-symbols-outlined text-[14px] text-rose-500 animate-pulse">explore</span>
-                    <span>🧭 South Tilt</span>
+                {/* 2D Architectural CAD Drawing Box (Large & High Definition) */}
+                <div className="p-4 bg-[#F8FAFC] flex flex-col items-center justify-center min-h-[260px] relative border-b border-surface-container-high">
+                  {/* Top Bar inside CAD box: Compass + Dimensions */}
+                  <div className="w-full flex items-center justify-between gap-2 mb-2 text-xs">
+                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 font-bold shadow-2xs">
+                      <span className="material-symbols-outlined text-[16px] text-rose-500 animate-pulse">explore</span>
+                      <span>🧭 South Tilt (180°)</span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-white px-2.5 py-1 rounded-md border border-slate-200 text-slate-700 font-extrabold shadow-2xs">
+                      <span>Width: {widthM}m ({widthFt} ft)</span>
+                    </div>
                   </div>
 
-                  {/* Top Dimension Arrow (Width) */}
-                  <div className="w-full flex items-center justify-center gap-1 text-[10px] font-bold text-slate-600 mb-1.5">
-                    <span className="text-slate-400">◄</span>
-                    <span className="bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">
-                      Width: {widthM}m ({widthFt} ft)
-                    </span>
-                    <span className="text-slate-400">►</span>
+                  {/* 2D Solar Array Large SVG Canvas */}
+                  <div className="w-full flex items-center justify-center py-2">
+                    <Render2DArraySvg layout={layout} />
                   </div>
 
-                  {/* 2D Solar Array SVG Rendering */}
-                  <div className="w-full flex items-center justify-center py-2 px-1">
-                    <Render2DArraySvg layout={layout} moduleDims={moduleDims} />
-                  </div>
-
-                  {/* Bottom / Side Dimension (Depth) */}
-                  <div className="w-full flex items-center justify-center gap-1 text-[10px] font-bold text-slate-500 mt-1.5">
+                  {/* Bottom Bar: Depth & Area Footprint */}
+                  <div className="w-full flex items-center justify-between text-xs text-slate-600 font-semibold mt-2 pt-2 border-t border-slate-200/60">
                     <span>Slope / Depth: <b>{depthM}m ({depthFt} ft)</b></span>
-                    <span>•</span>
-                    <span>Area: <b>{areaSqM} m² ({areaSqFt} sq.ft)</b></span>
+                    <span>Array Area: <b>{areaSqM} m² ({areaSqFt} sq.ft)</b></span>
                   </div>
                 </div>
 
-                {/* BOM Specs Grid */}
-                <div className="p-3.5 bg-surface-container-lowest flex flex-col gap-2">
-                  <div className="text-[11px] font-bold text-secondary uppercase tracking-wider flex items-center justify-between">
-                    <span>Structural BOM Spec</span>
-                    <span className="text-[10px] text-primary lowercase">~{layout.bom.estimatedSteelWeightKg} kg GI Steel</span>
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                    <div className="p-2 rounded-lg bg-surface-container-low border border-surface-container-high">
-                      <span className="block font-black text-on-surface text-sm text-[#0F1B2E]">
-                        {layout.bom.jBoltsCount}
-                      </span>
-                      <span className="text-[10px] text-secondary font-semibold">J-Bolts</span>
+                {/* Bottom BOM Area: Highlight ONLY J-Bolts as requested */}
+                <div className="p-4 bg-surface-container-lowest flex flex-col gap-3">
+                  {/* Dedicated Clean J-Bolt Card */}
+                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-amber-500/20 text-amber-700 flex items-center justify-center font-black text-lg">
+                        ⚡
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-amber-950 block">
+                          Total J-Bolts Required
+                        </span>
+                        <span className="text-[11px] text-amber-800">
+                          {layout.totalPanels} Panels × 4 J-Bolts per panel
+                        </span>
+                      </div>
                     </div>
-                    <div className="p-2 rounded-lg bg-surface-container-low border border-surface-container-high">
-                      <span className="block font-black text-on-surface text-sm text-[#0F1B2E]">
-                        {layout.bom.midClampsCount}
+                    <div className="text-right">
+                      <span className="text-2xl font-black text-amber-950 block leading-tight">
+                        {layout.bom.jBoltsCount} <span className="text-xs font-bold text-amber-800">Pcs</span>
                       </span>
-                      <span className="text-[10px] text-secondary font-semibold">Mid Clamps</span>
-                    </div>
-                    <div className="p-2 rounded-lg bg-surface-container-low border border-surface-container-high">
-                      <span className="block font-black text-on-surface text-sm text-[#0F1B2E]">
-                        {layout.bom.endClampsCount}
-                      </span>
-                      <span className="text-[10px] text-secondary font-semibold">End Clamps</span>
-                    </div>
-                    <div className="p-2 rounded-lg bg-surface-container-low border border-surface-container-high">
-                      <span className="block font-black text-primary text-sm font-extrabold">
-                        {layout.bom.totalLegs}
-                      </span>
-                      <span className="text-[10px] text-secondary font-semibold">Legs ({layout.bom.frontLegs}F+{layout.bom.rearLegs}R)</span>
                     </div>
                   </div>
 
+                  {/* Select Button */}
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleSelect(layout);
                     }}
-                    className={`w-full py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-1 ${
+                    className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
                       isSelected
-                        ? 'bg-primary text-white shadow-xs'
+                        ? 'bg-primary text-white ring-2 ring-primary/30'
                         : 'bg-surface-container-high text-on-surface hover:bg-primary hover:text-white'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[16px]">
+                    <span className="material-symbols-outlined text-[18px]">
                       {isSelected ? 'check_circle' : 'touch_app'}
                     </span>
-                    <span>{isSelected ? 'Selected for Proposal' : 'Select This Mounting Layout'}</span>
+                    <span>{isSelected ? 'Selected Layout Active' : 'Select This Mounting Layout'}</span>
                   </button>
                 </div>
               </div>
@@ -354,21 +422,112 @@ export default function PanelLayoutVisualizer({
         )}
       </div>
 
-      {/* 4. Footer Note */}
-      <div className="p-3 bg-surface-container-low border-t border-surface-container-high flex flex-wrap items-center justify-between text-[11px] text-secondary">
+      {/* 4. Manual Hardware Customization Bar (Dealer can manually fill legs, clamps etc.) */}
+      <div className="p-4 sm:p-5 bg-surface-container-low border-t border-surface-container-high flex flex-col gap-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-[20px]">construction</span>
+            <span className="text-xs sm:text-sm font-bold text-on-surface">
+              Manual Hardware Customization (Optional):
+            </span>
+            <span className="text-xs text-secondary">
+              (Active: <b className="text-on-surface">{activeSelectedLayout?.name || 'Selected Layout'}</b>)
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowManualInputs(!showManualInputs)}
+            className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <span>{showManualInputs ? 'Hide Custom Inputs' : 'Edit Legs & Clamps Manually'}</span>
+            <span className="material-symbols-outlined text-[16px]">
+              {showManualInputs ? 'expand_less' : 'tune'}
+            </span>
+          </button>
+        </div>
+
+        {showManualInputs && (
+          <div className="p-4 rounded-xl bg-white border border-surface-container-highest shadow-xs grid grid-cols-2 sm:grid-cols-4 gap-3 animate-in fade-in duration-150">
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-bold text-secondary">Front Legs (आगे के पैर)</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={manualFrontLegs}
+                onChange={(e) => setManualFrontLegs(e.target.value)}
+                placeholder={String(activeSelectedLayout?.bom?.frontLegs || 3)}
+                className="h-9 px-3 rounded-lg border border-surface-container-highest text-xs font-bold text-on-surface outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-bold text-secondary">Rear Legs (पीछे के पैर)</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={manualRearLegs}
+                onChange={(e) => setManualRearLegs(e.target.value)}
+                placeholder={String(activeSelectedLayout?.bom?.rearLegs || 3)}
+                className="h-9 px-3 rounded-lg border border-surface-container-highest text-xs font-bold text-on-surface outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-bold text-secondary">Mid Clamps (बीच के क्लैम्प)</label>
+              <input
+                type="number"
+                min="0"
+                max="50"
+                value={manualMidClamps}
+                onChange={(e) => setManualMidClamps(e.target.value)}
+                placeholder={String(activeSelectedLayout?.bom?.midClampsCount || 8)}
+                className="h-9 px-3 rounded-lg border border-surface-container-highest text-xs font-bold text-on-surface outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-bold text-secondary">End Clamps (कोने के क्लैम्प)</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max="30"
+                  value={manualEndClamps}
+                  onChange={(e) => setManualEndClamps(e.target.value)}
+                  placeholder={String(activeSelectedLayout?.bom?.endClampsCount || 4)}
+                  className="h-9 px-3 w-full rounded-lg border border-surface-container-highest text-xs font-bold text-on-surface outline-none focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveManualHardware}
+                  className="h-9 px-3 bg-primary hover:bg-[#4F9A2C] text-white text-xs font-bold rounded-lg shrink-0 cursor-pointer shadow-xs transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 5. Footer Info */}
+      <div className="p-3 bg-surface-container-low border-t border-surface-container-high flex flex-wrap items-center justify-between text-xs text-secondary">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[15px] text-primary">info</span>
+          <span className="material-symbols-outlined text-[16px] text-primary">info</span>
           <span>
-            <b>Standard Gujarat Tilt:</b> 15°–22° South Facing. All structural fasteners are computed for 150 km/h wind resilience.
+            <b>Standard Gujarat Tilt:</b> 15°–22° South Facing. Panels scale automatically to real physical proportions (~2:1).
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#1E3A8A]"></span>
+        <div className="flex items-center gap-3 font-semibold">
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-[#1E3E62] border border-[#CBD5E1]"></span>
             <span>Khadi (Portrait)</span>
           </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#0284C7]"></span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-[#0284C7] border border-[#CBD5E1]"></span>
             <span>Aadi (Landscape)</span>
           </span>
         </div>
@@ -378,81 +537,81 @@ export default function PanelLayoutVisualizer({
 }
 
 /**
- * High-detail 2D SVG Renderer for Solar Array
- * Draws realistic photovoltaic solar cells, silver aluminium frame, busbars, and panel labels
+ * Large High-Detail 2D SVG Renderer for Solar Array
+ * Renders large, crystal-clear photovoltaic cells with busbars and legible panel numbers
  */
-function Render2DArraySvg({ layout, moduleDims }) {
+function Render2DArraySvg({ layout }) {
   const { widthMm, depthMm, rows } = layout;
 
-  // SVG viewport dimensions
-  const svgWidth = 320;
-  const svgHeight = 150;
-  const padding = 12;
+  // Large SVG viewport dimensions for big, readable display
+  const svgWidth = 440;
+  const svgHeight = 220;
+  const padding = 16;
 
-  // Scale factors to fit within SVG box
+  // Scale factors to fit nicely within SVG box
   const availableW = svgWidth - padding * 2;
   const availableH = svgHeight - padding * 2;
-  const scale = Math.min(availableW / widthMm, availableH / depthMm);
+  const scale = Math.min(availableW / (widthMm || 2278), availableH / (depthMm || 1134));
 
-  const arraySvgW = widthMm * scale;
-  const arraySvgH = depthMm * scale;
+  const arraySvgW = (widthMm || 2278) * scale;
+  const arraySvgH = (depthMm || 1134) * scale;
   const startX = (svgWidth - arraySvgW) / 2;
   const startY = (svgHeight - arraySvgH) / 2;
 
   return (
     <svg
-      width={svgWidth}
+      width="100%"
       height={svgHeight}
       viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-      className="max-w-full drop-shadow-xs overflow-visible"
+      className="max-w-full drop-shadow-sm overflow-visible"
     >
       <defs>
-        {/* Photovoltaic Solar Cell Dark Navy Gradient */}
+        {/* Photovoltaic Solar Cell Dark Navy Gradient (Portrait) */}
         <linearGradient id={`pvGrad_${layout.id}`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#0B192C" />
-          <stop offset="50%" stopColor="#1E3E62" />
-          <stop offset="100%" stopColor="#000000" />
+          <stop offset="60%" stopColor="#1E3E62" />
+          <stop offset="100%" stopColor="#06121E" />
         </linearGradient>
 
-        {/* Landscape panel gradient */}
+        {/* Photovoltaic Solar Cell Sky Blue Gradient (Landscape) */}
         <linearGradient id={`pvGradLand_${layout.id}`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#0369A1" />
-          <stop offset="50%" stopColor="#0284C7" />
+          <stop offset="60%" stopColor="#0284C7" />
           <stop offset="100%" stopColor="#075985" />
         </linearGradient>
       </defs>
 
-      {/* Structural Rafter / C-Channel Rail Rails (Background mounting purlins) */}
+      {/* Structural Purlins / C-Channel Rails behind panels */}
       <line
-        x1={startX - 4}
+        x1={startX - 6}
         y1={startY + arraySvgH * 0.25}
-        x2={startX + arraySvgW + 4}
+        x2={startX + arraySvgW + 6}
         y2={startY + arraySvgH * 0.25}
         stroke="#94A3B8"
-        strokeWidth="2.5"
-        strokeDasharray="4 2"
+        strokeWidth="3.5"
+        strokeDasharray="6 3"
       />
       <line
-        x1={startX - 4}
+        x1={startX - 6}
         y1={startY + arraySvgH * 0.75}
-        x2={startX + arraySvgW + 4}
+        x2={startX + arraySvgW + 6}
         y2={startY + arraySvgH * 0.75}
         stroke="#94A3B8"
-        strokeWidth="2.5"
-        strokeDasharray="4 2"
+        strokeWidth="3.5"
+        strokeDasharray="6 3"
       />
 
       {/* Rows and Panels */}
       {(() => {
         let currentY = startY;
-        return rows.map((row, rIdx) => {
+        return (rows || []).map((row, rIdx) => {
           const rowPanels = Array.isArray(row) ? row : [];
           if (rowPanels.length === 0) return null;
 
           const firstPanel = rowPanels[0];
           const rowH = firstPanel.heightMm * scale;
           const totalRowW = rowPanels.reduce((acc, p) => acc + (p.widthMm * scale), 0);
-          let currentX = startX + ((arraySvgW - totalRowW) / 2); // Center row if row widths differ
+          let currentX = startX + ((arraySvgW - totalRowW) / 2);
 
           const rowElements = rowPanels.map((panel, pIdx) => {
             const pw = panel.widthMm * scale;
@@ -471,68 +630,68 @@ function Render2DArraySvg({ layout, moduleDims }) {
                   y={py}
                   width={pw}
                   height={ph}
-                  fill="#CBD5E1"
-                  stroke="#64748B"
-                  strokeWidth="1"
+                  fill="#E2E8F0"
+                  stroke="#475569"
+                  strokeWidth="1.5"
+                  rx="2"
+                />
+
+                {/* Photovoltaic Blue Glass Wafer */}
+                <rect
+                  x={px + 1.5}
+                  y={py + 1.5}
+                  width={Math.max(1, pw - 3)}
+                  height={Math.max(1, ph - 3)}
+                  fill={isLandscape ? `url(#pvGradLand_${layout.id})` : `url(#pvGrad_${layout.id})`}
                   rx="1.5"
                 />
 
-                {/* Blue Photovoltaic Glass Surface */}
-                <rect
-                  x={px + 1}
-                  y={py + 1}
-                  width={Math.max(1, pw - 2)}
-                  height={Math.max(1, ph - 2)}
-                  fill={isLandscape ? `url(#pvGradLand_${layout.id})` : `url(#pvGrad_${layout.id})`}
-                  rx="1"
-                />
-
-                {/* Subtle Solar Cell Busbars (Grid lines) */}
+                {/* Distinct Solar Busbar Grid Lines */}
                 <line
                   x1={px + pw * 0.33}
-                  y1={py + 1}
+                  y1={py + 2}
                   x2={px + pw * 0.33}
-                  y2={py + ph - 1}
-                  stroke="rgba(255,255,255,0.25)"
-                  strokeWidth="0.5"
+                  y2={py + ph - 2}
+                  stroke="rgba(255,255,255,0.3)"
+                  strokeWidth="0.8"
                 />
                 <line
                   x1={px + pw * 0.66}
-                  y1={py + 1}
+                  y1={py + 2}
                   x2={px + pw * 0.66}
-                  y2={py + ph - 1}
-                  stroke="rgba(255,255,255,0.25)"
-                  strokeWidth="0.5"
+                  y2={py + ph - 2}
+                  stroke="rgba(255,255,255,0.3)"
+                  strokeWidth="0.8"
                 />
                 <line
-                  x1={px + 1}
+                  x1={px + 2}
                   y1={py + ph * 0.5}
-                  x2={px + pw - 1}
+                  x2={px + pw - 2}
                   y2={py + ph * 0.5}
-                  stroke="rgba(255,255,255,0.2)"
-                  strokeWidth="0.5"
+                  stroke="rgba(255,255,255,0.25)"
+                  strokeWidth="0.8"
                 />
 
-                {/* Panel Number Label */}
-                {pw >= 16 && ph >= 16 && (
+                {/* Bold, Legible Panel Number Text */}
+                {pw >= 14 && ph >= 14 && (
                   <text
                     x={px + pw / 2}
-                    y={py + ph / 2 + 3}
+                    y={py + ph / 2 + 4}
                     textAnchor="middle"
                     fill="#FFFFFF"
-                    fontSize={Math.max(7, Math.min(10, pw / 3.5))}
-                    fontWeight="bold"
-                    filter="drop-shadow(0 1px 1px rgba(0,0,0,0.8))"
+                    fontSize={Math.max(8, Math.min(13, pw / 3.2))}
+                    fontWeight="900"
+                    filter="drop-shadow(0 1px 2px rgba(0,0,0,0.9))"
                   >
                     {panel.label || `P${pIdx + 1}`}
                   </text>
                 )}
 
-                {/* Corner J-Bolt & Clamp Indicators */}
-                <circle cx={px + 2} cy={py + 2} r="1" fill="#22C55E" />
-                <circle cx={px + pw - 2} cy={py + 2} r="1" fill="#22C55E" />
-                <circle cx={px + 2} cy={py + ph - 2} r="1" fill="#22C55E" />
-                <circle cx={px + pw - 2} cy={py + ph - 2} r="1" fill="#22C55E" />
+                {/* J-Bolt Fastener Corner Dots */}
+                <circle cx={px + 3} cy={py + 3} r="1.5" fill="#22C55E" stroke="#000" strokeWidth="0.4" />
+                <circle cx={px + pw - 3} cy={py + 3} r="1.5" fill="#22C55E" stroke="#000" strokeWidth="0.4" />
+                <circle cx={px + 3} cy={py + ph - 3} r="1.5" fill="#22C55E" stroke="#000" strokeWidth="0.4" />
+                <circle cx={px + pw - 3} cy={py + ph - 3} r="1.5" fill="#22C55E" stroke="#000" strokeWidth="0.4" />
               </g>
             );
           });
@@ -542,7 +701,7 @@ function Render2DArraySvg({ layout, moduleDims }) {
         });
       })()}
 
-      {/* Structure Legs (Front & Rear leg base indicators) */}
+      {/* Front & Rear Leg Position Markers */}
       {(() => {
         const legCount = layout?.bom?.frontLegs || 2;
         const legStep = legCount > 1 ? arraySvgW / (legCount - 1) : 0;
@@ -551,10 +710,8 @@ function Render2DArraySvg({ layout, moduleDims }) {
           const lx = startX + (i * legStep);
           legs.push(
             <g key={`leg_${i}`}>
-              {/* Rear Leg Indicator */}
-              <circle cx={lx} cy={startY + 2} r="2.5" fill="#EF4444" stroke="#FFFFFF" strokeWidth="0.8" />
-              {/* Front Leg Indicator */}
-              <circle cx={lx} cy={startY + arraySvgH - 2} r="2.5" fill="#3B82F6" stroke="#FFFFFF" strokeWidth="0.8" />
+              <circle cx={lx} cy={startY + 3} r="3" fill="#EF4444" stroke="#FFFFFF" strokeWidth="1" />
+              <circle cx={lx} cy={startY + arraySvgH - 3} r="3" fill="#3B82F6" stroke="#FFFFFF" strokeWidth="1" />
             </g>
           );
         }
