@@ -23,8 +23,8 @@ export default function PanelLayoutVisualizer({
   const [panelCount, setPanelCount] = useState(initialPanelCount || 6);
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedId, setSelectedId] = useState(selectedLayoutId || 'portrait_2x3');
-  const [activeViewTab, setActiveViewTab] = useState('2d'); // '2d', 'roof', '3d', 'pipes'
-  const [roofConfig, setRoofConfig] = useState(SITE_SKETCH_2_CONFIG || SAMPLE_HAND_DRAWN_SKETCH_CONFIG || DEFAULT_ROOF_CONFIG);
+  const [activeViewTab, setActiveViewTab] = useState('roof'); // Step 1: Rooftop Setup first
+  const [roofConfig, setRoofConfig] = useState(DEFAULT_ROOF_CONFIG);
   const [frontLegHeightFt, setFrontLegHeightFt] = useState(2.5);
   const [tiltDegrees, setTiltDegrees] = useState(18);
 
@@ -177,19 +177,6 @@ export default function PanelLayoutVisualizer({
           <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-700/80">
             <button
               type="button"
-              onClick={() => setActiveViewTab('2d')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeViewTab === '2d'
-                  ? 'bg-[#6CBF3D] text-slate-950 shadow-xs'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">grid_view</span>
-              <span>📐 2D Layouts ({filteredLayouts.length})</span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => setActiveViewTab('roof')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeViewTab === 'roof'
@@ -198,7 +185,20 @@ export default function PanelLayoutVisualizer({
               }`}
             >
               <span className="material-symbols-outlined text-[16px]">roofing</span>
-              <span>🏠 House Rooftop Designer</span>
+              <span>1. 🏠 Rooftop Setup &amp; AI Scan</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveViewTab('2d')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeViewTab === '2d'
+                  ? 'bg-[#6CBF3D] text-slate-950 shadow-xs'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">grid_view</span>
+              <span>2. 📐 2D Solar Layouts ({filteredLayouts.length})</span>
             </button>
 
             <button
@@ -211,7 +211,7 @@ export default function PanelLayoutVisualizer({
               }`}
             >
               <span className="material-symbols-outlined text-[16px]">view_in_ar</span>
-              <span>🌐 3D Structure Model</span>
+              <span>3. 🌐 3D Structure Model</span>
             </button>
 
             <button
@@ -224,7 +224,7 @@ export default function PanelLayoutVisualizer({
               }`}
             >
               <span className="material-symbols-outlined text-[16px]">content_cut</span>
-              <span>✂️ 20-ft GI Pipe Cutting</span>
+              <span>4. ✂️ 20-ft GI Pipe Cutting</span>
             </button>
           </div>
         </div>
@@ -691,6 +691,26 @@ export default function PanelLayoutVisualizer({
             </div>
           </div>
         )}
+
+        {/* Step 2 Footer Navigation to 3D */}
+        <div className="mt-2 p-4 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2 text-xs text-slate-300">
+            <span className="material-symbols-outlined text-[#6CBF3D] text-[18px]">verified</span>
+            <span>Selected Layout: <b className="text-white">{activeSelectedLayout?.name}</b></span>
+            <span className="text-slate-500">•</span>
+            <span>Roof Fit: <b className={checkRoofFit(activeSelectedLayout, roofConfig).fits ? 'text-[#6CBF3D]' : 'text-rose-400'}>
+              {checkRoofFit(activeSelectedLayout, roofConfig).fits ? '✓ Fits Roof Safe Zone' : '⚠️ Exceeds Roof Boundary'}
+            </b></span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveViewTab('3d')}
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6CBF3D] to-emerald-500 hover:brightness-110 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg transition-all cursor-pointer"
+          >
+            <span>Proceed to Step 3: Mount on 3D Realistic Roof</span>
+            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+          </button>
+        </div>
       </div>
       </>
     )}
@@ -702,6 +722,7 @@ export default function PanelLayoutVisualizer({
             roofConfig={roofConfig}
             onSaveRoofConfig={setRoofConfig}
             onOpen3D={() => setActiveViewTab('3d')}
+            onProceedTo2D={() => setActiveViewTab('2d')}
           />
         </div>
       )}
@@ -743,6 +764,22 @@ export default function PanelLayoutVisualizer({
             roofConfig={roofConfig}
             onOpenRoofDesigner={() => setActiveViewTab('roof')}
           />
+
+          {/* Step 3 Footer Navigation to Pipes */}
+          <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2 text-xs text-slate-300">
+              <span className="material-symbols-outlined text-[#6CBF3D] text-[18px]">verified</span>
+              <span>Structure safely mounted &amp; clamped inside terrace</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveViewTab('pipes')}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6CBF3D] to-emerald-500 hover:brightness-110 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg transition-all cursor-pointer"
+            >
+              <span>Proceed to Step 4: 20-ft GI Pipe Cutting BOM</span>
+              <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { scanRoofSketch, getGeminiApiKey, saveGeminiApiKey } from '../../utils/aiRoofVisionEngine';
 
 /**
  * NEW HAND-DRAWN SKETCH 2 (Exact Digitize of User's Uploaded Notebook Sketch):
@@ -284,14 +285,22 @@ export function getRoofWalls(vertices) {
 export default function RooftopDesigner({
   roofConfig = SITE_SKETCH_2_CONFIG,
   onSaveRoofConfig = null,
-  onOpen3D = null
+  onOpen3D = null,
+  onProceedTo2D = null
 }) {
   const [config, setConfig] = useState(roofConfig || SITE_SKETCH_2_CONFIG);
-  const [activeTab, setActiveTab] = useState('manual'); // 'manual', 'analysis', 'upload'
+  const [activeTab, setActiveTab] = useState('upload'); // Start with AI upload / photo scan
   const [uploadPreview, setUploadPreview] = useState(config.uploadedImage || null);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanStatusMessage, setScanStatusMessage] = useState('');
   const [scanResult, setScanResult] = useState(null);
+  const [aiExtractedData, setAiExtractedData] = useState(null);
   const [selectedWallIndex, setSelectedWallIndex] = useState(null);
+
+  // Gemini API key state
+  const [geminiKey, setGeminiKey] = useState(() => getGeminiApiKey());
+  const [tempApiKey, setTempApiKey] = useState('');
+  const [showApiKeySetting, setShowApiKeySetting] = useState(false);
 
   // Stepped L-Shape interactive parameters
   const [wTop, setWTop] = useState(config.wTopFt || 30);
@@ -307,6 +316,19 @@ export default function RooftopDesigner({
   const [hasWaterTank, setHasWaterTank] = useState(config.obstacles?.some(o => o.type === 'cylinder') || false);
 
   const fileInputRef = useRef(null);
+
+  const handleSaveApiKey = () => {
+    saveGeminiApiKey(tempApiKey);
+    setGeminiKey(tempApiKey.trim());
+    setShowApiKeySetting(false);
+  };
+
+  const handleClearApiKey = () => {
+    saveGeminiApiKey('');
+    setGeminiKey('');
+    setTempApiKey('');
+    setShowApiKeySetting(false);
+  };
 
   // Compute vertices and walls
   const vertices = useMemo(() => getRoofPolygonVertices(config), [config]);
@@ -498,44 +520,142 @@ export default function RooftopDesigner({
     if (onSaveRoofConfig) onSaveRoofConfig(updated);
   };
 
-  // Image Upload handler
+  // Image Upload handler with real AI Vision & In-Browser Computer Vision
   const handleImageUpload = e => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = event => {
+    reader.onload = async event => {
       const dataUrl = event.target?.result;
       setUploadPreview(dataUrl);
       setIsScanning(true);
+      setScanStatusMessage(geminiKey ? 'Connecting to Google Gemini 2.0 Flash Vision AI...' : 'Analyzing drawing with In-Browser Computer Vision...');
 
-      // Auto-detect sketch 2 (40x40 stepped)
-      setTimeout(() => {
+      try {
+        const result = await scanRoofSketch(dataUrl, geminiKey);
         setIsScanning(false);
-        const updated = {
-          ...SITE_SKETCH_2_CONFIG,
-          uploadedImage: dataUrl
-        };
-        setConfig(updated);
-        setWTop(30);
-        setDUpper(25);
-        setWShelf(10);
-        setDLower(15);
-        setMumtyLoc('bottom-left');
-        setMumtyW(3);
-        setMumtyD(6);
-        setMumtyH(7);
-        setHasWaterTank(false);
-        setActiveTab('manual');
+
+        if (result && result.success && result.data) {
+          const d = result.data;
+          setAiExtractedData(d);
+
+          const wt = parseFloat(d.wTopFt) || 30;
+          const du = parseFloat(d.dUpperFt) || 25;
+          const ws = parseFloat(d.wShelfFt) || 10;
+          const dl = parseFloat(d.dLowerFt) || 15;
+          const mLoc = d.mumty?.location || 'bottom-left';
+          const mW = parseFloat(d.mumty?.widthFt) || 3;
+          const mD = parseFloat(d.mumty?.depthFt) || 6;
+          const mH = parseFloat(d.mumty?.heightFt) || 7;
+          const pHeight = parseFloat(d.parapetHeightFt) || 3.0;
+
+          setWTop(wt);
+          setDUpper(du);
+          setWShelf(ws);
+          setDLower(dl);
+          setMumtyLoc(mLoc);
+          setMumtyW(mW);
+          setMumtyD(mD);
+          setMumtyH(mH);
+          setHasWaterTank(Boolean(d.waterTank?.detected));
+
+          const newVerts = buildOrthogonalSteppedVertices(wt, du, ws, dl);
+          const wTotal = wt + ws;
+          const dTotal = du + dl;
+          const halfW = wTotal / 2;
+          const halfD = dTotal / 2;
+
+          let newObstacles = [];
+          if (mLoc !== 'none') {
+            let mx = -halfW + mW / 2;
+            let mz = halfD - mD / 2;
+            if (mLoc === 'top-left') {
+              mx = -halfW + mW / 2;
+              mz = -halfD + mD / 2;
+            } else if (mLoc === 'top-right') {
+              mx = -halfW + wt - mW / 2;
+              mz = -halfD + mD / 2;
+            }
+            newObstacles.push({
+              id: 'mumty',
+              name: d.mumty?.name || 'Staircase Mumty (सीढ़ी)',
+              type: 'box',
+              location: mLoc,
+              widthFt: mW,
+              depthFt: mD,
+              heightFt: mH,
+              xRelFt: Number(mx.toFixed(1)),
+              zRelFt: Number(mz.toFixed(1)),
+              shadowLengthFt: 9.1
+            });
+          }
+
+          if (d.waterTank?.detected) {
+            newObstacles.push({
+              id: 'tanki',
+              name: 'Water Tank (पानी की टंकी)',
+              type: 'cylinder',
+              radiusFt: d.waterTank.radiusFt || 1.8,
+              heightFt: d.waterTank.heightFt || 3,
+              xRelFt: -halfW + 4,
+              zRelFt: halfD - 4,
+              shadowLengthFt: 4.0
+            });
+          }
+
+          const safeZone = {
+            centerXFt: Number((-halfW + wt / 2).toFixed(1)),
+            centerZFt: Number((-halfD + du / 2).toFixed(1)),
+            availableWidthFt: Math.max(16, wt - 6),
+            availableDepthFt: Math.max(16, du - 4),
+            description: '100% Shadow-Free Open Terrace'
+          };
+
+          const updated = {
+            type: d.shapeType || 'stepped_l',
+            name: d.roofName || `Uploaded Sketch (${wTotal}×${dTotal}ft)`,
+            widthFt: wTotal,
+            depthFt: dTotal,
+            wTopFt: wt,
+            dUpperFt: du,
+            wShelfFt: ws,
+            dLowerFt: dl,
+            parapetHeightFt: pHeight,
+            parapetThicknessInches: 9,
+            southDirection: 'top',
+            customVertices: newVerts,
+            obstacles: newObstacles,
+            safeSolarZone: safeZone,
+            uploadedImage: dataUrl
+          };
+
+          setConfig(updated);
+          if (onSaveRoofConfig) onSaveRoofConfig(updated);
+
+          setScanResult({
+            success: true,
+            provider: result.modelUsed,
+            message: `Sketch Analyzed by ${result.modelUsed}!`,
+            explanation: d.explanation,
+            wallsCount: d.walls?.length || 6,
+            obstaclesDetected: (d.mumty?.detected ? 1 : 0) + (d.waterTank?.detected ? 1 : 0),
+            parapetHeight: `${pHeight} ft`,
+            warning: result.warning
+          });
+        } else {
+          setScanResult({
+            success: false,
+            message: result?.error || 'Failed to detect walls from sketch. Please use manual inputs.'
+          });
+        }
+      } catch (err) {
+        setIsScanning(false);
         setScanResult({
-          success: true,
-          message: 'Sketch 2 Analyzed! 6 Walls & Bottom-Left Mumty Detected.',
-          wallsCount: 6,
-          obstaclesDetected: 1,
-          parapetHeight: '3 ft'
+          success: false,
+          message: 'Error during image analysis: ' + (err.message || 'Unknown error')
         });
-        if (onSaveRoofConfig) onSaveRoofConfig(updated);
-      }, 1000);
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -578,13 +698,24 @@ export default function RooftopDesigner({
         <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
           <button
             type="button"
+            onClick={() => setActiveTab('upload')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'upload' ? 'bg-[#6CBF3D] text-slate-950 shadow-xs' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">document_scanner</span>
+            <span>1. Upload Sketch / Site Photo (AI Auto-Scan)</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('manual')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'manual' ? 'bg-[#6CBF3D] text-slate-950 shadow-xs' : 'text-slate-300 hover:text-white'
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">straighten</span>
-            <span>1. Wall Measurements &amp; Mumty (दीवार व सीढ़ी माप)</span>
+            <span>2. Wall Measurements &amp; Mumty (दीवार व सीढ़ी माप)</span>
           </button>
 
           <button
@@ -595,18 +726,7 @@ export default function RooftopDesigner({
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">wb_sunny</span>
-            <span>2. Shadow Analysis &amp; Solar Mount (धूप/छाया)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('upload')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'upload' ? 'bg-[#6CBF3D] text-slate-950 shadow-xs' : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[16px]">document_scanner</span>
-            <span>3. Upload New Sketch Photo (फोटो अपलोड)</span>
+            <span>3. Shadow Analysis &amp; Solar Mount (धूप/छाया)</span>
           </button>
         </div>
 
@@ -851,27 +971,190 @@ export default function RooftopDesigner({
             </div>
           )}
 
-          {/* TAB 3: Upload Sketch Photo */}
+          {/* TAB 1: Upload Sketch Photo with AI Vision */}
           {activeTab === 'upload' && (
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col gap-3">
-              <span className="text-xs font-bold text-white">Upload New Photo:</span>
+            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col gap-3.5">
+              {/* AI Engine Status & Key Setting */}
+              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col gap-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-[#6CBF3D]">neurology</span>
+                    <span className="text-xs font-bold text-white">AI Vision Engine:</span>
+                    {geminiKey ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        ✨ Google Gemini 2.0 Flash Active
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        ⚙️ Free In-Browser Vision Active
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeySetting(!showApiKeySetting)}
+                    className="text-[11px] font-bold text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">key</span>
+                    <span>{geminiKey ? 'Change API Key' : '+ Free Gemini Key'}</span>
+                  </button>
+                </div>
+
+                {showApiKeySetting && (
+                  <div className="mt-2 pt-2 border-t border-slate-800/80 flex flex-col gap-2">
+                    <p className="text-[10px] text-slate-400">
+                      Google AI Studio key is 100% free with 0 cost. (निःशुल्क AI की मदद से हाथ से बनी ड्रॉइंग सीधे स्कैन होती है)
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="password"
+                        placeholder="Paste Google Gemini API Key (AIzaSy...)"
+                        value={tempApiKey}
+                        onChange={e => setTempApiKey(e.target.value)}
+                        className="flex-1 h-8 px-2.5 rounded bg-slate-900 border border-slate-700 text-xs font-mono text-white outline-none focus:border-[#6CBF3D]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveApiKey}
+                        className="h-8 px-3 rounded bg-[#6CBF3D] hover:bg-[#5ca633] text-slate-950 font-bold text-xs cursor-pointer shadow-xs"
+                      >
+                        Save
+                      </button>
+                      {geminiKey && (
+                        <button
+                          type="button"
+                          onClick={handleClearApiKey}
+                          className="h-8 px-2.5 rounded bg-rose-900/50 hover:bg-rose-800 text-rose-300 text-xs cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-[#6CBF3D] hover:underline flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                      <span>Get Free API Key at Google AI Studio (30 seconds, Free)</span>
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Upload Dropzone */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-700 hover:border-[#6CBF3D] rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-slate-950"
+                className="border-2 border-dashed border-slate-700 hover:border-[#6CBF3D] rounded-xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-slate-950 group"
               >
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                 {isScanning ? (
+                  <div className="flex flex-col items-center gap-2.5 py-4">
+                    <div className="w-9 h-9 border-4 border-[#6CBF3D] border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs font-bold text-emerald-400 animate-pulse">{scanStatusMessage}</span>
+                    <span className="text-[10px] text-slate-400">Measuring walls, finding Mumty, and building 90° CAD...</span>
+                  </div>
+                ) : uploadPreview ? (
                   <div className="flex flex-col items-center gap-2">
-                    <div className="w-8 h-8 border-4 border-[#6CBF3D] border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-xs font-bold text-emerald-400">Scanning Drawing &amp; Mumty...</span>
+                    <img src={uploadPreview} alt="Uploaded Roof Sketch" className="max-h-36 rounded-lg border border-slate-800 shadow-md object-contain" />
+                    <span className="text-[11px] font-bold text-[#6CBF3D] flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                      <span>Photo Uploaded (Click to Change)</span>
+                    </span>
                   </div>
                 ) : (
-                  <>
-                    <span className="material-symbols-outlined text-3xl text-[#6CBF3D] mb-1">document_scanner</span>
-                    <span className="text-xs font-bold text-slate-200">Click to Upload Hand-Drawn Sketch</span>
-                  </>
+                  <div className="py-2">
+                    <span className="material-symbols-outlined text-4xl text-[#6CBF3D] mb-1 group-hover:scale-110 transition-transform">
+                      document_scanner
+                    </span>
+                    <span className="text-xs font-bold text-white block">
+                      Click to Upload Hand-Drawn Notebook Sketch / Site Photo
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      AI will analyze walls (30', 40', 25' etc.), Mumty location &amp; generate clean 3D roof
+                    </span>
+                  </div>
                 )}
               </div>
+
+              {/* AI Extraction Results Summary Card */}
+              {scanResult && scanResult.success && (
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-emerald-500/30 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-emerald-400 text-[18px]">verified</span>
+                      <span>AI Extracted Blueprint Details:</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/20 text-emerald-300">
+                      {scanResult.provider}
+                    </span>
+                  </div>
+
+                  {scanResult.explanation && (
+                    <p className="text-[11px] text-slate-300 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 leading-relaxed">
+                      💡 {scanResult.explanation}
+                    </p>
+                  )}
+
+                  {/* Extracted Walls Table */}
+                  <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
+                    <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                      <span className="text-[9px] text-slate-400 block">Top South Wall</span>
+                      <span className="font-bold text-white">{wTop} ft</span>
+                    </div>
+                    <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                      <span className="text-[9px] text-slate-400 block">East Drop</span>
+                      <span className="font-bold text-white">{dUpper} ft</span>
+                    </div>
+                    <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                      <span className="text-[9px] text-slate-400 block">Shelf Step</span>
+                      <span className="font-bold text-white">{wShelf} ft</span>
+                    </div>
+                    <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                      <span className="text-[9px] text-slate-400 block">Lower Drop</span>
+                      <span className="font-bold text-white">{dLower} ft</span>
+                    </div>
+                    <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                      <span className="text-[9px] text-slate-400 block">Bottom Wall</span>
+                      <span className="font-bold text-emerald-400">{wTop + wShelf} ft</span>
+                    </div>
+                    <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                      <span className="text-[9px] text-slate-400 block">West Wall</span>
+                      <span className="font-bold text-emerald-400">{dUpper + dLower} ft</span>
+                    </div>
+                  </div>
+
+                  {/* Mumty & Obstacle info */}
+                  <div className="flex items-center justify-between text-[11px] text-slate-300 px-1">
+                    <span>
+                      Mumty: <b className="text-amber-400 capitalize">{mumtyLoc} ({mumtyW}×{mumtyD} ft)</b>
+                    </span>
+                    <span>
+                      Parapet: <b className="text-white">{config.parapetHeightFt} ft</b>
+                    </span>
+                  </div>
+
+                  {/* Tab switch button */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('manual')}
+                      className="flex-1 py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 transition-colors cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">tune</span>
+                      <span>Edit Wall Numbers Manually</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {scanResult && !scanResult.success && (
+                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+                  ⚠️ {scanResult.message}
+                </div>
+              )}
             </div>
           )}
 
@@ -944,6 +1227,22 @@ export default function RooftopDesigner({
               🧭 True South: Top Wall (180°)
             </span>
           </div>
+
+          {onProceedTo2D && (
+            <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between flex-wrap gap-2">
+              <span className="text-xs text-slate-400">
+                Next: Select solar modules count and compare 2D grid layouts
+              </span>
+              <button
+                type="button"
+                onClick={onProceedTo2D}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6CBF3D] to-emerald-500 hover:brightness-110 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg transition-all cursor-pointer"
+              >
+                <span>Proceed to Step 2: Choose 2D Solar Layout</span>
+                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
