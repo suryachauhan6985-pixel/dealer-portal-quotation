@@ -1,8 +1,18 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { calculateLegHeights, calculateGiPipeSections } from '../../utils/solarLayoutEngine';
-import { getRoofPolygonVertices, getRoofWalls, DEFAULT_ROOF_CONFIG } from './RooftopDesigner';
+import {
+  calculateLegHeights,
+  calculateGiPipeSections,
+  checkRoofFit,
+  mmToFeet
+} from '../../utils/solarLayoutEngine';
+import {
+  getRoofPolygonVertices,
+  getRoofWalls,
+  DEFAULT_ROOF_CONFIG,
+  SAMPLE_HAND_DRAWN_SKETCH_CONFIG
+} from './RooftopDesigner';
 
 export default function SolarStructure3DViewer({
   layout,
@@ -14,37 +24,169 @@ export default function SolarStructure3DViewer({
 }) {
   const mountRef = useRef(null);
   const [frontLegFt, setFrontLegFt] = useState(initialFrontLegHeightFt || 2.5);
-  const [viewPreset, setViewPreset] = useState('orbit'); // 'orbit', 'top', 'side', 'front'
+  const [viewPreset, setViewPreset] = useState('orbit'); // 'orbit', 'top', 'side', 'front', 'building'
+  const [buildingFloors, setBuildingFloors] = useState('G+1'); // 'G' (10ft), 'G+1' (20ft), 'G+2' (30ft), 'G+3' (40ft)
+  const [legCountChoice, setLegCountChoice] = useState('6'); // '6' (Suggested/Recommended for 3x2), '4' (Economy)
+  const [copySuccess, setCopySuccess] = useState(false);
+
   const controlsRef = useRef(null);
   const cameraRef = useRef(null);
 
   // Active roof configuration fallback
   const activeRoof = useMemo(() => {
-    return roofConfig || DEFAULT_ROOF_CONFIG;
+    return roofConfig || SAMPLE_HAND_DRAWN_SKETCH_CONFIG || DEFAULT_ROOF_CONFIG;
   }, [roofConfig]);
 
-  // Calculate elevation and pipe cuts based on frontLegFt
+  // Check whether active layout physically fits on this rooftop
+  const roofFit = useMemo(() => {
+    return checkRoofFit(layout, activeRoof);
+  }, [layout, activeRoof]);
+
+  // Building height map in feet and meters
+  const floorConfig = useMemo(() => {
+    const map = {
+      'G': { floors: 1, heightFt: 10, heightM: 3.048, label: 'Ground Floor (G - 10 ft)' },
+      'G+1': { floors: 2, heightFt: 20, heightM: 6.096, label: 'Ground + 1 Floor (G+1 - 20 ft) [Recommended]' },
+      'G+2': { floors: 3, heightFt: 30, heightM: 9.144, label: 'Ground + 2 Floors (G+2 - 30 ft)' },
+      'G+3': { floors: 4, heightFt: 40, heightM: 12.192, label: 'Ground + 3 Floors (G+3 - 40 ft)' }
+    };
+    return map[buildingFloors] || map['G+1'];
+  }, [buildingFloors]);
+
+  // Effective leg pairs based on dealer choice
+  const legPairs = useMemo(() => {
+    if (legCountChoice === '4') return 2;
+    if (legCountChoice === '6') return 3;
+    return layout?.bom?.frontLegs || 3;
+  }, [legCountChoice, layout]);
+
+  // Calculate elevation and pipe cuts based on frontLegFt & legPairs
   const elevation = useMemo(() => {
     return calculateLegHeights(layout, frontLegFt, tiltDegrees);
   }, [layout, frontLegFt, tiltDegrees]);
 
   const pipeSections = useMemo(() => {
-    return calculateGiPipeSections(layout, frontLegFt, tiltDegrees);
-  }, [layout, frontLegFt, tiltDegrees]);
+    return calculateGiPipeSections(layout, frontLegFt, tiltDegrees, legPairs);
+  }, [layout, frontLegFt, tiltDegrees, legPairs]);
+
+  // Engineering Leg Schedule Data
+  const legEngineeringData = useMemo(() => {
+    const rows = [];
+    const frontH = elevation.frontLegHeightFt;
+    const rearH = elevation.rearLegHeightFt;
+    const frontHMm = elevation.frontLegHeightMm;
+    const rearHMm = elevation.rearLegHeightMm;
+
+    if (legPairs === 2) {
+      rows.push(
+        {
+          tag: 'FL-1',
+          name: 'Front-Left Column (आगे बायाँ पैर)',
+          pos: 'Front / South (आगे)',
+          heightFt: frontH,
+          heightMm: frontHMm,
+          heightIn: (frontH * 12).toFixed(1),
+          spec: '60mm × 40mm × 2.0mm HDG GI Box',
+          basePlate: '150mm × 150mm × 6mm MS Plate',
+          fasteners: '4× M10 × 100mm Anchor Fasteners',
+          status: roofFit.fits ? '✓ Safe & Clear (>3.5 ft)' : '⚠️ Warning: Exceeds Roof'
+        },
+        {
+          tag: 'FR-2',
+          name: 'Front-Right Column (आगे दायाँ पैर)',
+          pos: 'Front / South (आगे)',
+          heightFt: frontH,
+          heightMm: frontHMm,
+          heightIn: (frontH * 12).toFixed(1),
+          spec: '60mm × 40mm × 2.0mm HDG GI Box',
+          basePlate: '150mm × 150mm × 6mm MS Plate',
+          fasteners: '4× M10 × 100mm Anchor Fasteners',
+          status: roofFit.fits ? '✓ Safe & Clear (>3.5 ft)' : '⚠️ Warning: Exceeds Roof'
+        },
+        {
+          tag: 'RL-1',
+          name: 'Rear-Left Column (पीछे बायाँ पैर)',
+          pos: 'Rear / North (पीछे)',
+          heightFt: rearH,
+          heightMm: rearHMm,
+          heightIn: (rearH * 12).toFixed(1),
+          spec: '60mm × 40mm × 2.0mm HDG GI Box',
+          basePlate: '150mm × 150mm × 6mm MS Plate',
+          fasteners: '4× M10 × 100mm Anchor Fasteners',
+          status: roofFit.fits ? '✓ Safe & Clear (>3.5 ft)' : '⚠️ Warning: Exceeds Roof'
+        },
+        {
+          tag: 'RR-2',
+          name: 'Rear-Right Column (पीछे दायाँ पैर)',
+          pos: 'Rear / North (पीछे)',
+          heightFt: rearH,
+          heightMm: rearHMm,
+          heightIn: (rearH * 12).toFixed(1),
+          spec: '60mm × 40mm × 2.0mm HDG GI Box',
+          basePlate: '150mm × 150mm × 6mm MS Plate',
+          fasteners: '4× M10 × 100mm Anchor Fasteners',
+          status: roofFit.fits ? '✓ Safe & Clear (>3.5 ft)' : '⚠️ Warning: Exceeds Roof'
+        }
+      );
+    } else {
+      const legNames = [
+        { tag: 'FL-1', name: 'Front-Left Column (आगे बायाँ पैर)', pos: 'Front / South (आगे)' },
+        { tag: 'FC-2', name: 'Front-Center Column (आगे मध्य पैर)', pos: 'Front / South (आगे)' },
+        { tag: 'FR-3', name: 'Front-Right Column (आगे दायाँ पैर)', pos: 'Front / South (आगे)' },
+        { tag: 'RL-1', name: 'Rear-Left Column (पीछे बायाँ पैर)', pos: 'Rear / North (पीछे)' },
+        { tag: 'RC-2', name: 'Rear-Center Column (पीछे मध्य पैर)', pos: 'Rear / North (पीछे)' },
+        { tag: 'RR-3', name: 'Rear-Right Column (पीछे दायाँ पैर)', pos: 'Rear / North (पीछे)' }
+      ];
+
+      legNames.forEach((l, idx) => {
+        const isFront = idx < 3;
+        const h = isFront ? frontH : rearH;
+        const hMm = isFront ? frontHMm : rearHMm;
+        rows.push({
+          tag: l.tag,
+          name: l.name,
+          pos: l.pos,
+          heightFt: h,
+          heightMm: hMm,
+          heightIn: (h * 12).toFixed(1),
+          spec: '60mm × 40mm × 2.0mm HDG GI Box',
+          basePlate: '150mm × 150mm × 6mm MS Plate',
+          fasteners: '4× M10 × 100mm Anchor Fasteners',
+          status: roofFit.fits ? '✓ Safe & Clear (>3.5 ft)' : '⚠️ Warning: Exceeds Roof'
+        });
+      });
+    }
+    return rows;
+  }, [legPairs, elevation, roofFit]);
+
+  const handleCopySchedule = () => {
+    const text = legEngineeringData
+      .map(
+        r =>
+          `${r.tag}: ${r.name} | H: ${r.heightFt} ft (${r.heightMm} mm) | ${r.spec} | Base: ${r.basePlate} | Fasteners: ${r.fasteners}`
+      )
+      .join('\n');
+    navigator.clipboard?.writeText(
+      `--- SUNVINE SOLAR STRUCTURE ENGINEERING REPORT ---\nHouse: ${floorConfig.label} (Terrace Ht: ${floorConfig.heightFt} ft)\nLayout: ${layout?.name} (${legPairs * 2} Legs)\nTilt: ${elevation.tiltDegrees}° South\n\n${text}`
+    );
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2500);
+  };
 
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
     const width = container.clientWidth || 600;
-    const height = container.clientHeight || 420;
+    const height = container.clientHeight || 450;
 
     // 1. Scene, Camera, Renderer
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xF1F5F9); // Light slate outdoor sky
+    scene.background = new THREE.Color(0xF0F4F8); // Bright outdoor sky
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(7, 6, 9);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 150);
+    // Position camera to see entire house and solar roof
+    camera.position.set(12, 10, 16);
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -59,35 +201,35 @@ export default function SolarStructure3DViewer({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.maxPolarAngle = Math.PI / 2 + 0.05; // Don't go below ground
-    controls.minDistance = 2;
-    controls.maxDistance = 35;
+    controls.maxPolarAngle = Math.PI / 2 + 0.08; // Keep slightly above ground
+    controls.minDistance = 3;
+    controls.maxDistance = 50;
+    // Target center of roof
+    controls.target.set(0, 0, 0);
     controlsRef.current = controls;
 
-    // 3. Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    // 3. Lighting (Sunlight in South = -Z direction)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
     scene.add(ambientLight);
 
+    // South Sunlight shining from South (-Z) at ~45° altitude
     const sunLight = new THREE.DirectionalLight(0xfff8e7, 1.4);
-    sunLight.position.set(6, 14, 11);
+    sunLight.position.set(6, 22, -18);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.camera.near = 0.5;
-    sunLight.shadow.camera.far = 40;
-    sunLight.shadow.camera.left = -15;
-    sunLight.shadow.camera.right = 15;
-    sunLight.shadow.camera.top = 15;
-    sunLight.shadow.camera.bottom = -15;
+    sunLight.shadow.camera.far = 60;
+    sunLight.shadow.camera.left = -22;
+    sunLight.shadow.camera.right = 22;
+    sunLight.shadow.camera.top = 22;
+    sunLight.shadow.camera.bottom = -22;
     scene.add(sunLight);
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x94a3b8, 0.45);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x94a3b8, 0.4);
     scene.add(hemiLight);
 
-    // 4. Rooftop Concrete Terrace Floor & Parapet Walls from roofConfig
-    const parapetHeightM = ((activeRoof.parapetHeightFt !== undefined ? activeRoof.parapetHeightFt : 3.0) * 0.3048);
-    const parapetThicknessM = 0.23; // 9 inch brick wall
-
+    // 4. Materials
     const floorMat = new THREE.MeshStandardMaterial({
       color: 0xE2E8F0,
       roughness: 0.85,
@@ -96,7 +238,7 @@ export default function SolarStructure3DViewer({
 
     const parapetMat = new THREE.MeshStandardMaterial({
       color: 0xCBD5E1,
-      roughness: 0.9,
+      roughness: 0.85,
       metalness: 0.05
     });
 
@@ -106,103 +248,170 @@ export default function SolarStructure3DViewer({
       metalness: 0.1
     });
 
-    // Check if custom polygon or L-shape or standard rectangle
-    if (activeRoof.type === 'l_shape' || activeRoof.type === 'custom_polygon') {
-      const polyVerts = getRoofPolygonVertices(activeRoof);
-      const polyWalls = getRoofWalls(polyVerts);
+    const buildingMat = new THREE.MeshStandardMaterial({
+      color: 0xF8FAFC, // Modern light off-white architectural plaster
+      roughness: 0.88,
+      metalness: 0.03
+    });
 
-      // Create 2D Shape in X-Z plane (Shape Y maps to -Z)
-      const shape = new THREE.Shape();
-      polyVerts.forEach((v, idx) => {
-        const vx = v.x * 0.3048;
-        const vz = v.z * 0.3048;
-        if (idx === 0) shape.moveTo(vx, -vz);
-        else shape.lineTo(vx, -vz);
+    const windowGlassMat = new THREE.MeshStandardMaterial({
+      color: 0x38BDF8,
+      roughness: 0.1,
+      metalness: 0.85
+    });
+
+    const windowFrameMat = new THREE.MeshStandardMaterial({
+      color: 0x1E293B,
+      roughness: 0.5
+    });
+
+    const buildingHeightM = floorConfig.heightM;
+    const parapetHeightM = (activeRoof.parapetHeightFt !== undefined ? activeRoof.parapetHeightFt : 3.0) * 0.3048;
+    const parapetThicknessM = 0.23; // 9-inch brick wall
+
+    // Extract Polygon Vertices & Walls
+    const polyVerts = getRoofPolygonVertices(activeRoof);
+    const polyWalls = getRoofWalls(polyVerts);
+
+    // 5. Construct 2D Shape from Vertices (in X-Z ground plane: Shape Y = vz)
+    const shape = new THREE.Shape();
+    polyVerts.forEach((v, idx) => {
+      const vx = v.x * 0.3048;
+      const vz = v.z * 0.3048;
+      if (idx === 0) shape.moveTo(vx, vz);
+      else shape.lineTo(vx, vz);
+    });
+    shape.closePath();
+
+    // 5a. Concrete Terrace Slab at Y = 0
+    const slabGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.3, bevelEnabled: false });
+    const slab = new THREE.Mesh(slabGeo, floorMat);
+    slab.rotation.x = Math.PI / 2;
+    slab.position.y = 0;
+    slab.receiveShadow = true;
+    scene.add(slab);
+
+    // 5b. Full House Building Extrusion (From Y = 0 down to Y = -buildingHeightM)
+    const buildingGeo = new THREE.ExtrudeGeometry(shape, { depth: buildingHeightM, bevelEnabled: false });
+    const buildingMesh = new THREE.Mesh(buildingGeo, buildingMat);
+    buildingMesh.rotation.x = Math.PI / 2;
+    buildingMesh.position.y = 0;
+    buildingMesh.castShadow = true;
+    buildingMesh.receiveShadow = true;
+    scene.add(buildingMesh);
+
+    // 5c. Floor Separation Cornice Bands & Facade Windows
+    const totalStories = floorConfig.floors;
+    for (let f = 1; f <= totalStories; f++) {
+      const bandY = -(f * 3.048); // 10 ft, 20 ft below terrace
+      const floorCenterY = -((f - 0.5) * 3.048);
+
+      // Floor Cornice Bands along all perimeter walls
+      polyWalls.forEach(w => {
+        const x1 = w.p1.x * 0.3048;
+        const z1 = w.p1.z * 0.3048;
+        const x2 = w.p2.x * 0.3048;
+        const z2 = w.p2.z * 0.3048;
+
+        const dx = x2 - x1;
+        const dz = z2 - z1;
+        const segLen = Math.sqrt(dx * dx + dz * dz);
+        const segAngle = Math.atan2(dz, dx);
+        const midX = (x1 + x2) / 2;
+        const midZ = (z1 + z2) / 2;
+
+        if (f < totalStories) {
+          // Horizontal decorative band between stories
+          const bandGeo = new THREE.BoxGeometry(segLen + 0.08, 0.18, parapetThicknessM + 0.06);
+          const band = new THREE.Mesh(bandGeo, copingMat);
+          band.position.set(midX, bandY, midZ);
+          band.rotation.y = -segAngle;
+          band.castShadow = true;
+          scene.add(band);
+        }
       });
-      shape.closePath();
 
-      // Extrude concrete slab
-      const extrudeSettings = { depth: 0.3, bevelEnabled: false };
-      const slabGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-      const slab = new THREE.Mesh(slabGeo, floorMat);
-      slab.rotation.x = Math.PI / 2;
-      slab.position.y = 0;
-      slab.receiveShadow = true;
-      scene.add(slab);
+      // Add architectural windows on West wall (X = -15ft = -4.57m) & South Wall (Z = -25ft = -7.62m)
+      [
+        { x: -4.57 - 0.02, y: floorCenterY, z: -2.0, rotY: Math.PI / 2 },
+        { x: -4.57 - 0.02, y: floorCenterY, z: 3.5, rotY: Math.PI / 2 },
+        { x: 1.5, y: floorCenterY, z: -7.62 - 0.02, rotY: 0 }
+      ].forEach((win, wIdx) => {
+        const wGroup = new THREE.Group();
+        wGroup.position.set(win.x, win.y, win.z);
+        wGroup.rotation.y = win.rotY;
 
-      // Parapet walls along every boundary side
-      if (parapetHeightM > 0.05) {
-        polyWalls.forEach((w) => {
-          const x1 = w.p1.x * 0.3048;
-          const z1 = w.p1.z * 0.3048;
-          const x2 = w.p2.x * 0.3048;
-          const z2 = w.p2.z * 0.3048;
+        // Frame
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.4, 0.04), windowFrameMat);
+        wGroup.add(frame);
 
-          const dx = x2 - x1;
-          const dz = z2 - z1;
-          const segLen = Math.sqrt(dx * dx + dz * dz);
-          const segAngle = Math.atan2(dz, dx);
+        // Glass
+        const glass = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 0.02), windowGlassMat);
+        wGroup.add(glass);
 
-          const midX = (x1 + x2) / 2;
-          const midZ = (z1 + z2) / 2;
+        // Sill
+        const sill = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.06, 0.12), copingMat);
+        sill.position.set(0, -0.73, 0.04);
+        wGroup.add(sill);
 
-          const wallGeo = new THREE.BoxGeometry(segLen, parapetHeightM, parapetThicknessM);
-          const wallMesh = new THREE.Mesh(wallGeo, parapetMat);
-          wallMesh.position.set(midX, parapetHeightM / 2, midZ);
-          wallMesh.rotation.y = -segAngle;
-          wallMesh.castShadow = true;
-          wallMesh.receiveShadow = true;
-          scene.add(wallMesh);
-
-          // Top coping stone
-          const copingGeo = new THREE.BoxGeometry(segLen, 0.04, parapetThicknessM + 0.04);
-          const copingMesh = new THREE.Mesh(copingGeo, copingMat);
-          copingMesh.position.set(midX, parapetHeightM + 0.02, midZ);
-          copingMesh.rotation.y = -segAngle;
-          copingMesh.castShadow = true;
-          scene.add(copingMesh);
-        });
-      }
-    } else {
-      // Standard Rectangle Roof
-      const roofWidthM = (parseFloat(activeRoof.widthFt) || 36) * 0.3048;
-      const roofDepthM = (parseFloat(activeRoof.depthFt) || 26) * 0.3048;
-
-      const floorGeo = new THREE.BoxGeometry(roofWidthM, 0.3, roofDepthM);
-      const floor = new THREE.Mesh(floorGeo, floorMat);
-      floor.position.y = -0.15;
-      floor.receiveShadow = true;
-      scene.add(floor);
-
-      if (parapetHeightM > 0.05) {
-        // North Parapet
-        const pNorth = new THREE.Mesh(new THREE.BoxGeometry(roofWidthM, parapetHeightM, parapetThicknessM), parapetMat);
-        pNorth.position.set(0, parapetHeightM / 2, -roofDepthM / 2 + parapetThicknessM / 2);
-        pNorth.castShadow = true;
-        scene.add(pNorth);
-
-        // South Parapet
-        const pSouth = new THREE.Mesh(new THREE.BoxGeometry(roofWidthM, parapetHeightM, parapetThicknessM), parapetMat);
-        pSouth.position.set(0, parapetHeightM / 2, roofDepthM / 2 - parapetThicknessM / 2);
-        pSouth.castShadow = true;
-        scene.add(pSouth);
-
-        // East Parapet
-        const pEast = new THREE.Mesh(new THREE.BoxGeometry(parapetThicknessM, parapetHeightM, roofDepthM - parapetThicknessM * 2), parapetMat);
-        pEast.position.set(roofWidthM / 2 - parapetThicknessM / 2, parapetHeightM / 2, 0);
-        pEast.castShadow = true;
-        scene.add(pEast);
-
-        // West Parapet
-        const pWest = new THREE.Mesh(new THREE.BoxGeometry(parapetThicknessM, parapetHeightM, roofDepthM - parapetThicknessM * 2), parapetMat);
-        pWest.position.set(-roofWidthM / 2 + parapetThicknessM / 2, parapetHeightM / 2, 0);
-        pWest.castShadow = true;
-        scene.add(pWest);
-      }
+        scene.add(wGroup);
+      });
     }
 
-    // 4b. 3D Obstacles (Staircase Mumty Room & Water Tank / Tanki)
-    (activeRoof.obstacles || []).forEach((obs) => {
+    // 5d. Ground Level Foundation Plane & Lawn at Y = -buildingHeightM
+    const groundGeo = new THREE.PlaneGeometry(80, 80);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0xE2E8F0, roughness: 0.95 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -buildingHeightM;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Green lawn patch around building
+    const lawnGeo = new THREE.PlaneGeometry(55, 60);
+    const lawnMat = new THREE.MeshStandardMaterial({ color: 0x86EFAC, roughness: 0.9 });
+    const lawn = new THREE.Mesh(lawnGeo, lawnMat);
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.position.set(-6, -buildingHeightM + 0.01, 6);
+    lawn.receiveShadow = true;
+    scene.add(lawn);
+
+    // 5e. Parapet Walls along Rooftop Boundary
+    if (parapetHeightM > 0.05) {
+      polyWalls.forEach(w => {
+        const x1 = w.p1.x * 0.3048;
+        const z1 = w.p1.z * 0.3048;
+        const x2 = w.p2.x * 0.3048;
+        const z2 = w.p2.z * 0.3048;
+
+        const dx = x2 - x1;
+        const dz = z2 - z1;
+        const segLen = Math.sqrt(dx * dx + dz * dz);
+        const segAngle = Math.atan2(dz, dx);
+
+        const midX = (x1 + x2) / 2;
+        const midZ = (z1 + z2) / 2;
+
+        const wallGeo = new THREE.BoxGeometry(segLen, parapetHeightM, parapetThicknessM);
+        const wallMesh = new THREE.Mesh(wallGeo, parapetMat);
+        wallMesh.position.set(midX, parapetHeightM / 2, midZ);
+        wallMesh.rotation.y = -segAngle;
+        wallMesh.castShadow = true;
+        wallMesh.receiveShadow = true;
+        scene.add(wallMesh);
+
+        // Top coping stone
+        const copingGeo = new THREE.BoxGeometry(segLen, 0.04, parapetThicknessM + 0.04);
+        const copingMesh = new THREE.Mesh(copingGeo, copingMat);
+        copingMesh.position.set(midX, parapetHeightM + 0.02, midZ);
+        copingMesh.rotation.y = -segAngle;
+        copingMesh.castShadow = true;
+        scene.add(copingMesh);
+      });
+    }
+
+    // 5f. 3D Obstacles (Mumty Room & Water Tank)
+    (activeRoof.obstacles || []).forEach(obs => {
       const ox = (obs.xRelFt || 0) * 0.3048;
       const oz = (obs.zRelFt || 0) * 0.3048;
 
@@ -214,7 +423,7 @@ export default function SolarStructure3DViewer({
         const mumtyGroup = new THREE.Group();
         mumtyGroup.position.set(ox, 0, oz);
 
-        // Room Solid Brick Walls
+        // Brick Room Body
         const roomGeo = new THREE.BoxGeometry(bw, bh, bd);
         const roomMesh = new THREE.Mesh(roomGeo, parapetMat);
         roomMesh.position.y = bh / 2;
@@ -280,7 +489,7 @@ export default function SolarStructure3DViewer({
       }
     });
 
-    // 5. Structure Elements (GI Steel Materials & Hardware)
+    // 6. Solar Structure & PV Array Assembly
     const giMat = new THREE.MeshStandardMaterial({
       color: 0xD1D5DB,
       metalness: 0.85,
@@ -300,38 +509,50 @@ export default function SolarStructure3DViewer({
     });
 
     const boltMat = new THREE.MeshStandardMaterial({
-      color: 0xF59E0B, // Gold / Yellow dichromate J-Bolt look
+      color: 0xF59E0B, // Gold / Yellow dichromate J-Bolt
       metalness: 0.9,
       roughness: 0.3
     });
 
-    // Structure dimensions in meters
-    const arrayWM = (layout.widthMm || 2278) / 1000;
-    const arrayDM = (layout.depthMm || 1134) / 1000;
+    const pvFrameMat = new THREE.MeshStandardMaterial({
+      color: 0xE2E8F0,
+      metalness: 0.85,
+      roughness: 0.25
+    });
+
+    const pvCellMat = new THREE.MeshStandardMaterial({
+      color: 0x0B192C, // Deep Monocrystalline Navy Blue
+      roughness: 0.18,
+      metalness: 0.85
+    });
+
+    // Array dimensions in meters
+    const arrayWM = (layout?.widthMm || 2278) / 1000;
+    const arrayDM = (layout?.depthMm || 1134) / 1000;
     const frontHM = elevation.frontLegHeightMm / 1000;
     const rearHM = elevation.rearLegHeightMm / 1000;
-    const legPairs = layout.bom?.frontLegs || 2;
     const legSpacing = arrayWM / Math.max(1, legPairs - 1);
 
     const structureGroup = new THREE.Group();
 
-    // Leg Positions (South is +Z, North is -Z)
-    const frontZ = arrayDM * 0.45; // South front leg
-    const rearZ = -arrayDM * 0.45; // North rear leg
-    const deltaZ = frontZ - rearZ; // positive
+    // South is -Z (Top wall), North is +Z
+    // Front Legs are South (low), Rear Legs are North (high)
+    const frontZ = -arrayDM * 0.45; // South front leg (-Z)
+    const rearZ = arrayDM * 0.45;   // North rear leg (+Z)
+    const deltaZ = rearZ - frontZ;  // arrayDM * 0.9 (positive)
     const deltaY = rearHM - frontHM; // positive
-    const tiltAngle = Math.atan2(deltaY, deltaZ); // ~18° in radians
+    const tiltAngle = Math.atan2(deltaY, deltaZ);
     const slopeLength = Math.sqrt(deltaZ * deltaZ + deltaY * deltaY);
 
     // Columns / Legs (60x40 mm GI Pipe)
-    const colWidth = 0.06; // 60mm
-    const colDepth = 0.04; // 40mm
+    const colWidth = 0.06;
+    const colDepth = 0.04;
     const basePlateGeo = new THREE.BoxGeometry(0.18, 0.015, 0.18);
 
     for (let i = 0; i < legPairs; i++) {
       const x = -arrayWM / 2 + (i * legSpacing);
 
-      // Front Leg Column (Ground Y=0 to frontHM)
+      // Front Leg Column (Ground Y=0 to frontHM at frontZ)
       const fLegGeo = new THREE.BoxGeometry(colWidth, frontHM, colDepth);
       const fLeg = new THREE.Mesh(fLegGeo, giMat);
       fLeg.position.set(x, frontHM / 2, frontZ);
@@ -344,7 +565,7 @@ export default function SolarStructure3DViewer({
       fPlate.receiveShadow = true;
       structureGroup.add(fPlate);
 
-      // Rear Leg Column (Ground Y=0 to rearHM)
+      // Rear Leg Column (Ground Y=0 to rearHM at rearZ)
       const rLegGeo = new THREE.BoxGeometry(colWidth, rearHM, colDepth);
       const rLeg = new THREE.Mesh(rLegGeo, giMat);
       rLeg.position.set(x, rearHM / 2, rearZ);
@@ -358,23 +579,16 @@ export default function SolarStructure3DViewer({
       structureGroup.add(rPlate);
     }
 
-    // 6. Unified Hierarchical Tilted Plane Group
-    // Pivoted exactly at the center of the structure table:
+    // 7. Hierarchical Tilted Plane Group Facing South
     const tableCenterY = (frontHM + rearHM) / 2;
     const tableCenterZ = (frontZ + rearZ) / 2;
 
     const tiltedPlaneGroup = new THREE.Group();
     tiltedPlaneGroup.position.set(0, tableCenterY, tableCenterZ);
-    // In Three.js, positive rotation around X lowers +Z (South) and raises -Z (North):
-    tiltedPlaneGroup.rotation.x = tiltAngle;
-
-    // Inside tiltedPlaneGroup:
-    // Local X: East-West (-arrayWM/2 to +arrayWM/2)
-    // Local Z: Along slope (-slopeLength/2 is North/Top, +slopeLength/2 is South/Bottom)
-    // Local Y: Normal to slope (pointing UPWARDS/OUTWARDS towards sky & sun)
+    // Negative rotation around X lowers South (-Z) and raises North (+Z)
+    tiltedPlaneGroup.rotation.x = -tiltAngle;
 
     // Layer 1: Rafters (40mm x 40mm GI Pipe along slope)
-    // Sits at local Y = 0.02 (bottom touches column tops at Y = 0)
     const rafterGeo = new THREE.BoxGeometry(0.04, 0.04, slopeLength);
     for (let i = 0; i < legPairs; i++) {
       const x = -arrayWM / 2 + (i * legSpacing);
@@ -385,15 +599,12 @@ export default function SolarStructure3DViewer({
     }
 
     // Layer 2: Purlins (40mm x 40mm GI Pipe across width)
-    // Sits directly ON TOP of rafters!
-    // Bottom at Y = 0.04, center at Y = 0.06, top at Y = 0.08
-    const rowCount = layout.rows?.length || 1;
+    const rowCount = layout?.rows?.length || 1;
     const purlinGeo = new THREE.BoxGeometry(arrayWM + 0.15, 0.04, 0.04);
 
     for (let r = 0; r < rowCount; r++) {
       const rowLen = slopeLength / rowCount;
       const rowCenterZ = -slopeLength / 2 + (r + 0.5) * rowLen;
-      // 2 purlins per row of modules (at 25% and 75% of module length)
       const pz1 = rowCenterZ - rowLen * 0.25;
       const pz2 = rowCenterZ + rowLen * 0.25;
 
@@ -405,57 +616,43 @@ export default function SolarStructure3DViewer({
       });
     }
 
-    // Layer 3: Solar PV Modules (35mm thickness)
-    // Sits directly ON TOP of purlins!
-    // Bottom at Y = 0.08, center at Y = 0.0975, top at Y = 0.115
-    const pvFrameMat = new THREE.MeshStandardMaterial({
-      color: 0xE2E8F0,
-      metalness: 0.85,
-      roughness: 0.25
-    });
-
-    const pvCellMat = new THREE.MeshStandardMaterial({
-      color: 0x0B192C, // Deep monocrystalline dark navy blue
-      roughness: 0.18,
-      metalness: 0.85
-    });
-
+    // Layer 3: Solar PV Modules & Hardware Clamps
     const midClampGeo = new THREE.BoxGeometry(0.025, 0.04, 0.05);
     const endClampGeo = new THREE.BoxGeometry(0.025, 0.04, 0.05);
     const jBoltGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.05, 8);
 
     let startLocalZ = -slopeLength / 2;
-    (layout.rows || []).forEach((row) => {
+    (layout?.rows || []).forEach(row => {
       const rowPanels = Array.isArray(row) ? row : [];
       if (rowPanels.length === 0) return;
 
       const firstPanel = rowPanels[0];
-      const panelH = (firstPanel.heightMm / 1000);
-      const totalRowW = rowPanels.reduce((acc, p) => acc + (p.widthMm / 1000), 0);
+      const panelH = firstPanel.heightMm / 1000;
+      const totalRowW = rowPanels.reduce((acc, p) => acc + p.widthMm / 1000, 0);
       let currentX = -totalRowW / 2;
 
       rowPanels.forEach((panel, pIdx) => {
-        const pw = (panel.widthMm / 1000) - 0.015; // 15mm spacing for mid clamps
-        const ph = (panel.heightMm / 1000) - 0.015;
+        const pw = panel.widthMm / 1000 - 0.015;
+        const ph = panel.heightMm / 1000 - 0.015;
 
-        const pCenterX = currentX + (panel.widthMm / 1000) / 2;
+        const pCenterX = currentX + panel.widthMm / 1000 / 2;
         const pCenterZ = startLocalZ + panelH / 2;
 
         const panelGroup = new THREE.Group();
         panelGroup.position.set(pCenterX, 0.0975, pCenterZ);
 
-        // 1. Aluminium Anodized Outer Frame (35mm deep)
+        // Frame
         const frameMesh = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.035, ph), pvFrameMat);
         frameMesh.castShadow = true;
         panelGroup.add(frameMesh);
 
-        // 2. High-Efficiency Dark Navy Blue Silicon PV Glass on Top Face
+        // Silicon Glass Wafer
         const waferMesh = new THREE.Mesh(new THREE.BoxGeometry(pw - 0.015, 0.006, ph - 0.015), pvCellMat);
-        waferMesh.position.set(0, 0.016, 0); // on upper face
+        waferMesh.position.set(0, 0.016, 0);
         waferMesh.castShadow = true;
         panelGroup.add(waferMesh);
 
-        // 3. Fastener J-Bolts at corners of panel
+        // 4 Fastener J-Bolts
         [
           [-pw / 2 + 0.03, -ph / 2 + 0.03],
           [pw / 2 - 0.03, -ph / 2 + 0.03],
@@ -467,49 +664,47 @@ export default function SolarStructure3DViewer({
           panelGroup.add(bolt);
         });
 
-        // 4. Clamps clamping panels to purlins
+        // Clamps
         if (pIdx === 0) {
-          // Left End Clamp
           const endClampL = new THREE.Mesh(endClampGeo, clampMat);
           endClampL.position.set(-pw / 2 - 0.01, 0.01, 0);
           panelGroup.add(endClampL);
         }
         if (pIdx === rowPanels.length - 1) {
-          // Right End Clamp
           const endClampR = new THREE.Mesh(endClampGeo, clampMat);
           endClampR.position.set(pw / 2 + 0.01, 0.01, 0);
           panelGroup.add(endClampR);
         } else {
-          // Mid Clamp between panels
           const midClamp = new THREE.Mesh(midClampGeo, clampMat);
           midClamp.position.set(pw / 2 + 0.008, 0.01, 0);
           panelGroup.add(midClamp);
         }
 
         tiltedPlaneGroup.add(panelGroup);
-        currentX += (panel.widthMm / 1000);
+        currentX += panel.widthMm / 1000;
       });
 
       startLocalZ += panelH;
     });
 
-    // Position solar array structure in the optimal shadow-free zone
-    const mountOffsetX = ((activeRoof.safeSolarZone?.centerXFt || 0) * 0.3048);
-    const mountOffsetZ = ((activeRoof.safeSolarZone?.centerZFt || 0) * 0.3048);
+    structureGroup.add(tiltedPlaneGroup);
+
+    // Place structure safely inside roof shadow-free zone
+    const mountOffsetX = (activeRoof.safeSolarZone?.centerXFt ?? 3.5) * 0.3048;
+    const mountOffsetZ = (activeRoof.safeSolarZone?.centerZFt ?? -14) * 0.3048;
     structureGroup.position.set(mountOffsetX, 0, mountOffsetZ);
 
-    structureGroup.add(tiltedPlaneGroup);
     scene.add(structureGroup);
 
-    // 7. True South Compass Arrow on Floor
+    // 8. True South Compass Arrow on Floor
     const compassGroup = new THREE.Group();
-    const arrowDir = new THREE.Vector3(0, 0, 1); // Z-positive is South
-    const arrowOrigin = new THREE.Vector3(0, 0.02, frontZ + 1.2);
-    const arrowHelper = new THREE.ArrowHelper(arrowDir, arrowOrigin, 1.2, 0xEF4444, 0.35, 0.25);
+    const arrowDir = new THREE.Vector3(0, 0, -1); // Z-negative is South (30ft wall)
+    const arrowOrigin = new THREE.Vector3(mountOffsetX, 0.02, mountOffsetZ + frontZ - 1.2);
+    const arrowHelper = new THREE.ArrowHelper(arrowDir, arrowOrigin, 1.4, 0xEF4444, 0.4, 0.25);
     compassGroup.add(arrowHelper);
     scene.add(compassGroup);
 
-    // 8. Animation Loop
+    // 9. Animation Loop
     let animationId;
     const animate = () => {
       animationId = requestAnimationFrame(animate);
@@ -518,7 +713,7 @@ export default function SolarStructure3DViewer({
     };
     animate();
 
-    // 9. Resize Handler
+    // 10. Resize Handler
     const handleResize = () => {
       if (!container) return;
       const w = container.clientWidth;
@@ -538,49 +733,63 @@ export default function SolarStructure3DViewer({
         container.removeChild(renderer.domElement);
       }
     };
-  }, [layout, elevation, activeRoof]);
+  }, [layout, elevation, activeRoof, floorConfig, legPairs]);
 
   // Handle Camera Presets
-  const setCameraPreset = (preset) => {
+  const setCameraPreset = preset => {
     setViewPreset(preset);
     const controls = controlsRef.current;
     const camera = cameraRef.current;
     if (!controls || !camera) return;
 
     if (preset === 'top') {
-      camera.position.set(0, 12, 0.1);
+      camera.position.set(0, 16, 0.1);
       controls.target.set(0, 0, 0);
     } else if (preset === 'side') {
-      camera.position.set(10, 3, 0);
-      controls.target.set(0, 1.5, 0);
+      camera.position.set(14, 4, -14 * 0.3048);
+      controls.target.set(3.5 * 0.3048, 1.5, -14 * 0.3048);
     } else if (preset === 'front') {
-      camera.position.set(0, 3, 10);
-      controls.target.set(0, 1.5, 0);
+      // Front South View looking towards structure
+      camera.position.set(3.5 * 0.3048, 4, -14 * 0.3048 - 8);
+      controls.target.set(3.5 * 0.3048, 1.5, -14 * 0.3048);
+    } else if (preset === 'building') {
+      // Full Building Elevation from Ground Up
+      camera.position.set(16, -floorConfig.heightM / 2, 22);
+      controls.target.set(0, -floorConfig.heightM / 2, 0);
     } else {
-      camera.position.set(7, 6, 9);
-      controls.target.set(0, 1, 0);
+      camera.position.set(12, 10, 16);
+      controls.target.set(0, 0, 0);
     }
     controls.update();
   };
 
   return (
     <div className="flex flex-col w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl">
-      {/* 3D Top Header Bar */}
-      <div className="p-3.5 bg-slate-950/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-white">
+      {/* 1. Top Header Bar */}
+      <div className="p-3.5 bg-slate-950/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-white">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="material-symbols-outlined text-[#6CBF3D] text-[20px]">view_in_ar</span>
-          <span className="font-bold text-sm">Interactive 3D Solar Rooftop &amp; Structure Model</span>
+          <span className="material-symbols-outlined text-[#6CBF3D] text-[22px]">view_in_ar</span>
+          <span className="font-bold text-sm">3D Building &amp; Solar Structure Studio</span>
+
+          {/* Roof Fit Badge */}
+          {roofFit.fits ? (
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
+              <span className="material-symbols-outlined text-[13px]">verified</span>
+              <span>100% Roof Safe (छत पर सही फिट)</span>
+            </span>
+          ) : (
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center gap-1 animate-pulse">
+              <span className="material-symbols-outlined text-[13px]">warning</span>
+              <span>❌ Not Feasible (छत से बाहर जा रहा है)</span>
+            </span>
+          )}
+
           <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-500/20 text-blue-400 border border-blue-500/40 uppercase">
             Mounted On Metal Rails
           </span>
-          {activeRoof.type !== 'rectangle' && (
-            <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase">
-              Custom Roof: {activeRoof.type.toUpperCase()}
-            </span>
-          )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {onOpenRoofDesigner && (
             <button
               type="button"
@@ -588,18 +797,18 @@ export default function SolarStructure3DViewer({
               className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all flex items-center gap-1.5 cursor-pointer border border-white/10"
             >
               <span className="material-symbols-outlined text-[16px] text-amber-400">roofing</span>
-              <span>Edit Roof Shape &amp; Sides</span>
+              <span>Edit Roof Shape &amp; Obstacles</span>
             </button>
           )}
 
           {/* Camera View Presets */}
-          <div className="flex items-center gap-1.5 bg-slate-800/80 p-1 rounded-lg border border-slate-700">
-            <span className="text-[11px] text-slate-400 font-semibold px-1.5">View:</span>
+          <div className="flex items-center gap-1 bg-slate-800/80 p-1 rounded-lg border border-slate-700">
             {[
               { id: 'orbit', label: '3D Orbit', icon: '3d_rotation' },
-              { id: 'top', label: 'Top (South)', icon: 'vertical_align_top' },
+              { id: 'building', label: 'Full House', icon: 'domain' },
+              { id: 'top', label: 'Top View', icon: 'vertical_align_top' },
               { id: 'side', label: 'Side Slope', icon: 'straighten' },
-              { id: 'front', label: 'Front', icon: 'crop_landscape' }
+              { id: 'front', label: 'Front (South)', icon: 'crop_landscape' }
             ].map(btn => (
               <button
                 key={btn.id}
@@ -619,14 +828,107 @@ export default function SolarStructure3DViewer({
         </div>
       </div>
 
-      {/* 3D WebGL Canvas Container */}
-      <div className="relative w-full h-[400px] sm:h-[480px] bg-slate-900 cursor-grab active:cursor-grabbing">
+      {/* 2. Interactive Pre-Config Control Bar: Building Floors & Leg Count */}
+      <div className="px-4 py-3 bg-slate-950 border-b border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-3 text-white">
+        {/* Building Floors Selector */}
+        <div className="flex items-center justify-between gap-3 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-amber-400 text-[20px]">apartment</span>
+            <div>
+              <span className="text-xs font-bold block text-white">Building Height / Floors (मकान की मंज़िल):</span>
+              <span className="text-[10px] text-slate-400">10 ft per story standard height</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+            {[
+              { id: 'G', label: 'G (10 ft)' },
+              { id: 'G+1', label: 'G+1 (20 ft) ★' },
+              { id: 'G+2', label: 'G+2 (30 ft)' },
+              { id: 'G+3', label: 'G+3 (40 ft)' }
+            ].map(f => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setBuildingFloors(f.id)}
+                className={`px-2.5 py-1 rounded text-xs font-bold transition-all cursor-pointer ${
+                  buildingFloors === f.id
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Leg Count Selection: 6 Legs vs 4 Legs */}
+        <div className="flex items-center justify-between gap-3 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#6CBF3D] text-[20px]">hardware</span>
+            <div>
+              <span className="text-xs font-bold block text-white">Leg Count (लेग संख्या):</span>
+              <span className="text-[10px] text-slate-400">Software recommended vs economy</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setLegCountChoice('6')}
+              className={`px-3 py-1 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                legCountChoice === '6'
+                  ? 'bg-[#6CBF3D] text-slate-950 font-black shadow-xs'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <span>⚡ 6 Legs (Suggested)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLegCountChoice('4')}
+              className={`px-3 py-1 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                legCountChoice === '4'
+                  ? 'bg-blue-500 text-white font-black shadow-xs'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <span>4 Legs (Economy)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. 3D WebGL Canvas Container */}
+      <div className="relative w-full h-[430px] sm:h-[500px] bg-slate-900 cursor-grab active:cursor-grabbing">
         <div ref={mountRef} className="w-full h-full" />
+
+        {/* If layout does NOT fit the roof: Prominent Overlay Warning */}
+        {!roofFit.fits && (
+          <div className="absolute top-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md bg-rose-950/95 backdrop-blur-md p-3.5 rounded-xl border-2 border-rose-500 text-white shadow-2xl flex items-start gap-3 animate-in fade-in duration-200">
+            <span className="material-symbols-outlined text-rose-400 text-[26px] shrink-0">error</span>
+            <div className="text-xs flex flex-col gap-1">
+              <span className="font-black text-rose-200 uppercase tracking-wide">
+                ⚠️ Rooftop Boundary Warning (छत की सीमा से बाहर):
+              </span>
+              <p className="text-rose-100">
+                यह डिज़ाइन छत के शैडो-फ्री स्पेस में फिट नहीं हो सकता!
+              </p>
+              <div className="mt-1 bg-black/40 p-2 rounded text-[11px] text-rose-200">
+                <div>• Required Array Size: <b>{roofFit.arrayWidthFt} ft × {roofFit.arrayDepthFt} ft</b></div>
+                <div>• Available Roof Space: <b>{roofFit.availableWidthFt} ft × {roofFit.availableDepthFt} ft</b></div>
+                <div className="font-bold text-amber-300 mt-0.5">• {roofFit.reason}</div>
+              </div>
+              <span className="text-[10px] text-rose-300 mt-0.5">
+                सुझाव: 2D स्टूडियो से <b>3×2 Portrait</b> या <b>2×3 Landscape</b> चुनें जो छत पर 100% फिट बैठते हैं।
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Orbit Instructions Overlay */}
         <div className="absolute bottom-3 left-3 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-[11px] text-slate-300 flex items-center gap-2 pointer-events-none shadow-md">
           <span className="material-symbols-outlined text-[16px] text-[#6CBF3D]">touch_app</span>
-          <span>Left-Click Drag: Rotate 360° • Scroll: Zoom • Right-Click: Pan</span>
+          <span>Left Drag: 360° Rotate • Scroll: Zoom In/Out • Right Drag: Pan</span>
         </div>
 
         {/* South Orientation Badge */}
@@ -636,51 +938,163 @@ export default function SolarStructure3DViewer({
         </div>
 
         {/* Live Elevation Info Overlay */}
-        <div className="absolute top-3 right-3 bg-slate-950/85 backdrop-blur-md p-2.5 rounded-xl border border-slate-800 text-xs text-white flex flex-col gap-1 shadow-md text-right">
-          <div className="text-[11px] text-slate-400 font-semibold">Slope Profile:</div>
+        <div className="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md p-2.5 rounded-xl border border-slate-800 text-xs text-white flex flex-col gap-1 shadow-md text-right">
+          <div className="text-[11px] text-slate-400 font-semibold">House &amp; Slope Profile:</div>
+          <div>House Height: <b className="text-amber-400">{floorConfig.heightFt} ft</b> ({floorConfig.floors} Floors)</div>
           <div>Front Leg Height: <b className="text-[#6CBF3D]">{elevation.frontLegHeightFt} ft</b> ({elevation.frontLegHeightMm} mm)</div>
           <div>Rear Leg Height: <b className="text-amber-400">{elevation.rearLegHeightFt} ft</b> ({elevation.rearLegHeightMm} mm)</div>
-          <div>Tilt Angle: <b className="text-white">{elevation.tiltDegrees}° Gujarat Standard</b></div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Parapet Wall: <b className="text-white">{activeRoof.parapetHeightFt || 3} ft</b></div>
+          <div>Total Leg Columns: <b className="text-white">{legPairs * 2} Legs ({legPairs} Front + {legPairs} Rear)</b></div>
         </div>
       </div>
 
-      {/* Interactive Height Adjuster & GI Pipe Cutting Summary */}
-      <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col gap-4 text-white">
-        {/* Front Leg Height Slider */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 p-3.5 rounded-xl border border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <span className="material-symbols-outlined text-primary text-[22px]">height</span>
-            <div>
-              <span className="text-xs font-bold block text-white">
-                Customize Front Leg Height (आगे के पैर की ऊंचाई):
-              </span>
-              <span className="text-[11px] text-slate-400">
-                Rear leg automatically adjusts to maintain optimal 18° South tilt angle.
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <input
-              type="range"
-              min="1.5"
-              max="6.0"
-              step="0.1"
-              value={frontLegFt}
-              onChange={(e) => setFrontLegFt(parseFloat(e.target.value))}
-              className="w-36 accent-[#6CBF3D] cursor-pointer"
-            />
-            <span className="w-16 text-center px-2 py-1 rounded bg-slate-800 border border-slate-700 font-black text-xs text-[#6CBF3D]">
-              {frontLegFt} ft
+      {/* 4. Front Leg Height Slider Control */}
+      <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-white">
+        <div className="flex items-center gap-2.5">
+          <span className="material-symbols-outlined text-[#6CBF3D] text-[22px]">height</span>
+          <div>
+            <span className="text-xs font-bold block text-white">
+              Fine-tune Front Leg Height (आगे के पैर की ऊंचाई एडजस्ट करें):
+            </span>
+            <span className="text-[11px] text-slate-400">
+              Rear leg automatically adjusts to maintain optimal 18° South tilt angle.
             </span>
           </div>
         </div>
 
-        {/* 20-Ft Standard GI Pipe Cutting Optimization Schedule */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex items-center gap-3">
+          <input
+            type="range"
+            min="1.5"
+            max="6.0"
+            step="0.1"
+            value={frontLegFt}
+            onChange={e => setFrontLegFt(parseFloat(e.target.value))}
+            className="w-36 accent-[#6CBF3D] cursor-pointer"
+          />
+          <span className="w-16 text-center px-2 py-1 rounded bg-slate-800 border border-slate-700 font-black text-xs text-[#6CBF3D]">
+            {frontLegFt} ft
+          </span>
+        </div>
+      </div>
+
+      {/* 5. Detailed Leg Height Engineering Report Table (नक्शा व लेग रिपोर्ट) */}
+      <div className="p-4 sm:p-5 bg-slate-900 border-t border-slate-800 flex flex-col gap-4 text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#6CBF3D] text-[22px]">assignment</span>
+              <h4 className="text-sm font-bold text-white tracking-wide">
+                Solar Structure Leg Height &amp; Foundation Engineering Report (सटीक लेग ऊंचाई रिपोर्ट)
+              </h4>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              प्रत्येक लेग की कटिंग ऊंचाई, बेस प्लेट व एंकर फास्टनर विवरण (Site Installation Sheet for Fabricators &amp; Civil Work)
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCopySchedule}
+            className="self-start sm:self-auto px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all flex items-center gap-1.5 cursor-pointer border border-white/10"
+          >
+            <span className="material-symbols-outlined text-[16px] text-amber-400">
+              {copySuccess ? 'check' : 'content_copy'}
+            </span>
+            <span>{copySuccess ? 'Copied to Clipboard!' : 'Copy Leg Specs'}</span>
+          </button>
+        </div>
+
+        {/* Engineering Specs Table */}
+        <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-800/80 text-slate-300 border-b border-slate-700/80 font-bold">
+                <th className="p-3">Leg Mark</th>
+                <th className="p-3">Leg Description</th>
+                <th className="p-3">Position</th>
+                <th className="p-3 text-right">Height (Feet)</th>
+                <th className="p-3 text-right">Height (mm)</th>
+                <th className="p-3">GI Pipe Section</th>
+                <th className="p-3">Base Plate</th>
+                <th className="p-3">Anchor Fasteners</th>
+                <th className="p-3">Roof Safety</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {legEngineeringData.map((row, idx) => (
+                <tr key={idx} className="hover:bg-slate-900/60 transition-colors">
+                  <td className="p-3 font-black text-amber-400">{row.tag}</td>
+                  <td className="p-3 font-semibold text-white">{row.name}</td>
+                  <td className="p-3">
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        row.pos.includes('Front')
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      }`}
+                    >
+                      {row.pos}
+                    </span>
+                  </td>
+                  <td className="p-3 text-right font-black text-white">{row.heightFt} ft</td>
+                  <td className="p-3 text-right font-bold text-slate-300">{row.heightMm} mm</td>
+                  <td className="p-3 text-slate-300">{row.spec}</td>
+                  <td className="p-3 text-slate-300">{row.basePlate}</td>
+                  <td className="p-3 text-slate-300">{row.fasteners}</td>
+                  <td className="p-3 font-semibold">
+                    <span
+                      className={
+                        row.status.includes('Safe') ? 'text-emerald-400' : 'text-rose-400 font-bold'
+                      }
+                    >
+                      {row.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Civil & Mechanical Key Figures Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
+            <span className="text-[11px] text-slate-400 font-semibold">Total Columns (Legs):</span>
+            <span className="text-xl font-black text-white mt-1">
+              {legPairs * 2} <span className="text-xs font-normal text-slate-400">Pcs</span>
+            </span>
+            <span className="text-[10px] text-slate-500 mt-0.5">
+              {legPairs} Front ({elevation.frontLegHeightFt}ft) + {legPairs} Rear ({elevation.rearLegHeightFt}ft)
+            </span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
+            <span className="text-[11px] text-slate-400 font-semibold">Base Plates:</span>
+            <span className="text-xl font-black text-blue-400 mt-1">
+              {legPairs * 2} <span className="text-xs font-normal text-slate-400">Pcs</span>
+            </span>
+            <span className="text-[10px] text-slate-500 mt-0.5">150×150×6mm MS Galvanized</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
+            <span className="text-[11px] text-slate-400 font-semibold">Anchor Fasteners:</span>
+            <span className="text-xl font-black text-amber-400 mt-1">
+              {(legPairs * 2) * 4} <span className="text-xs font-normal text-slate-400">Pcs</span>
+            </span>
+            <span className="text-[10px] text-slate-500 mt-0.5">4 per leg (M10×100mm Anchor Bolts)</span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
+            <span className="text-[11px] text-slate-400 font-semibold">Wind Load Standard:</span>
+            <span className="text-xl font-black text-emerald-400 mt-1">140 km/h</span>
+            <span className="text-[10px] text-slate-500 mt-0.5">IS 875 Part 3 Compliant</span>
+          </div>
+        </div>
+
+        {/* 6. 20-Ft Standard GI Pipe Cutting Optimization Schedule */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
           {/* 60x40 Pipe (Columns/Legs) */}
-          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex flex-col gap-2">
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="text-xs font-bold text-white flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
@@ -695,7 +1109,7 @@ export default function SolarStructure3DViewer({
             </div>
             <div className="flex flex-col gap-1.5 mt-1">
               {pipeSections.legs60x40.pipes.map(p => (
-                <div key={p.pipeIndex} className="p-2 rounded bg-slate-950/80 border border-slate-800/80 text-[11px] flex flex-col gap-1">
+                <div key={p.pipeIndex} className="p-2 rounded bg-slate-900 border border-slate-800 text-[11px] flex flex-col gap-1">
                   <div className="flex items-center justify-between text-slate-300">
                     <span className="font-bold text-white">Pipe #{p.pipeIndex} (20 ft):</span>
                     <span>Used: <b className="text-white">{p.usedFt} ft</b> | Scrap: <b className="text-amber-400">{p.remainingFt} ft</b></span>
@@ -709,7 +1123,7 @@ export default function SolarStructure3DViewer({
           </div>
 
           {/* 40x40 Pipe (Rafters & Purlins) */}
-          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex flex-col gap-2">
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="text-xs font-bold text-white flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
@@ -724,7 +1138,7 @@ export default function SolarStructure3DViewer({
             </div>
             <div className="flex flex-col gap-1.5 mt-1 max-h-[160px] overflow-y-auto pr-1">
               {pipeSections.raftersPurlins40x40.pipes.map(p => (
-                <div key={p.pipeIndex} className="p-2 rounded bg-slate-950/80 border border-slate-800/80 text-[11px] flex flex-col gap-1">
+                <div key={p.pipeIndex} className="p-2 rounded bg-slate-900 border border-slate-800 text-[11px] flex flex-col gap-1">
                   <div className="flex items-center justify-between text-slate-300">
                     <span className="font-bold text-white">Pipe #{p.pipeIndex} (20 ft):</span>
                     <span>Used: <b className="text-white">{p.usedFt} ft</b> | Scrap: <b className="text-amber-400">{p.remainingFt} ft</b></span>

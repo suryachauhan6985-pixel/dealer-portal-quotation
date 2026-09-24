@@ -19,16 +19,14 @@ export const SAMPLE_HAND_DRAWN_SKETCH_CONFIG = {
   parapetThicknessInches: 9,
   southDirection: 'top', // Up arrow pointing South
   customVertices: [
-    { x: -15, z: -25, label: 'NW (Top-Left)' },
-    { x: 15, z: -25, label: 'NE (Top-Right: 30ft South Wall)' },
+    { x: -15, z: -25, label: 'NW Corner (Top-Left)' },
+    { x: 15, z: -25, label: 'NE Corner (30ft South Wall)' },
     { x: 15, z: -19, label: 'E-Wall (6ft Down)' },
     { x: 21, z: -19, label: 'E-Wall (6ft Out/Right)' },
     { x: 21, z: -3, label: 'E-Wall (16ft Down)' },
-    { x: 0, z: -3, label: 'Inner-Wall (21ft In/Left)' },
-    { x: 0, z: 25, label: 'SE-Wall (28ft Down to Bottom)' },
-    { x: -10, z: 25, label: 'South-Bottom (10ft Wall)' },
-    { x: -15, z: 25, label: 'SW Corner' },
-    { x: -15, z: -25, label: 'West Wall (50ft Straight)' }
+    { x: 0, z: -3, label: 'Inner Cutout (21ft In/Left)' },
+    { x: 0, z: 25, label: 'Courtyard Wall (28ft Down)' },
+    { x: -15, z: 25, label: 'SW Corner (15ft Bottom Wall)' }
   ],
   obstacles: [
     {
@@ -54,10 +52,10 @@ export const SAMPLE_HAND_DRAWN_SKETCH_CONFIG = {
     }
   ],
   safeSolarZone: {
-    centerXFt: 8,
-    centerZFt: 0,
-    availableWidthFt: 20,
-    availableDepthFt: 22,
+    centerXFt: 3.5,
+    centerZFt: -14,
+    availableWidthFt: 22,
+    availableDepthFt: 20,
     description: '100% Shadow-Free Zone (Uninterrupted South Sunlight)'
   }
 };

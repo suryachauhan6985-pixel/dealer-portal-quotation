@@ -164,9 +164,11 @@ function packCutsIntoPipes(cuts, pipeLengthFt = 20) {
 /**
  * Calculates GI Pipe Cuts and Quantities (60x40 for Columns/Legs & 40x40 for Rafters/Purlins)
  */
-export function calculateGiPipeSections(layout, frontLegHeightFt = 2.5, tiltDegrees = 18) {
+export function calculateGiPipeSections(layout, frontLegHeightFt = 2.5, tiltDegrees = 18, customLegPairs = null) {
   const elevation = calculateLegHeights(layout, frontLegHeightFt, tiltDegrees);
-  const legPairs = layout.bom?.frontLegs || 2;
+  const legPairs = customLegPairs !== null && customLegPairs !== undefined
+    ? Number(customLegPairs)
+    : (layout.bom?.frontLegs || 2);
   const arrayWidthFt = (layout.widthMm || 2278) / 304.8;
   const rowCount = layout.rows?.length || 1;
 
@@ -524,4 +526,58 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
   }
 
   return layouts;
+}
+
+/**
+ * Validates whether a solar layout fits inside the safe terrace boundaries of a given roof
+ */
+export function checkRoofFit(layout, roofConfig) {
+  if (!layout) return { fits: true, reason: 'Valid layout' };
+
+  const arrayWidthFt = Number(((layout.widthMm || 2278) / 304.8).toFixed(1));
+  const arrayDepthFt = Number(((layout.depthMm || 1134) / 304.8).toFixed(1));
+
+  // Determine available dimensions from roofConfig
+  const safeZone = roofConfig?.safeSolarZone;
+  let availWidthFt = 22;
+  let availDepthFt = 20;
+
+  if (safeZone?.availableWidthFt && safeZone?.availableDepthFt) {
+    availWidthFt = Number(safeZone.availableWidthFt);
+    availDepthFt = Number(safeZone.availableDepthFt);
+  } else if (roofConfig?.type === 'rectangle') {
+    const w = parseFloat(roofConfig.widthFt) || 36;
+    const d = parseFloat(roofConfig.depthFt) || 26;
+    availWidthFt = Math.max(10, w - 6); // 3ft clearance each side
+    availDepthFt = Math.max(10, d - 6);
+  }
+
+  const widthClearanceFt = Number((availWidthFt - arrayWidthFt).toFixed(1));
+  const depthClearanceFt = Number((availDepthFt - arrayDepthFt).toFixed(1));
+
+  const widthFits = widthClearanceFt >= -0.1; // minor tolerance
+  const depthFits = depthClearanceFt >= -0.1;
+  const fits = widthFits && depthFits;
+
+  let reason = '';
+  if (fits) {
+    reason = `Fits safely with ${widthClearanceFt}ft width & ${depthClearanceFt}ft depth safety clearance`;
+  } else if (!widthFits && !depthFits) {
+    reason = `Exceeds roof by ${Math.abs(widthClearanceFt)}ft width & ${Math.abs(depthClearanceFt)}ft depth (छत से बाहर जा रहा है)`;
+  } else if (!widthFits) {
+    reason = `Width exceeds available terrace by ${Math.abs(widthClearanceFt)}ft (Req: ${arrayWidthFt}ft vs Avail: ${availWidthFt}ft)`;
+  } else {
+    reason = `Depth exceeds available terrace by ${Math.abs(depthClearanceFt)}ft (Req: ${arrayDepthFt}ft vs Avail: ${availDepthFt}ft)`;
+  }
+
+  return {
+    fits,
+    arrayWidthFt,
+    arrayDepthFt,
+    availableWidthFt: availWidthFt,
+    availableDepthFt: availDepthFt,
+    widthClearanceFt,
+    depthClearanceFt,
+    reason
+  };
 }

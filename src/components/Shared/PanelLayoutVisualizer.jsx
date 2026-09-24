@@ -4,12 +4,13 @@ import {
   parseModuleDimensions,
   calculateLegHeights,
   calculateGiPipeSections,
+  checkRoofFit,
   mmToMeters,
   mmToFeet,
   DEFAULT_MODULE_DIMS
 } from '../../utils/solarLayoutEngine';
 import SolarStructure3DViewer from './SolarStructure3DViewer';
-import RooftopDesigner, { DEFAULT_ROOF_CONFIG } from './RooftopDesigner';
+import RooftopDesigner, { DEFAULT_ROOF_CONFIG, SAMPLE_HAND_DRAWN_SKETCH_CONFIG } from './RooftopDesigner';
 
 export default function PanelLayoutVisualizer({
   initialPanelCount = 6,
@@ -23,7 +24,7 @@ export default function PanelLayoutVisualizer({
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedId, setSelectedId] = useState(selectedLayoutId || 'portrait_2x3');
   const [activeViewTab, setActiveViewTab] = useState('2d'); // '2d', 'roof', '3d', 'pipes'
-  const [roofConfig, setRoofConfig] = useState(DEFAULT_ROOF_CONFIG);
+  const [roofConfig, setRoofConfig] = useState(SAMPLE_HAND_DRAWN_SKETCH_CONFIG || DEFAULT_ROOF_CONFIG);
   const [frontLegHeightFt, setFrontLegHeightFt] = useState(2.5);
   const [tiltDegrees, setTiltDegrees] = useState(18);
 
@@ -49,16 +50,22 @@ export default function PanelLayoutVisualizer({
     return generateDynamicLayouts(panelCount, moduleDims);
   }, [panelCount, moduleDims]);
 
+  // Count of layouts that safely fit on the active roof
+  const roofSafeCount = useMemo(() => {
+    return allLayouts.filter(l => checkRoofFit(l, roofConfig).fits).length;
+  }, [allLayouts, roofConfig]);
+
   // Filter layouts by selected category tab
   const filteredLayouts = useMemo(() => {
     if (activeCategory === 'all') return allLayouts;
+    if (activeCategory === 'roof_safe') return allLayouts.filter(l => checkRoofFit(l, roofConfig).fits);
     if (activeCategory === 'recommended') return allLayouts.filter(l => l.isRecommended || l.excelTag);
     if (activeCategory === 'portrait') return allLayouts.filter(l => l.type === 'portrait');
     if (activeCategory === 'landscape') return allLayouts.filter(l => l.type === 'landscape');
     if (activeCategory === 'hybrid') return allLayouts.filter(l => l.type === 'hybrid');
     if (activeCategory === 'split') return allLayouts.filter(l => l.type === 'split');
     return allLayouts;
-  }, [allLayouts, activeCategory]);
+  }, [allLayouts, activeCategory, roofConfig]);
 
   // Selected layout object
   const activeSelectedLayout = useMemo(() => {
@@ -318,6 +325,7 @@ export default function PanelLayoutVisualizer({
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
             {[
               { id: 'all', label: `All Layouts (${allLayouts.length})`, icon: 'apps' },
+              { id: 'roof_safe', label: `✓ Roof-Safe (${roofSafeCount})`, icon: 'verified' },
               { id: 'recommended', label: 'Recommended / Excel Presets', icon: 'star' },
               { id: 'portrait', label: 'Pure Portrait (खड़ी)', icon: 'crop_portrait' },
               { id: 'landscape', label: 'Pure Landscape (आड़ी)', icon: 'crop_landscape' },
@@ -330,7 +338,11 @@ export default function PanelLayoutVisualizer({
                 onClick={() => setActiveCategory(tab.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
                   activeCategory === tab.id
-                    ? 'bg-[#0F1B2E] text-white shadow-sm'
+                    ? tab.id === 'roof_safe'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-[#0F1B2E] text-white shadow-sm'
+                    : tab.id === 'roof_safe'
+                    ? 'bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100'
                     : 'bg-white border border-surface-container-highest text-secondary hover:text-on-surface hover:bg-surface-container-low'
                 }`}
               >
@@ -385,6 +397,7 @@ export default function PanelLayoutVisualizer({
         ) : (
           filteredLayouts.map((layout) => {
             const isSelected = selectedId === layout.id;
+            const fit = checkRoofFit(layout, roofConfig);
             const widthM = mmToMeters(layout.widthMm);
             const depthM = mmToMeters(layout.depthMm);
             const widthFt = mmToFeet(layout.widthMm);
@@ -399,11 +412,15 @@ export default function PanelLayoutVisualizer({
                 className={`min-w-[420px] sm:min-w-[460px] max-w-[480px] shrink-0 snap-start rounded-2xl border transition-all duration-200 flex flex-col justify-between overflow-hidden cursor-pointer ${
                   isSelected
                     ? 'border-primary ring-2 ring-primary/40 shadow-lg bg-white'
+                    : !fit.fits
+                    ? 'border-rose-300 hover:border-rose-400 bg-rose-50/20'
                     : 'border-surface-container-highest hover:border-primary/50 hover:shadow-md bg-white'
                 }`}
               >
                 {/* Card Header */}
-                <div className="p-4 border-b border-surface-container-high bg-surface-container-lowest flex items-start justify-between gap-2">
+                <div className={`p-4 border-b border-surface-container-high flex items-start justify-between gap-2 ${
+                  !fit.fits ? 'bg-rose-50/50' : 'bg-surface-container-lowest'
+                }`}>
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-sm font-extrabold text-on-surface">{layout.name}</span>
@@ -412,8 +429,19 @@ export default function PanelLayoutVisualizer({
                           {layout.excelTag}
                         </span>
                       )}
+                      {fit.fits ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-0.5">
+                          <span className="material-symbols-outlined text-[12px]">verified</span>
+                          Fits Roof
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-0.5">
+                          <span className="material-symbols-outlined text-[12px]">error</span>
+                          Exceeds Roof
+                        </span>
+                      )}
                       {layout.isRecommended && !layout.excelTag && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-0.5">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-0.5">
                           <span className="material-symbols-outlined text-[12px]">star</span>
                           Popular
                         </span>
@@ -437,6 +465,23 @@ export default function PanelLayoutVisualizer({
 
                 {/* 2D Architectural CAD Drawing Box (Large & High Definition) */}
                 <div className="p-4 bg-[#F8FAFC] flex flex-col items-center justify-center min-h-[260px] relative border-b border-surface-container-high">
+                  {/* Roof Boundary Validation Alert Banner */}
+                  {!fit.fits ? (
+                    <div className="w-full bg-rose-50 border border-rose-200 text-rose-800 p-2 rounded-lg text-[11px] mb-2 font-semibold flex items-center gap-1.5 shadow-2xs">
+                      <span className="material-symbols-outlined text-rose-600 text-[16px] shrink-0">cancel</span>
+                      <span className="truncate">
+                        <b>छत पर फिट नहीं:</b> {fit.reason}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 p-1.5 rounded-lg text-[11px] mb-2 font-semibold flex items-center gap-1.5 shadow-2xs">
+                      <span className="material-symbols-outlined text-emerald-600 text-[16px] shrink-0">check_circle</span>
+                      <span className="truncate">
+                        <b>100% छत पर सुरक्षित:</b> {fit.widthClearanceFt}ft W, {fit.depthClearanceFt}ft D क्लीयरेंस
+                      </span>
+                    </div>
+                  )}
+
                   {/* Top Bar inside CAD box: Compass + Dimensions */}
                   <div className="w-full flex items-center justify-between gap-2 mb-2 text-xs">
                     <div className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 font-bold shadow-2xs">
@@ -505,13 +550,15 @@ export default function PanelLayoutVisualizer({
                       className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
                         isSelected
                           ? 'bg-primary text-white ring-2 ring-primary/30'
+                          : !fit.fits
+                          ? 'bg-rose-100 text-rose-900 border border-rose-300 hover:bg-rose-200'
                           : 'bg-surface-container-high text-on-surface hover:bg-primary hover:text-white'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[17px]">
-                        {isSelected ? 'check_circle' : 'touch_app'}
+                        {isSelected ? 'check_circle' : !fit.fits ? 'warning' : 'touch_app'}
                       </span>
-                      <span>{isSelected ? 'Selected Active' : 'Select Layout'}</span>
+                      <span>{isSelected ? 'Selected Active' : !fit.fits ? 'Select (Exceeds Roof)' : 'Select Layout'}</span>
                     </button>
 
                     <button
