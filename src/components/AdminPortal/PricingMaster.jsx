@@ -2,6 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { PDF_BOS_PRICE_MATRIX } from '../../data/defaultPresets';
 
+const DEFAULT_INVERTER_BENCHMARK_MATRIX = [
+  { id: 'inv-bm-1', capacityKW: 2.2, brand: 'Solis / Solaryaan', series: 'Single Phase Grid-Tied', phase: '1-Phase / Dual MPPT', benchmarkPrice: 24500 },
+  { id: 'inv-bm-2', capacityKW: 3.0, brand: 'Sunvine Smart Series', series: '1-Phase Smart MPPT On-Grid', phase: '1-Phase / Dual MPPT', benchmarkPrice: 29800 },
+  { id: 'inv-bm-3', capacityKW: 3.6, brand: 'Solis / Vsole', series: 'Dual MPPT On-Grid', phase: '1-Phase / Dual MPPT', benchmarkPrice: 33500 },
+  { id: 'inv-bm-4', capacityKW: 5.0, brand: 'Sunvine Smart Series', series: '3-Phase Smart MPPT On-Grid', phase: '3-Phase / Multi MPPT', benchmarkPrice: 42000 },
+  { id: 'inv-bm-5', capacityKW: 6.0, brand: 'Sunvine Smart Series', series: '3-Phase Smart MPPT On-Grid', phase: '3-Phase / Multi MPPT', benchmarkPrice: 48500 },
+  { id: 'inv-bm-6', capacityKW: 10.0, brand: 'Growatt / Deye', series: '3-Phase Dual MPPT On-Grid', phase: '3-Phase / Multi MPPT', benchmarkPrice: 72000 },
+  { id: 'inv-bm-7', capacityKW: 50.0, brand: 'Solis Cloud Series', series: 'Commercial 3-Phase Grid-Tied', phase: '3-Phase / 4-MPPT', benchmarkPrice: 245000 },
+  { id: 'inv-bm-8', capacityKW: 125.0, brand: 'Solaryaan / Vsole', series: 'Industrial String Inverter', phase: '3-Phase / 6-MPPT', benchmarkPrice: 580000 },
+];
+
 export default function PricingMaster() {
   const {
     pricingMaster,
@@ -72,6 +83,27 @@ export default function PricingMaster() {
     waaree585Price: '',
     topcon600CapacityKW: '',
     apsTopcon600Price: ''
+  });
+
+  // Dedicated Inverter Sizing & Benchmark Pricing Matrix states (SR-57)
+  const [inverterBenchmarkMatrix, setInverterBenchmarkMatrix] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sunvine_inverter_benchmark_matrix');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Failed to parse inverter benchmark matrix:', e);
+    }
+    return DEFAULT_INVERTER_BENCHMARK_MATRIX;
+  });
+  const [isInlineEditingInverters, setIsInlineEditingInverters] = useState(false);
+  const [showAddInvBenchmarkModal, setShowAddInvBenchmarkModal] = useState(false);
+  const [editingInvBenchmarkIdx, setEditingInvBenchmarkIdx] = useState(null);
+  const [invBenchmarkForm, setInvBenchmarkForm] = useState({
+    capacityKW: '',
+    brand: '',
+    series: '',
+    phase: '1-Phase / Dual MPPT',
+    benchmarkPrice: ''
   });
 
   // Tier margins state
@@ -372,6 +404,96 @@ ${origin}/?tab=pricing_master
       }
       triggerToast(`Deleted ${row.capacityKW} kW slab`);
     }
+  };
+
+  // Handlers for Dedicated Inverter Sizing & Benchmark Pricing Matrix (SR-57)
+  const handleSaveInverterMatrix = (updatedList) => {
+    const toSave = updatedList || inverterBenchmarkMatrix;
+    setInverterBenchmarkMatrix(toSave);
+    try {
+      localStorage.setItem('sunvine_inverter_benchmark_matrix', JSON.stringify(toSave));
+    } catch (e) {
+      console.warn(e);
+    }
+    setIsInlineEditingInverters(false);
+    triggerToast('Inverter Sizing & Benchmark Pricing Matrix saved!');
+  };
+
+  const handleInverterCellChange = (idx, field, value) => {
+    const updated = [...inverterBenchmarkMatrix];
+    updated[idx] = {
+      ...updated[idx],
+      [field]: field === 'benchmarkPrice' || field === 'capacityKW' ? (Number(value) || value) : value
+    };
+    setInverterBenchmarkMatrix(updated);
+  };
+
+  const handleDeleteInverterBenchmark = (idx) => {
+    const item = inverterBenchmarkMatrix[idx];
+    if (window.confirm(`Delete ${item.capacityKW} kW inverter benchmark entry?`)) {
+      const updated = inverterBenchmarkMatrix.filter((_, i) => i !== idx);
+      setInverterBenchmarkMatrix(updated);
+      try {
+        localStorage.setItem('sunvine_inverter_benchmark_matrix', JSON.stringify(updated));
+      } catch (e) {}
+      triggerToast('Inverter benchmark entry removed');
+    }
+  };
+
+  const handleOpenAddInvModal = () => {
+    setEditingInvBenchmarkIdx(null);
+    setInvBenchmarkForm({
+      capacityKW: '',
+      brand: 'Sunvine Smart Series',
+      series: 'Grid-Tied On-Grid Inverter',
+      phase: '1-Phase / Dual MPPT',
+      benchmarkPrice: ''
+    });
+    setShowAddInvBenchmarkModal(true);
+  };
+
+  const handleOpenEditInvModal = (idx) => {
+    const item = inverterBenchmarkMatrix[idx];
+    setEditingInvBenchmarkIdx(idx);
+    setInvBenchmarkForm({
+      capacityKW: item.capacityKW,
+      brand: item.brand,
+      series: item.series,
+      phase: item.phase,
+      benchmarkPrice: item.benchmarkPrice
+    });
+    setShowAddInvBenchmarkModal(true);
+  };
+
+  const handleSaveInvModalForm = (e) => {
+    e.preventDefault();
+    if (!invBenchmarkForm.capacityKW) {
+      triggerToast('Please provide an inverter capacity');
+      return;
+    }
+    const item = {
+      id: editingInvBenchmarkIdx !== null && inverterBenchmarkMatrix[editingInvBenchmarkIdx]
+        ? inverterBenchmarkMatrix[editingInvBenchmarkIdx].id
+        : `inv-bm-${Date.now()}`,
+      capacityKW: Number(invBenchmarkForm.capacityKW) || invBenchmarkForm.capacityKW,
+      brand: invBenchmarkForm.brand.trim() || 'Sunvine Smart Series',
+      series: invBenchmarkForm.series.trim() || 'Smart MPPT Inverter',
+      phase: invBenchmarkForm.phase || '1-Phase / Dual MPPT',
+      benchmarkPrice: Number(invBenchmarkForm.benchmarkPrice) || 0
+    };
+
+    let updated;
+    if (editingInvBenchmarkIdx !== null && editingInvBenchmarkIdx >= 0) {
+      updated = [...inverterBenchmarkMatrix];
+      updated[editingInvBenchmarkIdx] = item;
+      triggerToast(`Updated ${item.capacityKW} kW inverter pricing spec!`);
+    } else {
+      updated = [...inverterBenchmarkMatrix, item];
+      updated.sort((a, b) => (Number(a.capacityKW) || 0) - (Number(b.capacityKW) || 0));
+      triggerToast(`Added ${item.capacityKW} kW inverter pricing spec!`);
+    }
+    handleSaveInverterMatrix(updated);
+    setShowAddInvBenchmarkModal(false);
   };
 
   const handleResetMatrixToDefault = () => {
@@ -698,74 +820,69 @@ ${origin}/?tab=pricing_master
                 </div>
 
                 <div className="overflow-x-auto w-full">
-                  <table className="w-full text-left border-collapse min-w-[760px] md:min-w-full">
+                  <table className="w-full text-left border-collapse min-w-[700px] md:min-w-full">
                     <thead>
-                      <tr className="bg-inverse-surface text-surface-container-lowest text-label-sm font-semibold h-10 border-none">
-                        <th className="px-3 py-2 text-xs whitespace-nowrap">KW</th>
-                        <th className="px-3 py-2 text-xs whitespace-nowrap">Modules</th>
-                        <th className="px-3 py-2 text-xs whitespace-nowrap">Inverter</th>
-                        <th className="px-3 py-2 text-xs text-right whitespace-nowrap">Adani Bi-Fi</th>
-                        <th className="px-3 py-2 text-xs text-right whitespace-nowrap">APS Bi-Fi</th>
-                        <th className="px-3 py-2 text-xs text-right whitespace-nowrap">Rayzone</th>
-                        <th className="px-3 py-2 text-xs text-right whitespace-nowrap">Waaree 585W TOPCon</th>
-                        <th className="px-3 py-2 text-xs text-right whitespace-nowrap">APS TOPCon 600W</th>
-                        <th className="px-3 py-2 text-xs text-center whitespace-nowrap">Actions</th>
+                      <tr className="bg-inverse-surface text-surface-container-lowest text-label-sm font-semibold h-11 border-none">
+                        <th className="px-2 py-2 text-xs text-center w-16 whitespace-nowrap">KW</th>
+                        <th className="px-2 py-2 text-xs text-center w-16 whitespace-nowrap">Modules</th>
+                        <th className="px-2 py-2 text-xs text-right leading-tight max-w-[90px]">
+                          Adani<br/>Bi-Fi
+                        </th>
+                        <th className="px-2 py-2 text-xs text-right leading-tight max-w-[90px]">
+                          APS<br/>Bi-Fi
+                        </th>
+                        <th className="px-2 py-2 text-xs text-right leading-tight max-w-[85px]">
+                          Rayzone
+                        </th>
+                        <th className="px-2 py-2 text-xs text-right leading-tight max-w-[105px]">
+                          Waaree 585W<br/>TOPCon
+                        </th>
+                        <th className="px-2 py-2 text-xs text-right leading-tight max-w-[105px]">
+                          APS TOPCon<br/>600W
+                        </th>
+                        <th className="px-2 py-2 text-xs text-center w-16 whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-container-highest font-body-sm text-xs text-on-surface">
                       {localBosMatrix.map((row, idx) => (
                         <tr key={idx} className={`hover:bg-surface-container-low/60 transition-colors ${idx % 2 === 1 ? 'bg-surface-container-low/20' : ''}`}>
                           {/* Capacity KW */}
-                          <td className="px-3 py-2.5 font-bold font-mono text-inverse-surface whitespace-nowrap">
+                          <td className="px-2 py-2.5 font-bold font-mono text-inverse-surface text-center whitespace-nowrap">
                             {isInlineEditingMatrix ? (
                               <input
                                 type="number"
                                 step="0.01"
                                 value={row.capacityKW}
                                 onChange={(e) => handleMatrixCellChange(idx, 'capacityKW', e.target.value)}
-                                className="w-16 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs font-mono font-bold"
+                                className="w-14 px-1 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs font-mono font-bold text-center"
                               />
                             ) : (
                               `${row.capacityKW} kW`
                             )}
                           </td>
 
-                          {/* No of Modules */}
-                          <td className="px-3 py-2.5 font-semibold text-primary font-mono whitespace-nowrap">
+                          {/* No of Modules (Clean numeric count only, without 'Mod' suffix) */}
+                          <td className="px-2 py-2.5 font-semibold text-primary font-mono text-center whitespace-nowrap">
                             {isInlineEditingMatrix ? (
                               <input
                                 type="number"
                                 value={getModules(row)}
                                 onChange={(e) => handleMatrixCellChange(idx, 'noOfModules', e.target.value)}
-                                className="w-14 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs font-mono text-primary font-bold"
+                                className="w-12 px-1 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs font-mono text-primary font-bold text-center"
                               />
                             ) : (
-                              `${getModules(row)} Mod`
-                            )}
-                          </td>
-
-                          {/* Inverter Capacity */}
-                          <td className="px-3 py-2.5 font-mono whitespace-nowrap">
-                            {isInlineEditingMatrix ? (
-                              <input
-                                type="text"
-                                value={row.inverterCapacityKW ?? row.inverter ?? ''}
-                                onChange={(e) => handleMatrixCellChange(idx, 'inverterCapacityKW', e.target.value)}
-                                className="w-16 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs font-mono"
-                              />
-                            ) : (
-                              getInverter(row)
+                              getModules(row)
                             )}
                           </td>
 
                           {/* Adani Bi-Fi */}
-                          <td className="px-3 py-2.5 text-right font-mono font-semibold whitespace-nowrap tabular-nums">
+                          <td className="px-2 py-2.5 text-right font-mono font-semibold whitespace-nowrap tabular-nums">
                             {isInlineEditingMatrix ? (
                               <input
                                 type="number"
                                 value={getAdaniPrice(row)}
                                 onChange={(e) => handleMatrixCellChange(idx, 'adaniBiFiPrice', e.target.value)}
-                                className="w-24 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-right font-mono"
+                                className="w-20 px-1 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-right font-mono"
                               />
                             ) : (
                               <span className="whitespace-nowrap">₹ {Number(getAdaniPrice(row)).toLocaleString('en-IN')}</span>
@@ -773,13 +890,13 @@ ${origin}/?tab=pricing_master
                           </td>
 
                           {/* APS Bi-Fi */}
-                          <td className="px-3 py-2.5 text-right font-mono font-semibold whitespace-nowrap tabular-nums">
+                          <td className="px-2 py-2.5 text-right font-mono font-semibold whitespace-nowrap tabular-nums">
                             {isInlineEditingMatrix ? (
                               <input
                                 type="number"
                                 value={getApsBiFiPrice(row)}
                                 onChange={(e) => handleMatrixCellChange(idx, 'apsBiFiPrice', e.target.value)}
-                                className="w-24 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-right font-mono"
+                                className="w-20 px-1 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-right font-mono"
                               />
                             ) : (
                               <span className="whitespace-nowrap">₹ {Number(getApsBiFiPrice(row)).toLocaleString('en-IN')}</span>
@@ -787,13 +904,13 @@ ${origin}/?tab=pricing_master
                           </td>
 
                           {/* Rayzone */}
-                          <td className="px-3 py-2.5 text-right font-mono font-semibold whitespace-nowrap tabular-nums">
+                          <td className="px-2 py-2.5 text-right font-mono font-semibold whitespace-nowrap tabular-nums">
                             {isInlineEditingMatrix ? (
                               <input
                                 type="number"
                                 value={getRayzonePrice(row)}
                                 onChange={(e) => handleMatrixCellChange(idx, 'rayzonePrice', e.target.value)}
-                                className="w-24 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-right font-mono"
+                                className="w-20 px-1 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-right font-mono"
                               />
                             ) : (
                               <span className="whitespace-nowrap">₹ {Number(getRayzonePrice(row)).toLocaleString('en-IN')}</span>
@@ -801,13 +918,13 @@ ${origin}/?tab=pricing_master
                           </td>
 
                           {/* Waaree 585W TOPCon */}
-                          <td className="px-3 py-2.5 text-right font-mono font-bold text-primary whitespace-nowrap tabular-nums">
+                          <td className="px-2 py-2.5 text-right font-mono font-bold text-primary whitespace-nowrap tabular-nums">
                             {isInlineEditingMatrix ? (
                               <input
                                 type="number"
                                 value={getWaareePrice(row)}
                                 onChange={(e) => handleMatrixCellChange(idx, 'waaree585Price', e.target.value)}
-                                className="w-24 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-right font-mono text-primary font-bold"
+                                className="w-20 px-1 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-right font-mono text-primary font-bold"
                               />
                             ) : (
                               <span className="whitespace-nowrap">₹ {Number(getWaareePrice(row)).toLocaleString('en-IN')}</span>
@@ -815,13 +932,13 @@ ${origin}/?tab=pricing_master
                           </td>
 
                           {/* APS TOPCon 600W */}
-                          <td className="px-3 py-2.5 text-right font-mono font-bold text-[#256676] whitespace-nowrap tabular-nums">
+                          <td className="px-2 py-2.5 text-right font-mono font-bold text-[#256676] whitespace-nowrap tabular-nums">
                             {isInlineEditingMatrix ? (
                               <input
                                 type="number"
                                 value={getApsTopconPrice(row)}
                                 onChange={(e) => handleMatrixCellChange(idx, 'apsTopcon600Price', e.target.value)}
-                                className="w-24 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-right font-mono text-[#256676] font-bold"
+                                className="w-20 px-1 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-right font-mono text-[#256676] font-bold"
                               />
                             ) : (
                               <span className="whitespace-nowrap">₹ {Number(getApsTopconPrice(row)).toLocaleString('en-IN')}</span>
@@ -829,7 +946,7 @@ ${origin}/?tab=pricing_master
                           </td>
 
                           {/* Actions: Edit Modal / Delete */}
-                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                          <td className="px-2 py-2.5 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 type="button"
@@ -867,6 +984,191 @@ ${origin}/?tab=pricing_master
                     >
                       <span className="material-symbols-outlined text-[18px]">save</span>
                       <span>Save Matrix Changes</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* DEDICATED INVERTER SIZING & BENCHMARK PRICING MATRIX (SR-57) */}
+              <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-6 shadow-sm overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-surface-container-low gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-emerald-50 text-emerald-700">
+                      <span className="material-symbols-outlined text-xl">electric_bolt</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-headline-md text-headline-md text-inverse-surface font-bold">
+                          Inverter Sizing &amp; Benchmark Pricing Matrix
+                        </h2>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                          {inverterBenchmarkMatrix.length} Ratings
+                        </span>
+                      </div>
+                      <p className="font-body-sm text-body-sm text-secondary mt-0.5">
+                        Standard grid-tied string inverter benchmark pricing and phase topologies decoupled from module BOS tiers.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start sm:self-center">
+                    <button
+                      type="button"
+                      onClick={handleOpenAddInvModal}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                      <span>Add Inverter Spec</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isInlineEditingInverters) {
+                          handleSaveInverterMatrix();
+                        } else {
+                          setIsInlineEditingInverters(true);
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                        isInlineEditingInverters
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                          : 'bg-surface-container hover:bg-surface-container-high text-on-surface'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        {isInlineEditingInverters ? 'check' : 'edit'}
+                      </span>
+                      <span>{isInlineEditingInverters ? 'Save Inverter Prices' : 'Edit Inverter Prices'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-left border-collapse min-w-[700px] md:min-w-full">
+                    <thead>
+                      <tr className="bg-inverse-surface text-surface-container-lowest text-label-sm font-semibold h-10 border-none">
+                        <th className="px-3 py-2 text-xs font-semibold whitespace-nowrap min-w-[110px]">Capacity (kW)</th>
+                        <th className="px-3 py-2 text-xs font-semibold min-w-[200px]">Brand / Series</th>
+                        <th className="px-3 py-2 text-xs font-semibold min-w-[160px]">Topology / Phase</th>
+                        <th className="px-3 py-2 text-xs font-semibold text-right min-w-[150px] whitespace-nowrap">Benchmark Price (₹)</th>
+                        <th className="px-3 py-2 text-xs font-semibold text-center w-24 whitespace-nowrap">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-container-highest font-body-sm text-xs text-on-surface">
+                      {inverterBenchmarkMatrix.map((inv, idx) => (
+                        <tr key={inv.id || idx} className={`hover:bg-surface-container-low/60 transition-colors ${idx % 2 === 1 ? 'bg-surface-container-low/20' : ''}`}>
+                          {/* Capacity (kW) */}
+                          <td className="px-3 py-2.5 font-bold font-mono text-inverse-surface whitespace-nowrap">
+                            {isInlineEditingInverters ? (
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={inv.capacityKW}
+                                onChange={(e) => handleInverterCellChange(idx, 'capacityKW', e.target.value)}
+                                className="w-16 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs font-mono font-bold"
+                              />
+                            ) : (
+                              `${inv.capacityKW} kW`
+                            )}
+                          </td>
+
+                          {/* Brand / Series */}
+                          <td className="px-3 py-2.5">
+                            {isInlineEditingInverters ? (
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={inv.brand}
+                                  onChange={(e) => handleInverterCellChange(idx, 'brand', e.target.value)}
+                                  placeholder="Brand"
+                                  className="w-1/2 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs font-medium"
+                                />
+                                <input
+                                  type="text"
+                                  value={inv.series}
+                                  onChange={(e) => handleInverterCellChange(idx, 'series', e.target.value)}
+                                  placeholder="Series / Model"
+                                  className="w-1/2 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-secondary"
+                                />
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="font-semibold text-on-surface">{inv.brand}</div>
+                                <div className="text-[11px] text-secondary">{inv.series}</div>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Topology / Phase */}
+                          <td className="px-3 py-2.5">
+                            {isInlineEditingInverters ? (
+                              <input
+                                type="text"
+                                value={inv.phase}
+                                onChange={(e) => handleInverterCellChange(idx, 'phase', e.target.value)}
+                                className="w-36 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs"
+                              />
+                            ) : (
+                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                {inv.phase}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Benchmark Price */}
+                          <td className="px-3 py-2.5 text-right font-mono font-bold text-inverse-surface whitespace-nowrap tabular-nums">
+                            {isInlineEditingInverters ? (
+                              <input
+                                type="number"
+                                value={inv.benchmarkPrice}
+                                onChange={(e) => handleInverterCellChange(idx, 'benchmarkPrice', e.target.value)}
+                                className="w-28 px-1.5 py-1 bg-surface-container-lowest border border-surface-container-highest rounded text-xs text-right font-mono font-bold"
+                              />
+                            ) : (
+                              <span>₹ {Number(inv.benchmarkPrice || 0).toLocaleString('en-IN')}</span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditInvModal(idx)}
+                                className="p-1 rounded hover:bg-surface-container text-secondary hover:text-primary transition-colors cursor-pointer"
+                                title="Edit inverter benchmark"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">edit_note</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteInverterBenchmark(idx)}
+                                className="p-1 rounded hover:bg-rose-50 text-secondary hover:text-rose-600 transition-colors cursor-pointer"
+                                title="Delete inverter benchmark"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">delete</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {isInlineEditingInverters && (
+                  <div className="mt-4 pt-3 border-t border-surface-container-low flex items-center justify-between">
+                    <span className="text-xs text-secondary italic">
+                      Tip: Edit prices or capacities inline, then click &quot;Save Inverter Prices&quot; to apply.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveInverterMatrix()}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-label-md text-xs font-bold rounded-lg shadow-sm cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">save</span>
+                      <span>Save Inverter Prices</span>
                     </button>
                   </div>
                 )}
@@ -2126,6 +2428,132 @@ ${origin}/?tab=pricing_master
                 >
                   <span className="material-symbols-outlined text-[16px]">save</span>
                   <span>{editingRowIndex !== null ? 'Update Slab' : 'Save New Slab'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ADD / EDIT INVERTER BENCHMARK SPEC (SR-57)                          */}
+      {/* ========================================================================= */}
+      {showAddInvBenchmarkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-surface-container-lowest border border-surface-container-highest rounded-2xl w-full max-w-lg shadow-2xl p-6">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-surface-container-low">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-700">
+                  <span className="material-symbols-outlined text-xl">electric_bolt</span>
+                </div>
+                <div>
+                  <h3 className="font-headline-md text-headline-md font-bold text-inverse-surface">
+                    {editingInvBenchmarkIdx !== null ? `Edit ${invBenchmarkForm.capacityKW} kW Inverter Spec` : 'Add Inverter Pricing Spec'}
+                  </h3>
+                  <p className="text-xs text-secondary">
+                    Configure turnkey string inverter rating, phase topology, and benchmark pricing.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddInvBenchmarkModal(false)}
+                className="p-1.5 rounded-lg hover:bg-surface-container text-secondary hover:text-on-surface transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInvModalForm} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Inverter Capacity (kW) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    required
+                    value={invBenchmarkForm.capacityKW}
+                    onChange={(e) => setInvBenchmarkForm({ ...invBenchmarkForm, capacityKW: e.target.value })}
+                    placeholder="e.g. 5.0"
+                    className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-mono font-bold text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Benchmark Price (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={invBenchmarkForm.benchmarkPrice}
+                    onChange={(e) => setInvBenchmarkForm({ ...invBenchmarkForm, benchmarkPrice: e.target.value })}
+                    placeholder="e.g. 42000"
+                    className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-mono font-bold text-emerald-700 focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">
+                  Manufacturer / Brand
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={invBenchmarkForm.brand}
+                  onChange={(e) => setInvBenchmarkForm({ ...invBenchmarkForm, brand: e.target.value })}
+                  placeholder="e.g. Sunvine Smart Series, Solis, Growatt"
+                  className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs text-on-surface focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">
+                  Series / Model Description
+                </label>
+                <input
+                  type="text"
+                  value={invBenchmarkForm.series}
+                  onChange={(e) => setInvBenchmarkForm({ ...invBenchmarkForm, series: e.target.value })}
+                  placeholder="e.g. 3-Phase Smart MPPT On-Grid with Wi-Fi"
+                  className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs text-on-surface focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">
+                  Phase &amp; MPPT Topology
+                </label>
+                <select
+                  value={invBenchmarkForm.phase}
+                  onChange={(e) => setInvBenchmarkForm({ ...invBenchmarkForm, phase: e.target.value })}
+                  className="w-full px-3 py-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs text-on-surface focus:outline-none focus:border-primary"
+                >
+                  <option value="1-Phase / Dual MPPT">1-Phase / Dual MPPT</option>
+                  <option value="1-Phase / Single MPPT">1-Phase / Single MPPT</option>
+                  <option value="3-Phase / Multi MPPT">3-Phase / Multi MPPT</option>
+                  <option value="3-Phase / Dual MPPT">3-Phase / Dual MPPT</option>
+                  <option value="3-Phase / 4-MPPT">3-Phase / 4-MPPT (Commercial)</option>
+                  <option value="3-Phase / 6-MPPT">3-Phase / 6-MPPT (Industrial)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-surface-container-low">
+                <button
+                  type="button"
+                  onClick={() => setShowAddInvBenchmarkModal(false)}
+                  className="px-4 py-2 rounded-lg border border-surface-container-highest bg-surface-container-lowest text-secondary hover:text-on-surface text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm cursor-pointer flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-[16px]">save</span>
+                  <span>{editingInvBenchmarkIdx !== null ? 'Update Inverter Spec' : 'Save Inverter Spec'}</span>
                 </button>
               </div>
             </form>
