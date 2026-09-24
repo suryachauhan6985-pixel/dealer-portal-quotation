@@ -220,8 +220,8 @@ export default function PanelLayoutVisualizer({
             const depthM = mmToMeters(layout.depthMm);
             const widthFt = mmToFeet(layout.widthMm);
             const depthFt = mmToFeet(layout.depthMm);
-            const areaSqM = layout.areaSqM.toFixed(1);
-            const areaSqFt = (layout.areaSqM * 10.7639).toFixed(0);
+            const areaSqM = ((layout.areaSqM || 0)).toFixed(1);
+            const areaSqFt = (((layout.areaSqM || 0)) * 10.7639).toFixed(0);
 
             return (
               <div
@@ -544,8 +544,8 @@ function Render2DArraySvg({ layout, moduleDims }) {
 
       {/* Structure Legs (Front & Rear leg base indicators) */}
       {(() => {
-        const legCount = layout.bom.frontLegs;
-        const legStep = arraySvgW / (legCount - 1);
+        const legCount = layout?.bom?.frontLegs || 2;
+        const legStep = legCount > 1 ? arraySvgW / (legCount - 1) : 0;
         const legs = [];
         for (let i = 0; i < legCount; i++) {
           const lx = startX + (i * legStep);

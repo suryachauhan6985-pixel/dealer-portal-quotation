@@ -11,24 +11,24 @@ export const DEFAULT_MODULE_DIMS = {
   weightKg: 28.5
 };
 
-export const mmToMeters = (mm) => (mm / 1000).toFixed(2);
-export const mmToFeet = (mm) => (mm / 304.8).toFixed(1);
-export const sqMmToSqFt = (sqMm) => (sqMm / 92903.04).toFixed(1);
+export const mmToMeters = (valMm) => ((valMm || 0) / 1000).toFixed(2);
+export const mmToFeet = (valMm) => ((valMm || 0) / 304.8).toFixed(1);
+export const sqMmToSqFt = (valSqMm) => ((valSqMm || 0) / 92903.04).toFixed(1);
 
 /**
  * Parses dimensions string like "2278 × 1134 × 30 mm" from hardware master
  */
 export function parseModuleDimensions(dimStr) {
   if (!dimStr) return DEFAULT_MODULE_DIMS;
-  const numbers = dimStr.match(/\d+(\.\d+)?/g);
+  const numbers = String(dimStr).match(/\d+(\.\d+)?/g);
   if (numbers && numbers.length >= 2) {
-    const l = parseFloat(numbers[0]) || DEFAULT_MODULE_DIMS.lengthMm;
-    const w = parseFloat(numbers[1]) || DEFAULT_MODULE_DIMS.widthMm;
-    const t = numbers.length >= 3 ? (parseFloat(numbers[2]) || 30) : 30;
+    const parsedA = parseFloat(numbers[0]) || DEFAULT_MODULE_DIMS.lengthMm;
+    const parsedB = parseFloat(numbers[1]) || DEFAULT_MODULE_DIMS.widthMm;
+    const parsedT = numbers.length >= 3 ? (parseFloat(numbers[2]) || 30) : 30;
     return {
-      lengthMm: Math.max(l, w), // Length is always longer edge
-      widthMm: Math.min(l, w),  // Width is shorter edge
-      thicknessMm: t,
+      lengthMm: Math.max(parsedA, parsedB), // Length is always longer edge
+      widthMm: Math.min(parsedA, parsedB),  // Width is shorter edge
+      thicknessMm: parsedT,
       weightKg: 28.5
     };
   }
@@ -39,7 +39,7 @@ export function parseModuleDimensions(dimStr) {
  * Calculates Hardware BOM for a given layout
  */
 export function calculateHardwareBOM(layout) {
-  const totalPanels = layout.totalPanels;
+  const totalPanels = layout.totalPanels || 6;
   
   // 1. J-Bolts: 4 per panel in standard C-channel / GI structures
   const jBoltsCount = totalPanels * 4;
@@ -53,7 +53,7 @@ export function calculateHardwareBOM(layout) {
       const panelCountInRow = Array.isArray(row) ? row.length : (row.panelsCount || 1);
       // Each row has 4 end clamps (2 on left edge, 2 on right edge)
       endClampsCount += 4;
-      // Between each adjacent panel pair, 2 mid-clamps
+      // Between each adjacent panel pair in a row, 2 mid-clamps
       if (panelCountInRow > 1) {
         midClampsCount += (panelCountInRow - 1) * 2;
       }
@@ -66,8 +66,8 @@ export function calculateHardwareBOM(layout) {
 
   // 3. Structure Columns / Legs (Front Legs & Rear Legs)
   // Typically 1 leg pair every 2.5m - 3.2m of table width, with min 2 leg pairs (4 legs)
-  const widthMeters = layout.widthMm / 1000;
-  const legPairs = Math.max(2, Math.ceil(widthMeters / 2.8) + 1);
+  const arrayWidthMeters = (layout.widthMm || 2278) / 1000;
+  const legPairs = Math.max(2, Math.ceil(arrayWidthMeters / 2.8) + 1);
   const totalLegs = legPairs * 2; // Front + Rear
 
   // 4. Base Plates & Anchor Fasteners
@@ -102,7 +102,8 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
   const n = parseInt(panelCount, 10);
   if (isNaN(n) || n <= 0) return [];
 
-  const { lengthMm, widthMm } = customDims;
+  const panelL = customDims?.lengthMm || DEFAULT_MODULE_DIMS.lengthMm;
+  const panelW = customDims?.widthMm || DEFAULT_MODULE_DIMS.widthMm;
   const layouts = [];
 
   // ==========================================
@@ -114,8 +115,8 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
       // Skip extreme vertical towers like 1 col x 12 rows unless total panels <= 4
       if (r > 6 && c === 1) continue;
 
-      const widthMm = c * widthMm;
-      const depthMm = r * lengthMm;
+      const calcWidthMm = c * panelW;
+      const calcDepthMm = r * panelL;
       
       const rows = [];
       let panelIndex = 1;
@@ -127,8 +128,8 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
             label: `P${panelIndex}`,
             fullLabel: `Panel ${panelIndex}`,
             orientation: 'portrait',
-            widthMm: widthMm,
-            heightMm: lengthMm,
+            widthMm: panelW,
+            heightMm: panelL,
             row: rowIdx + 1,
             col: colIdx + 1
           });
@@ -163,9 +164,9 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
         rowsCount: r,
         colsCount: c,
         totalPanels: n,
-        widthMm,
-        depthMm,
-        areaSqM: (widthMm * depthMm) / 1000000,
+        widthMm: calcWidthMm,
+        depthMm: calcDepthMm,
+        areaSqM: (calcWidthMm * calcDepthMm) / 1000000,
         excelTag,
         isRecommended,
         rows
@@ -183,8 +184,8 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
       const c = n / r;
       if (r > 6 && c === 1) continue;
 
-      const widthMm = c * lengthMm;
-      const depthMm = r * widthMm;
+      const calcWidthMm = c * panelL;
+      const calcDepthMm = r * panelW;
 
       const rows = [];
       let panelIndex = 1;
@@ -196,8 +197,8 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
             label: `P${panelIndex}`,
             fullLabel: `Panel ${panelIndex}`,
             orientation: 'landscape',
-            widthMm: lengthMm,
-            heightMm: widthMm,
+            widthMm: panelL,
+            heightMm: panelW,
             row: rowIdx + 1,
             col: colIdx + 1
           });
@@ -217,9 +218,9 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
         rowsCount: r,
         colsCount: c,
         totalPanels: n,
-        widthMm,
-        depthMm,
-        areaSqM: (widthMm * depthMm) / 1000000,
+        widthMm: calcWidthMm,
+        depthMm: calcDepthMm,
+        areaSqM: (calcWidthMm * calcDepthMm) / 1000000,
         isRecommended,
         rows
       };
@@ -232,28 +233,26 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
   // 3. HYBRID COMBINATIONS (खड़ी + आड़ी / 2:1 Symmetry)
   // 2 Portrait panels = 1 Landscape panel in width (2 x 1134mm = 2268mm ~= 2278mm)
   // ==========================================
-  // Loop through possible landscape panel count k
   for (let k = 1; k < n; k++) {
     const p = n - k;
     if (p % 2 === 0) {
-      // Check if k landscape panels can align with p portrait panels
       // Case A: 1 row of p portrait, and 1 row of k landscape, where p = 2 * k
       if (p === 2 * k) {
         const colsP = p;
         const colsL = k;
-        const widthMm = Math.max(colsP * widthMm, colsL * lengthMm);
-        const depthMm = lengthMm + widthMm;
+        const calcWidthMm = Math.max(colsP * panelW, colsL * panelL);
+        const calcDepthMm = panelL + panelW;
 
         // Config 1: Portrait on Top (North), Landscape at Bottom (South)
         let idx1 = 1;
         const row1P = [];
         for (let i = 0; i < colsP; i++) {
-          row1P.push({ id: idx1, label: `P${idx1}`, fullLabel: `Panel ${idx1}`, orientation: 'portrait', widthMm, heightMm: lengthMm });
+          row1P.push({ id: idx1, label: `P${idx1}`, fullLabel: `Panel ${idx1}`, orientation: 'portrait', widthMm: panelW, heightMm: panelL });
           idx1++;
         }
         const row1L = [];
         for (let i = 0; i < colsL; i++) {
-          row1L.push({ id: idx1, label: `P${idx1}`, fullLabel: `Panel ${idx1}`, orientation: 'landscape', widthMm: lengthMm, heightMm: widthMm });
+          row1L.push({ id: idx1, label: `P${idx1}`, fullLabel: `Panel ${idx1}`, orientation: 'landscape', widthMm: panelL, heightMm: panelW });
           idx1++;
         }
 
@@ -266,9 +265,9 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
           name: `Hybrid: ${p} Khadi (Top) + ${k} Aadi (Bottom)`,
           shortCode: `${p} Khadi + ${k} Aadi`,
           totalPanels: n,
-          widthMm,
-          depthMm,
-          areaSqM: (widthMm * depthMm) / 1000000,
+          widthMm: calcWidthMm,
+          depthMm: calcDepthMm,
+          areaSqM: (calcWidthMm * calcDepthMm) / 1000000,
           excelTag: isExcel3 ? 'Excel Design 3' : null,
           isRecommended: true,
           rows: [row1P, row1L]
@@ -280,12 +279,12 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
         let idx2 = 1;
         const row2L = [];
         for (let i = 0; i < colsL; i++) {
-          row2L.push({ id: idx2, label: `P${idx2}`, fullLabel: `Panel ${idx2}`, orientation: 'landscape', widthMm: lengthMm, heightMm: widthMm });
+          row2L.push({ id: idx2, label: `P${idx2}`, fullLabel: `Panel ${idx2}`, orientation: 'landscape', widthMm: panelL, heightMm: panelW });
           idx2++;
         }
         const row2P = [];
         for (let i = 0; i < colsP; i++) {
-          row2P.push({ id: idx2, label: `P${idx2}`, fullLabel: `Panel ${idx2}`, orientation: 'portrait', widthMm, heightMm: lengthMm });
+          row2P.push({ id: idx2, label: `P${idx2}`, fullLabel: `Panel ${idx2}`, orientation: 'portrait', widthMm: panelW, heightMm: panelL });
           idx2++;
         }
 
@@ -296,9 +295,9 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
           name: `Hybrid: ${k} Aadi (Top) + ${p} Khadi (Bottom)`,
           shortCode: `${k} Aadi + ${p} Khadi`,
           totalPanels: n,
-          widthMm,
-          depthMm,
-          areaSqM: (widthMm * depthMm) / 1000000,
+          widthMm: calcWidthMm,
+          depthMm: calcDepthMm,
+          areaSqM: (calcWidthMm * calcDepthMm) / 1000000,
           isRecommended: false,
           rows: [row2L, row2P]
         };
@@ -310,22 +309,22 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
       // e.g. p = 8 (2 rows of 4), k = 2 (1 row of 2 landscape) -> width = 4 x 1134 = 4.54m!
       const halfP = p / 2;
       if (halfP > 0 && halfP === 2 * k) {
-        const widthMm = Math.max(halfP * widthMm, k * lengthMm);
-        const depthMm = (2 * lengthMm) + widthMm;
+        const calcWidthMm = Math.max(halfP * panelW, k * panelL);
+        const calcDepthMm = (2 * panelL) + panelW;
         let idx3 = 1;
         const r1 = [];
         for (let i = 0; i < halfP; i++) {
-          r1.push({ id: idx3, label: `P${idx3}`, fullLabel: `Panel ${idx3}`, orientation: 'portrait', widthMm, heightMm: lengthMm });
+          r1.push({ id: idx3, label: `P${idx3}`, fullLabel: `Panel ${idx3}`, orientation: 'portrait', widthMm: panelW, heightMm: panelL });
           idx3++;
         }
         const r2 = [];
         for (let i = 0; i < halfP; i++) {
-          r2.push({ id: idx3, label: `P${idx3}`, fullLabel: `Panel ${idx3}`, orientation: 'portrait', widthMm, heightMm: lengthMm });
+          r2.push({ id: idx3, label: `P${idx3}`, fullLabel: `Panel ${idx3}`, orientation: 'portrait', widthMm: panelW, heightMm: panelL });
           idx3++;
         }
         const r3 = [];
         for (let i = 0; i < k; i++) {
-          r3.push({ id: idx3, label: `P${idx3}`, fullLabel: `Panel ${idx3}`, orientation: 'landscape', widthMm: lengthMm, heightMm: widthMm });
+          r3.push({ id: idx3, label: `P${idx3}`, fullLabel: `Panel ${idx3}`, orientation: 'landscape', widthMm: panelL, heightMm: panelW });
           idx3++;
         }
 
@@ -336,9 +335,9 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
           name: `Hybrid: 2 Rows of ${halfP} Khadi + 1 Row of ${k} Aadi`,
           shortCode: `2x${halfP} Khadi + ${k} Aadi`,
           totalPanels: n,
-          widthMm,
-          depthMm,
-          areaSqM: (widthMm * depthMm) / 1000000,
+          widthMm: calcWidthMm,
+          depthMm: calcDepthMm,
+          areaSqM: (calcWidthMm * calcDepthMm) / 1000000,
           isRecommended: true,
           rows: [r1, r2, r3]
         };
@@ -355,18 +354,18 @@ export function generateDynamicLayouts(panelCount, customDims = DEFAULT_MODULE_D
   if (n >= 4 && n % 2 === 0) {
     const half = n / 2;
     // Table A & B in portrait
-    const tableWidthMm = half * widthMm;
-    const tableDepthMm = lengthMm;
+    const tableWidthMm = half * panelW;
+    const tableDepthMm = panelL;
 
     let pIdx = 1;
     const tableA = [];
     for (let i = 0; i < half; i++) {
-      tableA.push({ id: pIdx, label: `P${pIdx}`, fullLabel: `Panel ${pIdx}`, orientation: 'portrait', widthMm, heightMm: lengthMm });
+      tableA.push({ id: pIdx, label: `P${pIdx}`, fullLabel: `Panel ${pIdx}`, orientation: 'portrait', widthMm: panelW, heightMm: panelL });
       pIdx++;
     }
     const tableB = [];
     for (let i = 0; i < half; i++) {
-      tableB.push({ id: pIdx, label: `P${pIdx}`, fullLabel: `Panel ${pIdx}`, orientation: 'portrait', widthMm, heightMm: lengthMm });
+      tableB.push({ id: pIdx, label: `P${pIdx}`, fullLabel: `Panel ${pIdx}`, orientation: 'portrait', widthMm: panelW, heightMm: panelL });
       pIdx++;
     }
 
