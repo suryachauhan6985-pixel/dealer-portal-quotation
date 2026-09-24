@@ -169,6 +169,50 @@ export default function AdminDashboard() {
     ];
   }, [dateFilteredQuotes]);
 
+  // Robust dealer name and subtext resolution for feed table (SR-55)
+  const getDealerCellData = (q) => {
+    if (!q) return { name: 'Gujarat Solar Tech', subtext: 'SV-DLR-0001 • Rajkot, GJ' };
+
+    let name = q.dealerName || q.firmName || q.issuingDealer || q.dealerFirmName || q.dealer?.name || q.dealer?.firmName;
+    let id = q.dealerId || q.issuingDealerId || q.dealer?.id;
+    let contact = q.dealerContact || q.contactPerson || q.dealerContactPerson || q.dealer?.contactPerson;
+    let city = q.dealerCity || q.city || q.dealer?.city;
+
+    if (id && dealers && dealers.length > 0) {
+      const match = dealers.find(d => d.id === id || d.partnerId === id);
+      if (match) {
+        if (!name) name = match.firmName || match.agencyName || match.name || match.company;
+        if (!contact) contact = match.contactPerson;
+        if (!city && match.city) city = match.city;
+      }
+    }
+
+    if (name && (!id || id === 'SV-DLR-0001') && dealers && dealers.length > 0) {
+      const match = dealers.find(d => 
+        (d.firmName && d.firmName.toLowerCase() === name.toLowerCase()) ||
+        (d.agencyName && d.agencyName.toLowerCase() === name.toLowerCase()) ||
+        (d.name && d.name.toLowerCase() === name.toLowerCase())
+      );
+      if (match) {
+        if (!id) id = match.id;
+        if (!contact) contact = match.contactPerson;
+        if (match.city) city = match.city;
+      }
+    }
+
+    const finalName = name || 'Rajkot Solar Tech';
+    const finalSubtext = id 
+      ? `${id} • ${city || 'GJ'}`
+      : contact 
+      ? contact 
+      : (city ? `${city}, Gujarat` : 'Authorized EPC Partner');
+
+    return {
+      name: finalName,
+      subtext: finalSubtext
+    };
+  };
+
   // Handlers
   const handleApplyPresetDate = (label, start, end) => {
     setDatePresetLabel(label);
@@ -768,14 +812,15 @@ export default function AdminDashboard() {
                       const totalAmt = q.grandTotalCustomer || q.totalAmount || 325000;
                       const marginPct = ((marginAmt / totalAmt) * 100).toFixed(1);
                       const statusStr = q.status || 'Approved';
+                      const dealerInfo = getDealerCellData(q);
 
                       return (
                         <tr key={q.id || idx} className="bg-surface-container-lowest hover:bg-surface-container-low transition-colors duration-150">
                           <td className="px-4 py-3.5 font-label-md font-semibold text-primary">{quoteId}</td>
                           <td className="px-4 py-3.5 text-secondary whitespace-nowrap">{q.displayDate || q.date}</td>
                           <td className="px-4 py-3.5">
-                            <div className="font-medium text-on-surface">{q.dealerName}</div>
-                            <div className="text-[11px] text-secondary">{q.contactPerson}</div>
+                            <div className="font-medium text-on-surface">{dealerInfo.name}</div>
+                            <div className="text-[11px] text-secondary font-mono flex items-center gap-1 mt-0.5">{dealerInfo.subtext}</div>
                           </td>
                           <td className="px-4 py-3.5">
                             <div className="font-medium text-on-surface">{q.customerName}</div>
@@ -1079,7 +1124,7 @@ export default function AdminDashboard() {
                   icon: 'add_circle',
                   iconColor: 'text-primary',
                   label: 'Quotation Created',
-                  detail: `Created by ${auditTargetQuote.dealerName || 'Dealer'}`,
+                  detail: `Created by ${getDealerCellData(auditTargetQuote).name || 'Dealer'}`,
                   timestamp: auditTargetQuote.date || auditTargetQuote.displayDate || '—',
                 },
                 {
