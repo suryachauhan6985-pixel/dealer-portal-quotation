@@ -10,7 +10,7 @@ import {
   DEFAULT_MODULE_DIMS
 } from '../../utils/solarLayoutEngine';
 import SolarStructure3DViewer from './SolarStructure3DViewer';
-import RooftopDesigner, { DEFAULT_ROOF_CONFIG, SAMPLE_HAND_DRAWN_SKETCH_CONFIG } from './RooftopDesigner';
+import RooftopDesigner, { DEFAULT_ROOF_CONFIG, SAMPLE_HAND_DRAWN_SKETCH_CONFIG, SITE_SKETCH_2_CONFIG } from './RooftopDesigner';
 
 export default function PanelLayoutVisualizer({
   initialPanelCount = 6,
@@ -24,7 +24,7 @@ export default function PanelLayoutVisualizer({
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedId, setSelectedId] = useState(selectedLayoutId || 'portrait_2x3');
   const [activeViewTab, setActiveViewTab] = useState('2d'); // '2d', 'roof', '3d', 'pipes'
-  const [roofConfig, setRoofConfig] = useState(SAMPLE_HAND_DRAWN_SKETCH_CONFIG || DEFAULT_ROOF_CONFIG);
+  const [roofConfig, setRoofConfig] = useState(SITE_SKETCH_2_CONFIG || SAMPLE_HAND_DRAWN_SKETCH_CONFIG || DEFAULT_ROOF_CONFIG);
   const [frontLegHeightFt, setFrontLegHeightFt] = useState(2.5);
   const [tiltDegrees, setTiltDegrees] = useState(18);
 
