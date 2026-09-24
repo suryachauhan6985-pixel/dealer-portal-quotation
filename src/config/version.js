@@ -1,48 +1,47 @@
 // Authoritative Single Source of Truth for Sunvine EPC Portal Versioning
 // Strictly semantic versioning (MAJOR.MINOR.PATCH)
 
-export const APP_VERSION = '2.2.0';
+export const APP_VERSION = '2.2.1';
 export const RELEASE_DATE = '24 September 2026';
-export const RELEASE_TYPE = 'MINOR'; // 'MAJOR' | 'MINOR' | 'PATCH'
+export const RELEASE_TYPE = 'PATCH'; // 'MAJOR' | 'MINOR' | 'PATCH'
 
 // Verified changelog items derived from real repository Git history
 export const CURRENT_RELEASE_CHANGELOG = {
-  version: 'v2.2.0',
-  title: 'Admin Master Ledger & Catalog Operations Suite',
+  version: 'v2.2.1',
+  title: 'Dealer Partner Management React Hook Hotfix',
   date: '24 September 2026',
-  type: 'MINOR',
+  type: 'PATCH',
   highlights: [
-    'Interactive Top Filters & Structured CSV Ledger Exports for Gujarat Quotations Master',
-    'Dynamic Average Dealer Margin calculation with automated regulatory threshold warnings',
-    'Hardware Catalog Suite: Excel specs import, catalog CSV export, and bulk price editor',
-    'WhatsApp Price Broadcast Engine with pre-formatted rate sheets and direct-to-dealer wa.me links',
-    'Audit Trail & Timeline modal with multi-tab storage synchronization and responsive tablet layouts'
+    'Fixed missing useEffect hook import in Dealer Management partner console',
+    'Resolved uncaught runtime ReferenceError on partner tier margin synchronization',
+    'Full verification of React hooks across all Admin and Dealer portal modules'
   ],
   categories: {
     features: [
-      'Quotation Master Top Filters: Real-time date presets, dealer partner search, and DISCOM circle filters with one-click reset',
-      'Structured CSV Proposals Ledger: Clean CSV export of Gujarat quotation audit trails and margin records',
-      'Catalog Operations Suite: Excel specs import with custom template, bulk price update (% & flat ₹/Wp), and full catalog CSV download',
-      'WhatsApp Price Broadcast: Official broadcast modal with rate cards, WhatsApp Web integration, and partner direct messaging',
-      'Quotation Audit Trail Modal: Detailed event timeline from quotation creation and specs configuration to pricing lock and approval',
-      'Dynamic Partner Profile Editing: Full dealer onboarding and profile editing with real-time state synchronization'
+      'Verified Partner Onboarding & Edit Suite: Stable tier margin thresholds and credentials provisioning'
     ],
     improvements: [
-      'Dynamic Average Dealer Margin: Weighted average margin calculation across filtered quotations with compliance status indicators',
-      'Dynamic Pagination Windowing: Seamless navigation across intermediate pages with dynamic ellipsis windowing',
-      'Multi-Tab Storage Synchronization: Instant cross-tab sync via window storage listeners for hardware, dealers, pricing, and notifications',
-      'Full Admin Bottom Navigation: All 6 admin tabs accessible in mobile bottom navigation bar with horizontal scrolling'
+      'Automated Hook Integrity: Comprehensive project-wide hook verification preventing reference collisions'
     ],
     fixes: [
-      'Tablet Responsive Grid: Resolved 157px horizontal overflow on tablet viewports (768px-1024px) in New Quotation builder',
-      'Dealer Dashboard SVG Overflow: Clipped background geometric pattern to prevent horizontal scrolling on mobile/tablet',
-      'Catalog Item Archival Filtering: Archived modules and inverters safely hidden from dealer quotation selection dropdowns'
+      'DealerManagement.jsx Hotfix: Corrected missing useEffect named import from React library',
+      'Runtime Error Boundary Recovery: Eliminates application crash on accessing Dealer Partners (/admin/dealers)'
     ]
   }
 };
 
 // Complete historical release register verified from Git log
 export const VERSION_HISTORY = [
+  {
+    version: 'v2.2.1',
+    date: '2026-09-24',
+    type: 'PATCH',
+    summary: 'Hotfix for missing useEffect hook in DealerManagement.jsx restoring full partner management stability.',
+    highlights: [
+      'Fixed missing useEffect import in DealerManagement',
+      'Restored /admin/dealers view stability'
+    ]
+  },
   {
     version: 'v2.2.0',
     date: '2026-09-24',
