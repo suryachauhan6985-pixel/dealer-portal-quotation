@@ -562,8 +562,45 @@ ${origin}/?tab=pricing_master
     }
   };
 
+  // Helper to serialize current configuration for deep comparison (diff check) (SR-58)
+  const getSnapshotString = () => JSON.stringify({
+    baseRates: {
+      tier1to3kw: Number(rate1to3),
+      tier3to10kw: Number(rate3to10),
+      tier10to50kw: Number(rateCommercial),
+      tierAbove50kw: Number(rateCommercial),
+    },
+    defaultHardware: {
+      module: selectedDefaultModule,
+      inverter: selectedDefaultInverter
+    },
+    bankDetails: {
+      accountName: beneficiaryName,
+      bankName,
+      accountNumber,
+      ifscCode,
+      branch,
+    },
+    localBosMatrix,
+    inverterBenchmarkMatrix,
+    bomRates,
+    capacityBomMatrix
+  });
+
+  const baselineSnapshotRef = React.useRef(null);
+
+  useEffect(() => {
+    if (!baselineSnapshotRef.current) {
+      baselineSnapshotRef.current = getSnapshotString();
+    }
+  }, []);
+
   const handleSave = (e) => {
     e?.preventDefault();
+
+    const currentSnapshot = getSnapshotString();
+    const hasChanges = baselineSnapshotRef.current !== currentSnapshot;
+
     if (updatePricingMaster) {
       updatePricingMaster({
         baseRates: {
@@ -585,15 +622,32 @@ ${origin}/?tab=pricing_master
         }
       });
     }
+
     if (setPdfBosMatrix) {
       setPdfBosMatrix(localBosMatrix);
     }
+
+    try {
+      localStorage.setItem('sunvine_inverter_benchmark_matrix', JSON.stringify(inverterBenchmarkMatrix));
+    } catch (err) {
+      console.warn(err);
+    }
+
+    // SR-58: Diff-based notification check. If no fields changed, suppress dealer notification
+    if (!hasChanges) {
+      triggerToast('No changes detected. System configuration is already up to date.');
+      return;
+    }
+
+    // Actual changes detected: update baseline snapshot and dispatch real-time dealer notification
+    baselineSnapshotRef.current = currentSnapshot;
+
     if (addNotification) {
       addNotification({
         type: 'info',
         icon: 'bolt',
         title: 'Master EPC Pricing & Presets Published',
-        description: `Admin revised benchmark rates & presets. Synced across ${totalDealersCount} Gujarat dealers.`,
+        description: `Admin revised benchmark rates, hardware specifications, and BOM presets. Synced across ${totalDealersCount} Gujarat dealers.`,
         targetTab: 'pricing_master'
       });
     }
@@ -643,15 +697,6 @@ ${origin}/?tab=pricing_master
           >
             <span className="material-symbols-outlined text-lg text-secondary">restart_alt</span>
             <span>Reset to Defaults</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowWhatsAppBroadcastModal(true)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-emerald-600/30 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-label-md font-label-md transition-colors shadow-xs text-xs sm:text-sm cursor-pointer font-bold"
-            title="Broadcast Price Update to WhatsApp"
-          >
-            <span className="material-symbols-outlined text-lg text-emerald-700">forum</span>
-            <span>Broadcast WhatsApp</span>
           </button>
           <button
             onClick={handleSave}
@@ -1436,30 +1481,28 @@ ${origin}/?tab=pricing_master
                 </div>
               </div>
 
-              {/* SECTION B.3: Live Sync & WhatsApp Broadcast Card (SR-23) */}
+              {/* SECTION B.3: Real-Time System Synchronization (SR-58) */}
               <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-6 shadow-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-surface-container-low gap-3">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
-                      <span className="material-symbols-outlined text-xl">share</span>
+                      <span className="material-symbols-outlined text-xl">sync</span>
                     </div>
                     <div>
                       <h2 className="font-headline-md text-headline-md text-inverse-surface font-bold">
-                        Live Sync &amp; WhatsApp Broadcast
+                        Real-Time System Synchronization
                       </h2>
                       <p className="font-body-sm text-body-sm text-secondary">
-                        Broadcast updated pricing matrices, subsidy guidelines, and BOM catalog to Gujarat dealer WhatsApp groups.
+                        Automated state propagation of pricing matrices, subsidy guidelines, and BOM catalog to Gujarat dealer portals.
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowWhatsAppBroadcastModal(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-label-md text-xs sm:text-sm font-bold rounded-lg transition-all shadow-sm cursor-pointer self-start sm:self-auto"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">forum</span>
-                    <span>Broadcast Price Update to WhatsApp</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-semibold border border-emerald-200">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>Real-Time Sync Active</span>
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1467,7 +1510,7 @@ ${origin}/?tab=pricing_master
                     <span className="material-symbols-outlined text-emerald-600 text-xl mt-0.5">verified</span>
                     <div>
                       <div className="font-bold text-on-surface text-sm">{totalDealersCount} Authorized Dealers</div>
-                      <p className="text-xs text-secondary mt-0.5">Active Gujarat solar EPC partners ready to receive real-time rate updates.</p>
+                      <p className="text-xs text-secondary mt-0.5">Active Gujarat solar EPC partners connected to live calculation engine.</p>
                     </div>
                   </div>
 
@@ -1488,29 +1531,12 @@ ${origin}/?tab=pricing_master
                   </div>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-surface-container-low flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="mt-4 pt-4 border-t border-surface-container-low flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 text-xs text-secondary">
                     <span className="material-symbols-outlined text-emerald-600 text-base">check_circle</span>
                     <span>Last synced: {pricingMaster?.lastSynced || 'Today, just now'}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenWhatsAppBroadcast()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-emerald-600 text-emerald-700 hover:bg-emerald-50 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-base">open_in_new</span>
-                      <span>Quick Open WhatsApp Web</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowWhatsAppBroadcastModal(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
-                    >
-                      <span className="material-symbols-outlined text-base">send</span>
-                      <span>Broadcast Dispatcher</span>
-                    </button>
-                  </div>
+                  <span className="text-xs text-secondary">Changes published via top action bar instantly trigger in-app updates</span>
                 </div>
               </div>
             </>
@@ -1853,16 +1879,10 @@ ${origin}/?tab=pricing_master
                       </div>
                     </div>
                     <div className="flex items-center gap-2 self-start sm:self-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          triggerToast(`BOM Presets & Rates saved! Real-time broadcasted to ${totalDealersCount} dealers.`);
-                        }}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-primary-container hover:bg-primary text-surface-container-lowest text-xs font-bold rounded-lg shadow-xs cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">sync</span>
-                        <span>Save &amp; Broadcast BOM</span>
-                      </button>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low text-secondary text-xs font-semibold border border-surface-container-highest">
+                        <span className="material-symbols-outlined text-[16px] text-primary">cloud_done</span>
+                        <span>Auto-Synced • Publish via Top Header</span>
+                      </span>
                     </div>
                   </div>
 
@@ -2854,8 +2874,8 @@ ${origin}/?tab=pricing_master
           </div>
         </div>
       )}
-      {/* WhatsApp Price Update Broadcast Modal (SR-23) */}
-      {showWhatsAppBroadcastModal && (
+      {/* Decommissioned WhatsApp Price Update Broadcast Modal (SR-58) */}
+      {false && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
           <div className="bg-surface-container-lowest rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-surface-container-highest animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
             <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-surface-container-low shrink-0">
