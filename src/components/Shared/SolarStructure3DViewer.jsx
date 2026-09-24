@@ -37,9 +37,8 @@ export default function SolarStructure3DViewer({
   const controlsRef = useRef(null);
   const cameraRef = useRef(null);
 
-  // Active roof configuration fallback
   const activeRoof = useMemo(() => {
-    return roofConfig || SITE_SKETCH_2_CONFIG || SAMPLE_HAND_DRAWN_SKETCH_CONFIG || DEFAULT_ROOF_CONFIG;
+    return roofConfig || DEFAULT_ROOF_CONFIG;
   }, [roofConfig]);
 
   // Compute Roof Polygon Vertices & Boundary Box
