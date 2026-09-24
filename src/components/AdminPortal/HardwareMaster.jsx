@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 
 export default function HardwareMaster() {
@@ -13,6 +13,48 @@ export default function HardwareMaster() {
   const [showAddModuleModal, setShowAddModuleModal] = useState(false);
   const [showAddInverterModal, setShowAddInverterModal] = useState(false);
 
+  // Import Specs Modal state (SR-22)
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importedPreviewItems, setImportedPreviewItems] = useState([]);
+  const [importFileName, setImportFileName] = useState('');
+  const [importError, setImportError] = useState('');
+  const fileInputRef = useRef(null);
+
+  // Bulk Price Update Modal state (SR-22)
+  const [showBulkPriceModal, setShowBulkPriceModal] = useState(false);
+  const [bulkRates, setBulkRates] = useState({});
+  const [bulkAdjustmentType, setBulkAdjustmentType] = useState('percent'); // 'percent' | 'flat'
+  const [bulkAdjustmentValue, setBulkAdjustmentValue] = useState('');
+
+  const DEFAULT_CELL_TECHS = [
+    'TOPCon Mono Bifacial',
+    'N-Type TOPCon',
+    'Mono PERC',
+    'Mono PERC Half-Cut',
+    'HJT Ultra-Efficiency',
+    'Polycrystalline DCR',
+    'Bifacial Dual-Glass TOPCon'
+  ];
+
+  const [editingModule, setEditingModule] = useState(null);
+  const [customCellTechs, setCustomCellTechs] = useState(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('sunvine_custom_cell_techs');
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) {
+      return [];
+    }
+  });
+  const [isCustomCellTech, setIsCustomCellTech] = useState(false);
+  const [customCellTechInput, setCustomCellTechInput] = useState('');
+
+  const availableCellTechs = Array.from(new Set([
+    ...DEFAULT_CELL_TECHS,
+    ...(modulesList || []).map(m => m.cellTech).filter(Boolean),
+    ...customCellTechs
+  ]));
+
   const [moduleForm, setModuleForm] = useState({
     brand: '',
     model: '',
@@ -20,7 +62,8 @@ export default function HardwareMaster() {
     wattage: '550',
     efficiency: '22.6%',
     ratePerWp: '19.20',
-    warranty: '30 Years Performance'
+    warranty: '30 Years Performance',
+    dimensions: '2278 × 1134 × 30 mm | 28 kg'
   });
 
   const [inverterForm, setInverterForm] = useState({
@@ -37,33 +80,8 @@ export default function HardwareMaster() {
     setTimeout(() => setToastMessage(''), 3000);
   };
 
-  const handleSaveModule = (e) => {
-    e.preventDefault();
-    if (!moduleForm.brand.trim() || !moduleForm.model.trim()) return;
-    const newMod = {
-      id: `mod-${Date.now()}`,
-      brand: moduleForm.brand.trim(),
-      model: moduleForm.model.trim(),
-      cellTech: moduleForm.cellTech,
-      wattage: Number(moduleForm.wattage) || 550,
-      efficiency: moduleForm.efficiency,
-      ratePerWp: `₹ ${moduleForm.ratePerWp}/Wp`,
-      warranty: moduleForm.warranty
-    };
-    if (setModulesList) {
-      setModulesList(prev => [...(prev || []), newMod]);
-    }
-    if (addNotification) {
-      addNotification({
-        type: 'success',
-        icon: 'solar_power',
-        title: `New Solar Module Added: ${newMod.brand} ${newMod.model}`,
-        description: `High-efficiency ${newMod.wattage}W (${newMod.cellTech}) added to hardware catalog.`,
-        targetTab: 'hardware_master'
-      });
-    }
-    setShowAddModuleModal(false);
-    triggerToast(`Added ${newMod.brand} ${newMod.model} to catalog!`);
+  const handleOpenAddModule = () => {
+    setEditingModule(null);
     setModuleForm({
       brand: '',
       model: '',
@@ -71,18 +89,170 @@ export default function HardwareMaster() {
       wattage: '550',
       efficiency: '22.6%',
       ratePerWp: '19.20',
-      warranty: '30 Years Performance'
+      warranty: '30 Years Performance',
+      dimensions: '2278 × 1134 × 30 mm | 28 kg'
     });
+    setIsCustomCellTech(false);
+    setCustomCellTechInput('');
+    setShowAddModuleModal(true);
+  };
+
+  const handleEditModule = (mod) => {
+    setEditingModule(mod);
+    setModuleForm({
+      brand: mod.brand || '',
+      model: mod.model || '',
+      cellTech: mod.cellTech || 'TOPCon Mono Bifacial',
+      wattage: String(mod.wattage || 550),
+      efficiency: mod.efficiency || '22.6%',
+      ratePerWp: mod.ratePerWp ? String(mod.ratePerWp).replace(/[^0-9.]/g, '') : '19.20',
+      warranty: mod.warranty || '30 Years Performance',
+      dimensions: mod.dimensions || '2278 × 1134 × 30 mm | 28 kg'
+    });
+    setIsCustomCellTech(false);
+    setCustomCellTechInput('');
+    setShowAddModuleModal(true);
+  };
+
+  const handleToggleArchiveModule = (mod) => {
+    const isCurrentlyArchived = !!mod.isArchived;
+    const confirmMsg = isCurrentlyArchived
+      ? `Restore and unarchive ${mod.brand} ${mod.model} to active dealer catalog?`
+      : `Archive ${mod.brand} ${mod.model}? It will be hidden from dealer quotation selection.`;
+
+    if (window.confirm(confirmMsg)) {
+      const updated = { ...mod, isArchived: !isCurrentlyArchived };
+      if (setModulesList) {
+        setModulesList(prev => prev.map(m => m.id === mod.id ? updated : m));
+      }
+      if (addNotification) {
+        addNotification({
+          type: isCurrentlyArchived ? 'success' : 'warning',
+          icon: isCurrentlyArchived ? 'unarchive' : 'archive',
+          title: isCurrentlyArchived ? `Solar Module Restored: ${mod.brand} ${mod.model}` : `Solar Module Archived: ${mod.brand} ${mod.model}`,
+          description: isCurrentlyArchived
+            ? `${mod.brand} ${mod.model} re-enabled for all dealer proposals.`
+            : `${mod.brand} ${mod.model} archived and disabled from dealer quotation selection.`,
+          audience: 'all'
+        });
+      }
+      triggerToast(isCurrentlyArchived ? `Restored ${mod.brand} ${mod.model}!` : `Archived ${mod.brand} ${mod.model}`);
+    }
+  };
+
+  const handleSaveModule = (e) => {
+    e.preventDefault();
+    if (!moduleForm.brand.trim() || !moduleForm.model.trim()) return;
+
+    let finalCellTech = moduleForm.cellTech;
+    if (isCustomCellTech && customCellTechInput.trim()) {
+      finalCellTech = customCellTechInput.trim();
+      if (!customCellTechs.includes(finalCellTech)) {
+        const updatedTechs = [...customCellTechs, finalCellTech];
+        setCustomCellTechs(updatedTechs);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('sunvine_custom_cell_techs', JSON.stringify(updatedTechs));
+          } catch (_) {}
+        }
+      }
+    }
+
+    const wattageNum = Number(moduleForm.wattage) || 550;
+    const rateClean = String(moduleForm.ratePerWp).replace(/[^0-9.]/g, '') || '19.20';
+    const rateFormatted = `₹ ${rateClean}/Wp`;
+
+    if (editingModule) {
+      const updatedMod = {
+        ...editingModule,
+        brand: moduleForm.brand.trim(),
+        model: moduleForm.model.trim(),
+        cellTech: finalCellTech,
+        wattage: wattageNum,
+        efficiency: moduleForm.efficiency.trim() || '22.6%',
+        ratePerWp: rateFormatted,
+        warranty: moduleForm.warranty.trim() || '30 Years Performance',
+        dimensions: moduleForm.dimensions?.trim() || editingModule.dimensions || '2278 × 1134 × 30 mm | 28 kg'
+      };
+
+      if (setModulesList) {
+        setModulesList(prev => prev.map(m => m.id === editingModule.id ? updatedMod : m));
+      }
+      if (addNotification) {
+        addNotification({
+          type: 'success',
+          icon: 'solar_power',
+          title: `Updated Solar Module: ${updatedMod.brand} ${updatedMod.model}`,
+          description: `${updatedMod.wattage}W (${updatedMod.cellTech}) specifications updated in catalog.`,
+          audience: 'all',
+          targetTab: 'create_quote'
+        });
+      }
+      triggerToast(`Updated ${updatedMod.brand} ${updatedMod.model}!`);
+    } else {
+      const newMod = {
+        id: `mod-${Date.now()}`,
+        brand: moduleForm.brand.trim(),
+        model: moduleForm.model.trim(),
+        cellTech: finalCellTech,
+        wattage: wattageNum,
+        efficiency: moduleForm.efficiency.trim() || '22.6%',
+        ratePerWp: rateFormatted,
+        warranty: moduleForm.warranty.trim() || '30 Years Performance',
+        dimensions: moduleForm.dimensions?.trim() || '2278 × 1134 × 30 mm | 28 kg',
+        isNew: true,
+        createdAt: Date.now()
+      };
+
+      if (setModulesList) {
+        setModulesList(prev => [newMod, ...(prev || [])]);
+      }
+      if (addNotification) {
+        addNotification({
+          type: 'success',
+          icon: 'solar_power',
+          title: `New Solar Module Added: ${newMod.brand} ${newMod.model}`,
+          description: `High-efficiency ${newMod.wattage}W (${newMod.cellTech}) published and available for dealer quotations.`,
+          audience: 'all',
+          targetTab: 'create_quote'
+        });
+      }
+      triggerToast(`Added ${newMod.brand} ${newMod.model} to catalog!`);
+    }
+
+    setShowAddModuleModal(false);
+    setEditingModule(null);
+    setIsCustomCellTech(false);
+    setCustomCellTechInput('');
+  };
+
+  const getInverterCapacityText = (inv) => {
+    if (inv?.capacity) {
+      return String(inv.capacity).toLowerCase().includes('kw') ? inv.capacity : `${inv.capacity} kW`;
+    }
+    if (inv?.capacityKW !== undefined && inv?.capacityKW !== null) {
+      return `${inv.capacityKW} kW`;
+    }
+    const match = inv?.model?.match(/(\d+(?:\.\d+)?)\s*KW/i);
+    if (match) {
+      return `${match[1]} kW`;
+    }
+    return '-';
   };
 
   const handleSaveInverter = (e) => {
     e.preventDefault();
     if (!inverterForm.brand.trim() || !inverterForm.model.trim()) return;
+    const rawCap = inverterForm.capacity?.trim() || '5.0 kW';
+    const formattedCap = rawCap.toLowerCase().includes('kw') ? rawCap : `${rawCap} kW`;
+    const numCap = parseFloat(rawCap.replace(/[^0-9.]/g, '')) || 5.0;
+
     const newInv = {
       id: `inv-${Date.now()}`,
       brand: inverterForm.brand.trim(),
       model: inverterForm.model.trim(),
-      capacity: inverterForm.capacity,
+      capacity: formattedCap,
+      capacityKW: numCap,
       phase: inverterForm.phase,
       efficiency: inverterForm.efficiency,
       warranty: inverterForm.warranty
@@ -96,6 +266,7 @@ export default function HardwareMaster() {
         icon: 'bolt',
         title: `New Inverter Added: ${newInv.brand} ${newInv.model}`,
         description: `${newInv.capacity} (${newInv.phase}) solar inverter published to hardware catalog.`,
+        audience: 'all',
         targetTab: 'hardware_master'
       });
     }
@@ -111,6 +282,271 @@ export default function HardwareMaster() {
     });
   };
 
+  // ==========================================
+  // HARDWARE CATALOG CONTROLS (SR-22)
+  // ==========================================
+
+  // 1. Export Ledger to CSV
+  const handleExportLedger = () => {
+    try {
+      const dateStr = new Date().toISOString().slice(0, 10);
+      let csv = '=== SUNVINE RENEWABLE ENERGY - SOLAR HARDWARE CATALOG ===\n';
+      csv += `Export Date: ${new Date().toLocaleString('en-IN')}\n\n`;
+
+      // 1. Solar Modules
+      csv += '--- APPROVED SOLAR PHOTOVOLTAIC MODULES ---\n';
+      csv += 'Brand,Model,Cell Technology,Rated Wattage (Wp),Efficiency,Benchmark Rate (₹/Wp),Product & Power Warranty,Physical Dimensions,Status\n';
+      (modulesList || []).forEach(m => {
+        const row = [
+          `"${(m.brand || '').replace(/"/g, '""')}"`,
+          `"${(m.model || '').replace(/"/g, '""')}"`,
+          `"${(m.cellTech || '').replace(/"/g, '""')}"`,
+          m.wattage || '',
+          `"${(m.efficiency || '').replace(/"/g, '""')}"`,
+          `"${(m.ratePerWp || '').replace(/"/g, '""')}"`,
+          `"${(m.warranty || '').replace(/"/g, '""')}"`,
+          `"${(m.dimensions || '').replace(/"/g, '""')}"`,
+          m.isArchived ? 'Archived' : 'Active'
+        ];
+        csv += row.join(',') + '\n';
+      });
+
+      // 2. Solar Inverters
+      csv += '\n--- APPROVED SOLAR STRING INVERTERS ---\n';
+      csv += 'Brand,Model / Series,Rated Capacity (kW),Phase Topology,Peak Efficiency,Manufacturer Warranty,Status\n';
+      (invertersList || []).forEach(inv => {
+        const row = [
+          `"${(inv.brand || '').replace(/"/g, '""')}"`,
+          `"${(inv.model || '').replace(/"/g, '""')}"`,
+          `"${getInverterCapacityText(inv).replace(/"/g, '""')}"`,
+          `"${(inv.phase || '').replace(/"/g, '""')}"`,
+          `"${(inv.efficiency || '').replace(/"/g, '""')}"`,
+          `"${(inv.warranty || '').replace(/"/g, '""')}"`,
+          inv.isArchived ? 'Archived' : 'Active'
+        ];
+        csv += row.join(',') + '\n';
+      });
+
+      // 3. BOM Specs
+      if (pdfBomSpecs && pdfBomSpecs.length > 0) {
+        csv += '\n--- BILL OF MATERIALS (BOM) BENCHMARK SPECIFICATIONS ---\n';
+        csv += 'Component Category,Item Description & Make,Specification & Standard,Benchmark Scope\n';
+        pdfBomSpecs.forEach(b => {
+          const row = [
+            `"${(b.category || '').replace(/"/g, '""')}"`,
+            `"${(b.item || '').replace(/"/g, '""')}"`,
+            `"${(b.spec || '').replace(/"/g, '""')}"`,
+            `"${(b.scope || 'Turnkey EPC Scope').replace(/"/g, '""')}"`
+          ];
+          csv += row.join(',') + '\n';
+        });
+      }
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Sunvine_Solar_Hardware_Catalog_${dateStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      triggerToast('Hardware catalog inventory spreadsheet exported successfully!');
+    } catch (err) {
+      console.error(err);
+      triggerToast('Failed to export catalog spreadsheet');
+    }
+  };
+
+  // 2. Download Sample CSV Template for Import
+  const handleDownloadSampleCsvTemplate = () => {
+    const csv = `Brand,Model,Cell Technology,Rated Wattage,Efficiency,Rate Per Wp,Warranty,Dimensions
+Waaree,585W TOPCon Bifacial,N-Type TOPCon,585,22.6%,19.50,30 Years Performance,2278 × 1134 × 30 mm | 28 kg
+Rayzone,600W Bi-Fi Elite,TOPCon Mono Bifacial,600,22.8%,19.80,30 Years Performance,2278 × 1134 × 30 mm | 28 kg
+Adani Solar,550W Vertex Dual Glass,Mono PERC,550,21.5%,18.90,25 Years Performance,2278 × 1134 × 30 mm | 28 kg`;
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'sunvine_hardware_import_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    triggerToast('Sample CSV template downloaded!');
+  };
+
+  // 3. File upload and parse handler for Import
+  const handleFileSelect = (e) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+
+    setImportFileName(file.name);
+    setImportError('');
+    setImportedPreviewItems([]);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const text = evt.target?.result;
+        if (!text || typeof text !== 'string') {
+          setImportError('File is empty or unreadable.');
+          return;
+        }
+
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('===') && !l.startsWith('---'));
+        if (lines.length < 2) {
+          setImportError('No valid data rows found in file.');
+          return;
+        }
+
+        const headerLine = lines[0];
+        const delimiter = headerLine.includes('\t') ? '\t' : ',';
+        const headers = headerLine.split(delimiter).map(h => h.replace(/^["']|["']$/g, '').trim().toLowerCase());
+
+        const brandIdx = headers.findIndex(h => h.includes('brand') || h.includes('oem') || h.includes('make'));
+        const modelIdx = headers.findIndex(h => h.includes('model') || h.includes('series'));
+        const cellTechIdx = headers.findIndex(h => h.includes('cell') || h.includes('tech'));
+        const wattIdx = headers.findIndex(h => h.includes('watt') || h.includes('capacity') || h.includes('power'));
+        const effIdx = headers.findIndex(h => h.includes('eff'));
+        const rateIdx = headers.findIndex(h => h.includes('rate') || h.includes('price') || h.includes('wp'));
+        const warIdx = headers.findIndex(h => h.includes('war'));
+        const dimIdx = headers.findIndex(h => h.includes('dim'));
+
+        if (brandIdx === -1 || modelIdx === -1) {
+          setImportError('Could not find required "Brand" and "Model" header columns in CSV.');
+          return;
+        }
+
+        const parsed = [];
+        for (let i = 1; i < lines.length; i++) {
+          const rawRow = lines[i];
+          const cols = rawRow.split(delimiter).map(c => c.replace(/^["']|["']$/g, '').trim());
+          if (cols.length < 2 || !cols[brandIdx] || !cols[modelIdx]) continue;
+
+          const brand = cols[brandIdx];
+          const model = cols[modelIdx];
+          const cellTech = cellTechIdx >= 0 && cols[cellTechIdx] ? cols[cellTechIdx] : 'N-Type TOPCon';
+          const wattage = wattIdx >= 0 && cols[wattIdx] ? parseFloat(cols[wattIdx].replace(/[^0-9.]/g, '')) || 585 : 585;
+          const efficiency = effIdx >= 0 && cols[effIdx] ? cols[effIdx] : '22.6%';
+          const rawRate = rateIdx >= 0 && cols[rateIdx] ? parseFloat(cols[rateIdx].replace(/[^0-9.]/g, '')) || 19.50 : 19.50;
+          const warranty = warIdx >= 0 && cols[warIdx] ? cols[warIdx] : '30 Years Performance';
+          const dimensions = dimIdx >= 0 && cols[dimIdx] ? cols[dimIdx] : '2278 × 1134 × 30 mm | 28 kg';
+
+          parsed.push({
+            id: `mod-imp-${Date.now()}-${i}`,
+            brand,
+            model,
+            cellTech,
+            wattage,
+            efficiency,
+            ratePerWp: `₹ ${rawRate.toFixed(2)}`,
+            warranty,
+            dimensions,
+            isNew: true,
+            createdAt: Date.now()
+          });
+        }
+
+        if (parsed.length === 0) {
+          setImportError('No valid module specifications could be parsed from this file.');
+          return;
+        }
+
+        setImportedPreviewItems(parsed);
+      } catch (err) {
+        console.error(err);
+        setImportError('Error parsing file: ' + err.message);
+      }
+    };
+    reader.onerror = () => setImportError('Failed to read selected file.');
+    reader.readAsText(file);
+  };
+
+  const handleConfirmImport = () => {
+    if (importedPreviewItems.length === 0) return;
+
+    if (setModulesList) {
+      setModulesList(prev => [...importedPreviewItems, ...(prev || [])]);
+    }
+    if (addNotification) {
+      addNotification({
+        type: 'success',
+        icon: 'upload_file',
+        title: `Imported ${importedPreviewItems.length} Module Specifications`,
+        description: `Catalog bulk imported from ${importFileName || 'file'}. Ready for dealer quotations.`,
+        audience: 'all',
+        targetTab: 'create_quote'
+      });
+    }
+
+    triggerToast(`Successfully imported ${importedPreviewItems.length} module specifications!`);
+    setShowImportModal(false);
+    setImportedPreviewItems([]);
+    setImportFileName('');
+    setImportError('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // 4. Bulk Price Update Handlers
+  const handleOpenBulkPriceModal = () => {
+    const initialRates = {};
+    (modulesList || []).forEach(m => {
+      const cleanRate = parseFloat(String(m.ratePerWp || '19.20').replace(/[^0-9.]/g, '')) || 19.20;
+      initialRates[m.id] = cleanRate;
+    });
+    setBulkRates(initialRates);
+    setBulkAdjustmentValue('');
+    setShowBulkPriceModal(true);
+  };
+
+  const handleApplyBulkAdjustment = () => {
+    const val = parseFloat(bulkAdjustmentValue);
+    if (isNaN(val) || val === 0) return;
+
+    setBulkRates(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(id => {
+        const current = next[id];
+        if (bulkAdjustmentType === 'percent') {
+          next[id] = Math.round((current * (1 + val / 100)) * 100) / 100;
+        } else {
+          next[id] = Math.max(1, Math.round((current + val) * 100) / 100);
+        }
+      });
+      return next;
+    });
+    triggerToast(`Applied ${val > 0 ? '+' : ''}${val}${bulkAdjustmentType === 'percent' ? '%' : ' ₹/Wp'} across all modules!`);
+  };
+
+  const handleSaveBulkPrices = () => {
+    if (setModulesList) {
+      setModulesList(prev => (prev || []).map(m => {
+        if (bulkRates[m.id] !== undefined) {
+          return {
+            ...m,
+            ratePerWp: `₹ ${Number(bulkRates[m.id]).toFixed(2)}`
+          };
+        }
+        return m;
+      }));
+    }
+    if (addNotification) {
+      addNotification({
+        type: 'info',
+        icon: 'price_change',
+        title: 'Bulk Module Pricing Updated',
+        description: `Admin updated benchmark rates for ${(modulesList || []).length} modules. Synced to all dealer portals.`,
+        audience: 'all',
+        targetTab: 'create_quote'
+      });
+    }
+    setShowBulkPriceModal(false);
+    triggerToast(`Bulk pricing saved across ${(modulesList || []).length} solar modules!`);
+  };
+
   // Filtered lists
   const filteredModules = (modulesList || []).filter(mod => {
     const term = moduleSearch.toLowerCase();
@@ -119,6 +555,8 @@ export default function HardwareMaster() {
                       (mod.cellTech && mod.cellTech.toLowerCase().includes(term)) ||
                       String(mod.wattage).includes(term);
     if (!matchText) return false;
+    if (moduleFilter === 'archived') return !!mod.isArchived;
+    if (moduleFilter !== 'all' && mod.isArchived) return false;
     if (moduleFilter === 'topcon' && !(mod.cellTech || '').toLowerCase().includes('topcon')) return false;
     if (moduleFilter === 'perc' && !(mod.cellTech || '').toLowerCase().includes('perc')) return false;
     if (moduleFilter === 'commercial' && Number(mod.wattage) < 585) return false;
@@ -127,9 +565,10 @@ export default function HardwareMaster() {
 
   const filteredInverters = (invertersList || []).filter(inv => {
     const term = inverterSearch.toLowerCase();
+    const capText = getInverterCapacityText(inv).toLowerCase();
     const matchText = (inv.brand && inv.brand.toLowerCase().includes(term)) ||
                       (inv.model && inv.model.toLowerCase().includes(term)) ||
-                      (inv.capacity && inv.capacity.toLowerCase().includes(term));
+                      capText.includes(term);
     if (!matchText) return false;
     if (inverterFilter === 'single' && !(inv.phase || '').toLowerCase().includes('1-phase')) return false;
     if (inverterFilter === 'three' && !(inv.phase || '').toLowerCase().includes('3-phase')) return false;
@@ -172,16 +611,31 @@ export default function HardwareMaster() {
         </div>
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+          {/* Hidden file input for CSV/Excel import */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xls,.xlsx,.txt"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
           <button
-            onClick={() => triggerToast('Hardware specifications export initiated')}
-            className="flex items-center gap-1.5 px-3 py-2 border border-surface-container-highest bg-surface-container-lowest text-inverse-surface font-label-md rounded-lg hover:bg-surface-container-low transition-colors shadow-sm text-xs sm:text-sm"
+            type="button"
+            onClick={() => {
+              setImportedPreviewItems([]);
+              setImportFileName('');
+              setImportError('');
+              setShowImportModal(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 border border-surface-container-highest bg-surface-container-lowest text-inverse-surface font-label-md rounded-lg hover:bg-surface-container-low transition-colors shadow-sm text-xs sm:text-sm cursor-pointer"
           >
-            <span className="material-symbols-outlined text-secondary">file_download</span>
-            <span>Import Specs (Excel)</span>
+            <span className="material-symbols-outlined text-secondary">upload_file</span>
+            <span>Import Specs (CSV)</span>
           </button>
           <button
-            onClick={() => triggerToast('Bulk price revision opened')}
-            className="flex items-center gap-1.5 px-3 py-2 border border-surface-container-highest bg-surface-container-lowest text-inverse-surface font-label-md rounded-lg hover:bg-surface-container-low transition-colors shadow-sm text-xs sm:text-sm"
+            type="button"
+            onClick={handleOpenBulkPriceModal}
+            className="flex items-center gap-1.5 px-3 py-2 border border-surface-container-highest bg-surface-container-lowest text-inverse-surface font-label-md rounded-lg hover:bg-surface-container-low transition-colors shadow-sm text-xs sm:text-sm cursor-pointer"
           >
             <span className="material-symbols-outlined text-secondary">price_change</span>
             <span>Bulk Price Update</span>
@@ -194,7 +648,7 @@ export default function HardwareMaster() {
             <span>+ Add Inverter Model</span>
           </button>
           <button
-            onClick={() => setShowAddModuleModal(true)}
+            onClick={handleOpenAddModule}
             className="flex items-center gap-1.5 px-4 py-2 bg-primary-container hover:bg-primary text-on-primary font-label-md font-bold rounded-lg shadow-sm transition-colors cursor-pointer text-xs sm:text-sm"
           >
             <span className="material-symbols-outlined">add_circle</span>
@@ -318,8 +772,9 @@ export default function HardwareMaster() {
           </button>
         </div>
         <button
-          onClick={() => triggerToast('Exported catalog inventory spreadsheet')}
-          className="flex items-center gap-1.5 text-primary font-label-md hover:underline self-end sm:self-center shrink-0"
+          type="button"
+          onClick={handleExportLedger}
+          className="flex items-center gap-1.5 text-primary font-label-md hover:underline self-end sm:self-center shrink-0 cursor-pointer"
         >
           <span className="material-symbols-outlined">download</span>
           <span>Export Ledger</span>
@@ -367,6 +822,12 @@ export default function HardwareMaster() {
                 className={`px-3 py-1 rounded-full text-label-xs font-medium border ${moduleFilter === 'commercial' ? 'bg-inverse-surface text-surface-container-lowest' : 'bg-surface-container-low text-secondary border-surface-container-highest'}`}
               >
                 High Wattage (≥ 585W)
+              </button>
+              <button
+                onClick={() => setModuleFilter('archived')}
+                className={`px-3 py-1 rounded-full text-label-xs font-medium border ${moduleFilter === 'archived' ? 'bg-inverse-surface text-surface-container-lowest' : 'bg-surface-container-low text-secondary border-surface-container-highest'}`}
+              >
+                Archived ({(modulesList || []).filter(m => m.isArchived).length})
               </button>
             </div>
           </div>
@@ -418,14 +879,32 @@ export default function HardwareMaster() {
                       </td>
                       <td className="px-4 py-3 text-body-sm text-secondary">{mod.warranty || '30 Years Performance'}</td>
                       <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
-                          <span className="w-2 h-2 rounded-full bg-primary-container"></span> Active
-                        </span>
+                        {mod.isArchived ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-secondary">
+                            <span className="w-2 h-2 rounded-full bg-secondary/60"></span> Archived
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
+                            <span className="w-2 h-2 rounded-full bg-primary-container"></span> Active
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5 text-secondary">
-                          <button className="p-1 hover:text-inverse-surface transition-colors" title="Edit Spec"><span className="material-symbols-outlined">edit</span></button>
-                          <button className="p-1 hover:text-error transition-colors" title="Archive Spec"><span className="material-symbols-outlined">archive</span></button>
+                          <button
+                            onClick={() => handleEditModule(mod)}
+                            className="p-1 hover:text-inverse-surface transition-colors cursor-pointer"
+                            title="Edit Spec"
+                          >
+                            <span className="material-symbols-outlined">edit</span>
+                          </button>
+                          <button
+                            onClick={() => handleToggleArchiveModule(mod)}
+                            className={`p-1 transition-colors cursor-pointer ${mod.isArchived ? 'hover:text-primary text-secondary' : 'hover:text-error'}`}
+                            title={mod.isArchived ? 'Restore to Catalog' : 'Archive Spec'}
+                          >
+                            <span className="material-symbols-outlined">{mod.isArchived ? 'unarchive' : 'archive'}</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -509,7 +988,7 @@ export default function HardwareMaster() {
                         </div>
                       </td>
                       <td className="px-4 py-3 font-semibold text-inverse-surface">{inv.model}</td>
-                      <td className="px-4 py-3 text-right font-bold text-inverse-surface font-mono">{inv.capacity}</td>
+                      <td className="px-4 py-3 text-right font-bold text-inverse-surface font-mono">{getInverterCapacityText(inv)}</td>
                       <td className="px-4 py-3">
                         <span className="inline-block px-2 py-0.5 rounded-full text-label-xs font-semibold bg-surface-container-high text-on-surface">
                           {inv.phase || '3-Phase'}
@@ -654,10 +1133,15 @@ export default function HardwareMaster() {
                 <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
                   <span className="material-symbols-outlined text-[20px]">solar_power</span>
                 </span>
-                <h3 className="font-headline-sm text-lg font-bold text-on-surface">Add Solar PV Module</h3>
+                <h3 className="font-headline-sm text-lg font-bold text-on-surface">
+                  {editingModule ? 'Edit Solar PV Module' : 'Add Solar PV Module'}
+                </h3>
               </div>
               <button
-                onClick={() => setShowAddModuleModal(false)}
+                onClick={() => {
+                  setShowAddModuleModal(false);
+                  setEditingModule(null);
+                }}
                 className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-secondary cursor-pointer"
               >
                 <span className="material-symbols-outlined text-xl">close</span>
@@ -724,24 +1208,84 @@ export default function HardwareMaster() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-secondary mb-1">Dimensions &amp; Weight</label>
+                  <input
+                    type="text"
+                    value={moduleForm.dimensions}
+                    onChange={(e) => setModuleForm({ ...moduleForm, dimensions: e.target.value })}
+                    placeholder="e.g. 2278 × 1134 × 30 mm | 28 kg"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-surface-container-highest bg-surface-container-lowest focus:ring-1 focus:ring-primary-container"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-secondary mb-1">Performance Warranty</label>
+                  <input
+                    type="text"
+                    value={moduleForm.warranty}
+                    onChange={(e) => setModuleForm({ ...moduleForm, warranty: e.target.value })}
+                    placeholder="e.g. 30 Years Performance"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-surface-container-highest bg-surface-container-lowest focus:ring-1 focus:ring-primary-container"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-xs font-semibold text-secondary mb-1">Cell Tech</label>
-                <select
-                  value={moduleForm.cellTech}
-                  onChange={(e) => setModuleForm({ ...moduleForm, cellTech: e.target.value })}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-surface-container-highest bg-surface-container-lowest focus:ring-1 focus:ring-primary-container"
-                >
-                  <option value="TOPCon Mono Bifacial">TOPCon Mono Bifacial (Recommended)</option>
-                  <option value="Mono PERC">Mono PERC Half-Cut</option>
-                  <option value="HJT Ultra-Efficiency">HJT Ultra-Efficiency</option>
-                  <option value="Polycrystalline DCR">Polycrystalline DCR</option>
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-secondary">Cell Technology *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomCellTech(!isCustomCellTech);
+                      if (!isCustomCellTech) setCustomCellTechInput('');
+                    }}
+                    className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    {isCustomCellTech ? '← Choose from standard' : '+ Custom Technology'}
+                  </button>
+                </div>
+                {isCustomCellTech ? (
+                  <input
+                    type="text"
+                    required
+                    value={customCellTechInput}
+                    onChange={(e) => setCustomCellTechInput(e.target.value)}
+                    placeholder="e.g. Perovskite Tandem / BC IBC"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-surface-container-highest bg-surface-container-lowest focus:ring-1 focus:ring-primary-container"
+                  />
+                ) : (
+                  <select
+                    value={moduleForm.cellTech}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setIsCustomCellTech(true);
+                        setCustomCellTechInput('');
+                      } else {
+                        setModuleForm({ ...moduleForm, cellTech: e.target.value });
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-surface-container-highest bg-surface-container-lowest focus:ring-1 focus:ring-primary-container"
+                  >
+                    <option value="TOPCon Mono Bifacial">TOPCon Mono Bifacial (Recommended)</option>
+                    <option value="Mono PERC">Mono PERC Half-Cut</option>
+                    <option value="HJT Ultra-Efficiency">HJT Ultra-Efficiency</option>
+                    <option value="Polycrystalline DCR">Polycrystalline DCR</option>
+                    {customCellTechs.filter(t => !['TOPCon Mono Bifacial', 'Mono PERC', 'HJT Ultra-Efficiency', 'Polycrystalline DCR'].includes(t)).map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                    <option value="__custom__">+ Enter Custom Cell Tech...</option>
+                  </select>
+                )}
               </div>
 
               <div className="pt-3 border-t border-surface-container-high flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddModuleModal(false)}
+                  onClick={() => {
+                    setShowAddModuleModal(false);
+                    setEditingModule(null);
+                  }}
                   className="px-4 py-2 text-xs font-semibold text-secondary hover:bg-surface-container-low rounded-lg transition-colors cursor-pointer"
                 >
                   Cancel
@@ -750,7 +1294,7 @@ export default function HardwareMaster() {
                   type="submit"
                   className="px-4 py-2 text-xs font-bold bg-primary-container text-surface-container-lowest hover:bg-primary rounded-lg transition-all shadow-sm cursor-pointer"
                 >
-                  Publish to Catalog &amp; Notify Dealers
+                  {editingModule ? 'Save Changes' : 'Publish to Catalog & Notify Dealers'}
                 </button>
               </div>
             </form>
@@ -855,6 +1399,314 @@ export default function HardwareMaster() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================= */}
+      {/* IMPORT SPECS MODAL (SR-22)                                     */}
+      {/* ============================================================= */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-surface-container-lowest rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-surface-container-highest animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-surface-container-low shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-primary-container/15 text-primary flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-2xl">upload_file</span>
+                </div>
+                <div>
+                  <h3 className="font-headline-sm text-base sm:text-lg font-bold text-on-surface">
+                    Import Module Specifications
+                  </h3>
+                  <p className="text-xs text-secondary mt-0.5">
+                    Upload a CSV file with Brand, Model, Cell Tech, Wattage, Rate per Wp, and Warranty columns.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-secondary cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4 overflow-y-auto flex-1">
+              {/* Upload Zone */}
+              <div
+                className="border-2 border-dashed border-surface-container-highest rounded-xl p-6 text-center flex flex-col items-center gap-3 hover:border-primary/50 transition-colors cursor-pointer bg-surface-container-low/40"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <span className="material-symbols-outlined text-4xl text-secondary">cloud_upload</span>
+                <div>
+                  <p className="font-bold text-on-surface text-sm">
+                    {importFileName ? importFileName : 'Click to Select CSV / Excel File'}
+                  </p>
+                  <p className="text-xs text-secondary mt-1">
+                    Supports .csv, .xlsx, .xls, .txt · Max 5 MB
+                  </p>
+                </div>
+                {importFileName && !importError && importedPreviewItems.length === 0 && (
+                  <span className="text-xs text-amber-600 font-semibold">Parsing file…</span>
+                )}
+              </div>
+
+              {/* Error Banner */}
+              {importError && (
+                <div className="p-3 rounded-xl bg-error/10 border border-error/20 flex items-start gap-2 text-error text-xs">
+                  <span className="material-symbols-outlined text-base shrink-0 mt-0.5">error</span>
+                  <span>{importError}</span>
+                </div>
+              )}
+
+              {/* Preview Table */}
+              {importedPreviewItems.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-on-surface">
+                      Preview: {importedPreviewItems.length} module{importedPreviewItems.length > 1 ? 's' : ''} parsed
+                    </p>
+                    <span className="text-[11px] text-secondary">Confirm below to add to catalog</span>
+                  </div>
+                  <div className="overflow-x-auto border border-surface-container-highest rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse min-w-[560px]">
+                      <thead>
+                        <tr className="bg-surface-container-low text-secondary font-semibold uppercase tracking-wide text-[11px]">
+                          <th className="px-3 py-2">Brand</th>
+                          <th className="px-3 py-2">Model</th>
+                          <th className="px-3 py-2">Cell Tech</th>
+                          <th className="px-3 py-2 text-right">Wp</th>
+                          <th className="px-3 py-2 text-right">₹/Wp</th>
+                          <th className="px-3 py-2">Warranty</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-surface-container-highest text-on-surface">
+                        {importedPreviewItems.slice(0, 8).map((item, idx) => (
+                          <tr key={idx} className="hover:bg-surface-container-low/50 transition-colors">
+                            <td className="px-3 py-2 font-semibold">{item.brand}</td>
+                            <td className="px-3 py-2">{item.model}</td>
+                            <td className="px-3 py-2 text-secondary">{item.cellTech}</td>
+                            <td className="px-3 py-2 text-right font-mono">{item.wattage}W</td>
+                            <td className="px-3 py-2 text-right font-mono text-primary">{item.ratePerWp}</td>
+                            <td className="px-3 py-2 text-secondary">{item.warranty}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {importedPreviewItems.length > 8 && (
+                      <div className="px-3 py-2 text-xs text-secondary bg-surface-container-low border-t border-surface-container-highest">
+                        +{importedPreviewItems.length - 8} more modules not shown in preview
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-surface-container-low flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-secondary">
+                <span>Need the correct format?</span>
+                <button
+                  type="button"
+                  onClick={handleDownloadSampleCsvTemplate}
+                  className="inline-flex items-center gap-1 text-primary hover:underline font-semibold cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">download</span>
+                  <span>Download Sample CSV Template</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-surface-container-low flex items-center justify-end gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 rounded-lg border border-surface-container-highest text-secondary hover:text-on-surface text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 rounded-lg border border-surface-container-highest bg-surface-container-low text-on-surface text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-sm">folder_open</span>
+                <span>Browse File</span>
+              </button>
+              <button
+                type="button"
+                disabled={importedPreviewItems.length === 0}
+                onClick={handleConfirmImport}
+                className="px-4 py-2 rounded-lg bg-primary-container hover:bg-primary text-surface-container-lowest text-xs font-bold shadow-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">add_circle</span>
+                <span>Import {importedPreviewItems.length > 0 ? `${importedPreviewItems.length} Modules` : 'Modules'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================= */}
+      {/* BULK PRICE UPDATE MODAL (SR-22)                                */}
+      {/* ============================================================= */}
+      {showBulkPriceModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-surface-container-lowest rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-surface-container-highest animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-surface-container-low shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-primary-container/15 text-primary flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-2xl">price_change</span>
+                </div>
+                <div>
+                  <h3 className="font-headline-sm text-base sm:text-lg font-bold text-on-surface">
+                    Bulk Price Update
+                  </h3>
+                  <p className="text-xs text-secondary mt-0.5">
+                    Adjust benchmark ₹/Wp rates across all {(modulesList || []).length} solar modules at once.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBulkPriceModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-secondary cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4 overflow-y-auto flex-1">
+              {/* Global Adjustment Controls */}
+              <div className="p-4 rounded-xl bg-surface-container-low border border-surface-container-highest flex flex-col sm:flex-row sm:items-end gap-3">
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-on-surface">Adjustment Type</label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBulkAdjustmentType('percent')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer border ${
+                        bulkAdjustmentType === 'percent'
+                          ? 'bg-primary-container text-surface-container-lowest border-primary-container'
+                          : 'bg-surface-container-lowest border-surface-container-highest text-secondary'
+                      }`}
+                    >
+                      % Percentage
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBulkAdjustmentType('flat')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer border ${
+                        bulkAdjustmentType === 'flat'
+                          ? 'bg-primary-container text-surface-container-lowest border-primary-container'
+                          : 'bg-surface-container-lowest border-surface-container-highest text-secondary'
+                      }`}
+                    >
+                      ₹/Wp Flat Amount
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-end gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-secondary">
+                      {bulkAdjustmentType === 'percent' ? 'Change (%)' : 'Change (₹/Wp)'}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step={bulkAdjustmentType === 'percent' ? '0.5' : '0.10'}
+                        placeholder={bulkAdjustmentType === 'percent' ? '+5 or -3' : '+0.50'}
+                        value={bulkAdjustmentValue}
+                        onChange={(e) => setBulkAdjustmentValue(e.target.value)}
+                        className="w-36 h-9 px-3 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-bold text-on-surface focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!bulkAdjustmentValue || isNaN(parseFloat(bulkAdjustmentValue))}
+                    onClick={handleApplyBulkAdjustment}
+                    className="h-9 px-4 bg-primary-container hover:bg-primary text-surface-container-lowest text-xs font-bold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    Apply to All
+                  </button>
+                </div>
+              </div>
+
+              {/* Per-Module Rate Editor */}
+              <div className="border border-surface-container-highest rounded-xl overflow-hidden">
+                <div className="bg-surface-container-low px-4 py-2.5 border-b border-surface-container-highest flex items-center justify-between">
+                  <span className="text-xs font-bold text-on-surface uppercase tracking-wider">Module-by-Module Rate Editor</span>
+                  <span className="text-[11px] text-secondary">{(modulesList || []).length} modules</span>
+                </div>
+                <div className="overflow-y-auto max-h-64 divide-y divide-surface-container-highest">
+                  {(modulesList || []).filter(m => !m.isArchived).map((mod) => {
+                    const currentRate = bulkRates[mod.id] ?? parseFloat(String(mod.ratePerWp || '19.20').replace(/[^0-9.]/g, '')) ?? 19.20;
+                    const originalRate = parseFloat(String(mod.ratePerWp || '19.20').replace(/[^0-9.]/g, '')) || 19.20;
+                    const changed = Math.abs(currentRate - originalRate) > 0.001;
+                    return (
+                      <div key={mod.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-surface-container-low/50 transition-colors">
+                        <div className="min-w-0 flex-1 pr-3">
+                          <div className="font-semibold text-on-surface text-xs truncate">
+                            {mod.brand} {mod.model}
+                          </div>
+                          <div className="text-[11px] text-secondary mt-0.5">
+                            {mod.wattage}W · {mod.cellTech}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {changed && (
+                            <span className="text-[10px] text-secondary line-through font-mono">₹{originalRate.toFixed(2)}</span>
+                          )}
+                          <div className="relative flex items-center">
+                            <span className="absolute left-2 text-xs text-secondary font-mono pointer-events-none">₹</span>
+                            <input
+                              type="number"
+                              step="0.10"
+                              min="1"
+                              value={currentRate}
+                              onChange={(e) => setBulkRates(prev => ({
+                                ...prev,
+                                [mod.id]: parseFloat(e.target.value) || 0
+                              }))}
+                              className={`w-24 h-8 pl-6 pr-2 text-xs font-bold font-mono rounded-lg border focus:outline-none focus:border-primary transition-colors ${
+                                changed
+                                  ? 'border-primary-container bg-primary/5 text-primary'
+                                  : 'border-surface-container-highest bg-surface-container-lowest text-on-surface'
+                              }`}
+                            />
+                          </div>
+                          <span className="text-[11px] text-secondary font-mono w-10">/Wp</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-surface-container-low flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-secondary flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm text-amber-500">info</span>
+                Changes apply to all active dealer quotations immediately.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkPriceModal(false)}
+                  className="px-4 py-2 rounded-lg border border-surface-container-highest text-secondary hover:text-on-surface text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveBulkPrices}
+                  className="px-4 py-2 rounded-lg bg-primary-container hover:bg-primary text-surface-container-lowest text-xs font-bold shadow-sm cursor-pointer flex items-center gap-1.5 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">save</span>
+                  <span>Save & Publish Prices</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

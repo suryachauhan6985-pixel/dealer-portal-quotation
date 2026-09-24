@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 
 export default function DealerManagement() {
-  const { dealers, addDealer, toggleDealerStatus, updateDealerPassword, tierMargins, updateTierMargins, addNotification, setActiveTab } = useApp();
+  const { dealers, addDealer, updateDealer, toggleDealerStatus, updateDealerPassword, tierMargins, updateTierMargins, addNotification, setActiveTab } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTabFilter, setActiveTabFilter] = useState('all');
   const [discomFilter, setDiscomFilter] = useState('all');
@@ -10,6 +10,7 @@ export default function DealerManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingDealer, setEditingDealer] = useState(null);
   const [showTierModal, setShowTierModal] = useState(false);
 
   // Onboarding Form States
@@ -46,6 +47,12 @@ export default function DealerManagement() {
 
   // Tier Margins Quick Editor Form State
   const [tempTierMargins, setTempTierMargins] = useState(() => tierMargins || {});
+
+  useEffect(() => {
+    if (tierMargins && Object.keys(tierMargins).length > 0) {
+      setTempTierMargins(tierMargins);
+    }
+  }, [tierMargins]);
 
   const setNewGstin = (val) => {
     const upper = val.toUpperCase();
@@ -163,53 +170,54 @@ export default function DealerManagement() {
     document.body.removeChild(downloadLink);
   };
 
-  const handleCreateDealer = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    if (!newFirm.trim() || !newContact.trim() || !newMobile.trim()) {
-      setFormError('Please fill in required fields: Firm Name, Signatory, and Mobile Number.');
-      return;
-    }
+  const handleOpenAddDealer = () => {
+    setEditingDealer(null);
+    setNewFirm('');
+    setNewContact('');
+    setNewMobile('');
+    setNewEmail('');
+    setNewZone('Rajkot & Saurashtra Zone (Western Gujarat)');
+    setNewAddress('');
+    setNewGstinState('');
+    setNewPan('');
+    setNewDiscomCode('PGVCL-VND-2025-0845');
+    setNewTier('Gold EPC Partner (Quarterly Cap: 1.5 MW)');
+    setNewCap('5,000');
+    setNewPassword('Sunvine@2026');
+    setFormError('');
+    setShowAddModal(true);
+  };
 
-    const tierClean = newTier.includes('Diamond') ? 'Diamond EPC' :
-                      newTier.includes('Platinum') ? 'Platinum Tier' :
-                      newTier.includes('Silver') ? 'Silver Installer' : 'Gold EPC';
+  const handleEditDealer = (dealer) => {
+    setEditingDealer(dealer);
+    setNewFirm(dealer.firmName || '');
+    setNewContact(dealer.contactPerson || '');
+    setNewMobile(dealer.mobile || dealer.phone || '');
+    setNewEmail(dealer.email || '');
+    const zone = (dealer.city || '').toLowerCase().includes('surat') ? 'Surat & South Gujarat Hub' :
+                 (dealer.city || '').toLowerCase().includes('vadodara') ? 'Vadodara Industrial Corridor' :
+                 (dealer.city || '').toLowerCase().includes('ahmedabad') ? 'Ahmedabad Central & Gandhinagar' :
+                 (dealer.discom || '').toLowerCase().includes('ugvcl') ? 'North Gujarat Zone (UGVCL / Mehsana)' :
+                 'Rajkot & Saurashtra Zone (Western Gujarat)';
+    setNewZone(zone);
+    setNewAddress(dealer.address || '');
+    setNewGstinState(dealer.gstin || '');
+    setNewPan(dealer.pan || '');
+    setNewDiscomCode(dealer.discomLicense || dealer.gedaLicenseNo || 'PGVCL-VND-2025-0845');
 
-    const cleanCap = Number(String(newCap).replace(/[^0-9]/g, '')) || 5000;
+    const tierStr = (dealer.tier || '').toLowerCase().includes('diamond') ? 'Diamond EPC Partner (Quarterly Cap: > 5 MW)' :
+                    (dealer.tier || '').toLowerCase().includes('platinum') ? 'Platinum Tier (Quarterly Cap: > 3.0 MW)' :
+                    (dealer.tier || '').toLowerCase().includes('silver') ? 'Silver Installer (Quarterly Cap: 500 kW)' :
+                    'Gold EPC Partner (Quarterly Cap: 1.5 MW)';
+    setNewTier(tierStr);
+    setNewCap(dealer.maxMarginCapPerKw ? dealer.maxMarginCapPerKw.toLocaleString('en-IN') : '5,000');
+    setNewPassword(dealer.password || 'Sunvine@2026');
+    setFormError('');
+    setShowAddModal(true);
+  };
 
-    const newDealerObj = {
-      id: `SV-DLR-0${Math.floor(800 + Math.random() * 100)}`,
-      firmName: newFirm.trim(),
-      contactPerson: newContact.trim(),
-      mobile: newMobile.trim(),
-      email: newEmail.trim() || 'partner@sunvinedealer.in',
-      city: newZone.includes('Rajkot') ? 'Rajkot' : newZone.includes('Surat') ? 'Surat' : newZone.includes('Vadodara') ? 'Vadodara' : 'Ahmedabad',
-      state: 'Gujarat',
-      discom: newZone.includes('Rajkot') ? 'PGVCL Circle' : newZone.includes('Surat') ? 'DGVCL Circle' : newZone.includes('Vadodara') ? 'MGVCL Circle' : 'UGVCL Circle',
-      tier: tierClean,
-      maxMarginCapPerKw: cleanCap,
-      gstin: newGstin.trim() || '24AAECB1234F1Z5',
-      pan: newPan.trim() || (newGstin.trim() ? newGstin.trim().slice(2, 12) : 'AAECB1234F'),
-      totalQuotes: 0,
-      totalCapacityKw: 0,
-      status: 'Active',
-      joinedDate: new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date()),
-      password: newPassword.trim() || 'dealer123'
-    };
-
-    if (addDealer) {
-      addDealer(newDealerObj);
-    }
-    if (addNotification) {
-      addNotification({
-        title: 'New EPC Dealer Onboarded',
-        description: `${newFirm.trim()} (${tierClean}) added with assigned login credentials.`,
-        type: 'success',
-        icon: 'person_add',
-        audience: 'admin'
-      });
-    }
-
-    // Reset Form
+  const handleDiscardModal = () => {
+    setEditingDealer(null);
     setNewFirm('');
     setNewContact('');
     setNewMobile('');
@@ -222,6 +230,93 @@ export default function DealerManagement() {
     setShowAddModal(false);
   };
 
+  const handleSaveDealer = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!newFirm.trim() || !newContact.trim() || !newMobile.trim()) {
+      setFormError('Please fill in required fields: Firm Name, Signatory, and Mobile Number.');
+      return;
+    }
+
+    const tierClean = newTier.includes('Diamond') ? 'Diamond EPC' :
+                      newTier.includes('Platinum') ? 'Platinum Tier' :
+                      newTier.includes('Silver') ? 'Silver Installer' : 'Gold EPC';
+
+    const cleanCap = Number(String(newCap).replace(/[^0-9]/g, '')) || 5000;
+
+    const cityDerived = newZone.includes('Rajkot') ? 'Rajkot' : newZone.includes('Surat') ? 'Surat' : newZone.includes('Vadodara') ? 'Vadodara' : 'Ahmedabad';
+    const discomDerived = newZone.includes('Rajkot') ? 'PGVCL Circle' : newZone.includes('Surat') ? 'DGVCL Circle' : newZone.includes('Vadodara') ? 'MGVCL Circle' : 'UGVCL Circle';
+
+    if (editingDealer) {
+      const updatedDealerObj = {
+        ...editingDealer,
+        firmName: newFirm.trim(),
+        contactPerson: newContact.trim(),
+        mobile: newMobile.trim(),
+        email: newEmail.trim() || editingDealer.email || 'partner@sunvinedealer.in',
+        city: cityDerived,
+        state: 'Gujarat',
+        discom: discomDerived,
+        tier: tierClean,
+        maxMarginCapPerKw: cleanCap,
+        address: newAddress.trim() || editingDealer.address,
+        gstin: newGstin.trim() || editingDealer.gstin || '24AAECB1234F1Z5',
+        pan: newPan.trim() || (newGstin.trim() ? newGstin.trim().slice(2, 12) : editingDealer.pan || 'AAECB1234F'),
+        discomLicense: newDiscomCode.trim() || editingDealer.discomLicense || editingDealer.gedaLicenseNo,
+        password: newPassword.trim() || editingDealer.password || 'dealer123'
+      };
+
+      if (updateDealer) {
+        updateDealer(updatedDealerObj);
+      }
+      if (addNotification) {
+        addNotification({
+          title: 'Dealer Partner Updated',
+          description: `${newFirm.trim()} (${editingDealer.id}) profile was updated successfully.`,
+          type: 'success',
+          icon: 'edit',
+          audience: 'admin'
+        });
+      }
+    } else {
+      const newDealerObj = {
+        id: `SV-DLR-0${Math.floor(800 + Math.random() * 100)}`,
+        firmName: newFirm.trim(),
+        contactPerson: newContact.trim(),
+        mobile: newMobile.trim(),
+        email: newEmail.trim() || 'partner@sunvinedealer.in',
+        city: cityDerived,
+        state: 'Gujarat',
+        discom: discomDerived,
+        tier: tierClean,
+        maxMarginCapPerKw: cleanCap,
+        address: newAddress.trim(),
+        gstin: newGstin.trim() || '24AAECB1234F1Z5',
+        pan: newPan.trim() || (newGstin.trim() ? newGstin.trim().slice(2, 12) : 'AAECB1234F'),
+        discomLicense: newDiscomCode.trim(),
+        totalQuotes: 0,
+        totalCapacityKw: 0,
+        status: 'Active',
+        joinedDate: new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date()),
+        password: newPassword.trim() || 'dealer123'
+      };
+
+      if (addDealer) {
+        addDealer(newDealerObj);
+      }
+      if (addNotification) {
+        addNotification({
+          title: 'New EPC Dealer Onboarded',
+          description: `${newFirm.trim()} (${tierClean}) added with assigned login credentials.`,
+          type: 'success',
+          icon: 'person_add',
+          audience: 'admin'
+        });
+      }
+    }
+
+    handleDiscardModal();
+  };
+
   // If Onboarding Mode is Active, show exact Stitch Onboard Screen
   if (showAddModal) {
     return (
@@ -232,8 +327,8 @@ export default function DealerManagement() {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setShowAddModal(false)}
-                  className="inline-flex items-center gap-1 font-label-sm text-label-sm text-tertiary hover:text-primary transition-colors font-semibold"
+                  onClick={handleDiscardModal}
+                  className="inline-flex items-center gap-1 font-label-sm text-label-sm text-tertiary hover:text-primary transition-colors font-semibold cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[16px]">arrow_back</span>
                   <span>Back to Dealer Management</span>
@@ -249,38 +344,42 @@ export default function DealerManagement() {
                   </button>
                   <span>&gt;</span>
                   <button
-                    onClick={() => setShowAddModal(false)}
+                    onClick={handleDiscardModal}
                     className="hover:text-primary transition-colors cursor-pointer"
                     type="button"
                   >
                     Dealer Partners
                   </button>
                   <span>&gt;</span>
-                  <span className="text-on-surface font-semibold">Onboard New Partner</span>
+                  <span className="text-on-surface font-semibold">{editingDealer ? 'Edit Partner Profile' : 'Onboard New Partner'}</span>
                 </nav>
               </div>
               <h1 className="font-headline-lg text-headline-lg font-bold text-on-surface tracking-tight">
-                Onboard New EPC Dealer Partner
+                {editingDealer ? `Edit EPC Dealer Partner (${editingDealer.id})` : 'Onboard New EPC Dealer Partner'}
               </h1>
               <p className="font-body-md text-body-md text-secondary">
-                Create authorized dealer profile, configure margin caps, DISCOM empanelment, and issue authenticated portal credentials.
+                {editingDealer
+                  ? 'Update authorized dealer profile, configure margin caps, DISCOM empanelment, and manage portal credentials.'
+                  : 'Create authorized dealer profile, configure margin caps, DISCOM empanelment, and issue authenticated portal credentials.'}
               </p>
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 font-label-md text-label-md text-secondary hover:text-error transition-colors rounded-lg"
+                onClick={handleDiscardModal}
+                className="px-4 py-2 font-label-md text-label-md text-secondary hover:text-error transition-colors rounded-lg cursor-pointer"
                 type="button"
               >
                 Discard Changes
               </button>
               <button
-                onClick={handleCreateDealer}
-                className="px-4 py-2 bg-primary-container text-on-primary font-label-md text-label-md rounded-lg hover:bg-primary transition-colors shadow-sm flex items-center gap-1.5"
+                onClick={handleSaveDealer}
+                className="px-4 py-2 bg-primary-container text-on-primary font-label-md text-label-md rounded-lg hover:bg-primary transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">person_add</span>
-                <span>Save &amp; Onboard Partner</span>
+                <span className="material-symbols-outlined text-[18px]">
+                  {editingDealer ? 'save' : 'person_add'}
+                </span>
+                <span>{editingDealer ? 'Save & Update Partner' : 'Save & Onboard Partner'}</span>
               </button>
             </div>
           </div>
@@ -540,19 +639,21 @@ export default function DealerManagement() {
                   <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">System Credentials</h3>
                 </div>
                 <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-primary-container/20 text-primary border border-primary-container/30">
-                  AUTO-ALLOCATED
+                  {editingDealer ? 'ACTIVE RECORD' : 'AUTO-ALLOCATED'}
                 </span>
               </div>
               <div className="p-3.5 bg-surface-container-low rounded-lg border border-surface-container-highest flex items-center justify-between">
                 <div>
                   <span className="font-label-xs text-label-xs text-secondary uppercase tracking-wider block">Assigned Partner ID</span>
-                  <span className="font-headline-sm text-headline-sm font-bold font-mono text-on-surface">#SV-DLR-0845</span>
+                  <span className="font-headline-sm text-headline-sm font-bold font-mono text-on-surface">
+                    {editingDealer ? editingDealer.id : '#SV-DLR-0845'}
+                  </span>
                 </div>
                 <div className="text-right">
                   <span className="font-label-xs text-label-xs text-secondary block">Provisioning Status</span>
                   <span className="inline-flex items-center gap-1 font-label-xs text-label-xs font-bold text-primary">
                     <span className="w-1.5 h-1.5 rounded-full bg-primary-container animate-ping"></span>
-                    Ready to Dispatch
+                    {editingDealer ? 'Active Partner' : 'Ready to Dispatch'}
                   </span>
                 </div>
               </div>
@@ -607,12 +708,12 @@ export default function DealerManagement() {
                 </div>
               </div>
               <button
-                onClick={handleCreateDealer}
-                className="w-full h-11 bg-primary-container hover:bg-primary text-on-primary rounded-lg font-label-md font-semibold transition-colors shadow-sm flex items-center justify-center gap-2"
+                onClick={handleSaveDealer}
+                className="w-full h-11 bg-primary-container hover:bg-primary text-on-primary rounded-lg font-label-md font-semibold transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[20px]">how_to_reg</span>
-                <span>Confirm &amp; Issue Credentials</span>
+                <span className="material-symbols-outlined text-[20px]">{editingDealer ? 'save' : 'how_to_reg'}</span>
+                <span>{editingDealer ? 'Save & Update Partner' : 'Confirm & Issue Credentials'}</span>
               </button>
             </div>
           </div>
@@ -682,7 +783,7 @@ export default function DealerManagement() {
             <span>Export Directory</span>
           </button>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={handleOpenAddDealer}
             className="h-10 px-3.5 sm:px-4 bg-[#6CBF3D] hover:bg-[#4F9A2C] text-white font-label-md font-semibold rounded-lg transition-all duration-150 flex items-center gap-2 shadow-sm focus:ring-2 focus:ring-primary-container focus:ring-offset-2 text-xs sm:text-sm cursor-pointer"
             type="button"
           >
@@ -1038,8 +1139,8 @@ export default function DealerManagement() {
                             </span>
                           </button>
                           <button
-                            onClick={() => setShowAddModal(true)}
-                            className="w-7 h-7 rounded hover:bg-surface-container text-secondary hover:text-[#0F1B2E] transition-colors"
+                            onClick={() => handleEditDealer(d)}
+                            className="w-7 h-7 rounded hover:bg-surface-container text-secondary hover:text-[#0F1B2E] transition-colors cursor-pointer"
                             title="Edit Dealer Profile"
                           >
                             <span className="material-symbols-outlined text-[17px]">edit</span>

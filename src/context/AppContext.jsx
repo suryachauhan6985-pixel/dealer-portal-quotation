@@ -19,6 +19,20 @@ import {
 
 const DB_VERSION = 'sunvine_gujarat_ledger_200_v1';
 
+export const DEFAULT_GOVERNANCE_SETTINGS = {
+  enforceAlmm: true,
+  pmSuryaGharActive: true,
+  maxDealerMarginPerKW: 8000,
+  minDealerMarginPerKW: 0,
+  quoteExpiryDays: 15,
+  autoGedaSync: true,
+  requireAdminApprovalAboveKW: 100,
+  retentionMonths: 36,
+  discomApiStatus: 'Online - 12ms ping',
+  gedaSyncStatus: 'Connected (Hourly)',
+  lastBackupTimestamp: 'Today, 01:15 AM'
+};
+
 const AppContext = createContext();
 
 const TAB_TO_PATH = {
@@ -167,25 +181,31 @@ const safeSetItem = (key, value) => {
 
   // Master Pricing Presets (Configurable by Admin & synced with PDF)
   const [pricingMaster, setPricingMaster] = useState(() => {
-    if (!isDbUpToDate) return DEFAULT_PRICING_MASTER;
     return safeJsonParse('sunvine_pricing_master', DEFAULT_PRICING_MASTER);
   });
 
   // Benchmark Quotation Presets (Admin & Dealer Sync)
   const [pricingPresets, setPricingPresets] = useState(() => {
-    if (!isDbUpToDate) return DEFAULT_PRICING_MASTER.quotationPresets;
     return safeJsonParse('sunvine_pricing_presets', DEFAULT_PRICING_MASTER.quotationPresets);
   });
 
   // Commission Margins & Protective Caps by Dealer Tier
   const [tierMargins, setTierMargins] = useState(() => {
-    if (!isDbUpToDate) return DEFAULT_PRICING_MASTER.tierMargins;
     return safeJsonParse('sunvine_tier_margins', DEFAULT_PRICING_MASTER.tierMargins);
+  });
+
+  // Admin Master Governance & Policy Settings
+  const [governanceSettings, setGovernanceSettings] = useState(() => {
+    return safeJsonParse('sunvine_governance_settings', DEFAULT_GOVERNANCE_SETTINGS);
   });
 
   useEffect(() => {
     safeSetItem('sunvine_tier_margins', tierMargins);
   }, [tierMargins]);
+
+  useEffect(() => {
+    safeSetItem('sunvine_governance_settings', governanceSettings);
+  }, [governanceSettings]);
 
   // Solar Hardware Catalogs (from PDF)
   const [modulesList, setModulesList] = useState(() => {
@@ -267,6 +287,55 @@ const safeSetItem = (key, value) => {
 
   useEffect(() => {
     safeSetItem('sunvine_db_version', DB_VERSION);
+  }, []);
+
+  // Multi-tab real-time storage synchronization (SR-52)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (!e.key || !e.newValue) return;
+      try {
+        const parsed = JSON.parse(e.newValue);
+        switch (e.key) {
+          case 'sunvine_modules':
+            setModulesList(parsed);
+            break;
+          case 'sunvine_inverters':
+            setInvertersList(parsed);
+            break;
+          case 'sunvine_notifications':
+            setNotifications(parsed);
+            break;
+          case 'sunvine_dealers':
+            setDealers(parsed);
+            break;
+          case 'sunvine_pricing_master':
+            setPricingMaster(parsed);
+            break;
+          case 'sunvine_pricing_presets':
+            setPricingPresets(parsed);
+            break;
+          case 'sunvine_tier_margins':
+            setTierMargins(parsed);
+            break;
+          case 'sunvine_governance_settings':
+            setGovernanceSettings(parsed);
+            break;
+          case 'sunvine_quotations':
+            setQuotations(parsed);
+            break;
+          case 'sunvine_seen_catalog_items':
+            setSeenCatalogItemIds(parsed);
+            break;
+          default:
+            break;
+        }
+      } catch (err) {
+        // Non-JSON or parse error
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   // Synchronize state with localStorage
@@ -388,8 +457,9 @@ const safeSetItem = (key, value) => {
     setModulesList(prev => [moduleEntry, ...prev]);
     addNotification({
       type: 'success',
+      icon: 'solar_power',
       title: 'New Solar Module Added',
-      message: `Admin introduced ${brand} ${model} (${moduleEntry.wattage}W) to dealer catalogs.`,
+      description: `Admin introduced ${brand} ${model} (${moduleEntry.wattage}W) to dealer catalogs.`,
       audience: 'all'
     });
     return moduleEntry;
@@ -399,11 +469,13 @@ const safeSetItem = (key, value) => {
     const brand = newInverter.brand?.trim() || 'Custom';
     const model = newInverter.model?.trim() || 'Solar Inverter';
     const id = `inv-${Date.now()}`;
+    const capStr = newInverter.capacity ? (String(newInverter.capacity).toLowerCase().includes('kw') ? newInverter.capacity : `${newInverter.capacity} kW`) : '5.0 kW';
     const inverterEntry = {
       id,
       brand,
       model,
-      capacity: newInverter.capacity || '5.0 kW',
+      capacity: capStr,
+      capacityKW: parseFloat(capStr.replace(/[^0-9.]/g, '')) || 5.0,
       phase: newInverter.phase || '1-Phase 230V / 2 MPPT',
       efficiency: newInverter.efficiency || '98.5%',
       warranty: newInverter.warranty || '8 Years',
@@ -414,8 +486,9 @@ const safeSetItem = (key, value) => {
     setInvertersList(prev => [inverterEntry, ...prev]);
     addNotification({
       type: 'success',
+      icon: 'bolt',
       title: 'New Solar Inverter Added',
-      message: `Admin introduced ${brand} ${model} (${inverterEntry.capacity}) to dealer catalogs.`,
+      description: `Admin introduced ${brand} ${model} (${inverterEntry.capacity}) to dealer catalogs.`,
       audience: 'all'
     });
     return inverterEntry;
@@ -510,12 +583,27 @@ const safeSetItem = (key, value) => {
     setDealers(prev => [newDealer, ...prev]);
   };
 
+  const updateDealer = (updatedDealer) => {
+    setDealers(prev => prev.map(d => d.id === updatedDealer.id ? { ...d, ...updatedDealer } : d));
+    if (currentDealer?.id === updatedDealer.id) {
+      setCurrentDealer(prev => ({ ...prev, ...updatedDealer }));
+    }
+  };
+
   const toggleDealerStatus = (id) => {
     setDealers(prev => prev.map(d => d.id === id ? { ...d, status: d.status === 'Active' ? 'Suspended' : 'Active' } : d));
   };
 
   const updateDealerMarginCap = (id, newCap) => {
-    setDealers(prev => prev.map(d => d.id === id ? { ...d, maxMarginCapPerKw: Number(newCap) } : d));
+    const numericCap = Number(newCap);
+    setDealers(prev => {
+      const updated = prev.map(d => d.id === id ? { ...d, maxMarginCapPerKw: numericCap } : d);
+      safeSetItem('sunvine_dealers', updated);
+      return updated;
+    });
+    if (currentDealer?.id === id) {
+      setCurrentDealer(prev => ({ ...prev, maxMarginCapPerKw: numericCap }));
+    }
   };
 
   const updateDealerPassword = (id, newPassword) => {
@@ -527,6 +615,7 @@ const safeSetItem = (key, value) => {
 
   const updatePricingMaster = (newMaster) => {
     setPricingMaster(newMaster);
+    safeSetItem('sunvine_pricing_master', newMaster);
   };
 
   const updatePricingPresets = (newPresets) => {
@@ -537,6 +626,7 @@ const safeSetItem = (key, value) => {
       lastSynced: `Today, ${timeStr} by ${role === 'admin' ? 'Super Admin Desk' : 'Ops'}`
     };
     setPricingPresets(updated);
+    safeSetItem('sunvine_pricing_presets', updated);
     addNotification({
       title: 'Quotation Presets Updated',
       description: `Base Rate: ₹${Number(updated.baseRatePerKw).toLocaleString('en-IN')}/kW | Min Margin: ₹${Number(updated.minMarginPerKw).toLocaleString('en-IN')}/kW.`,
@@ -548,11 +638,46 @@ const safeSetItem = (key, value) => {
   const updateTierMargins = (newTiers) => {
     const updated = { ...tierMargins, ...newTiers };
     setTierMargins(updated);
+    safeSetItem('sunvine_tier_margins', updated);
     addNotification({
       title: 'Dealer Tier Margins Updated',
       description: `Default margin thresholds updated for Diamond, Platinum, Gold & Silver dealer tiers.`,
       category: 'pricing',
       icon: 'price_check',
+      audience: 'all'
+    });
+  };
+
+  const updateGovernanceSettings = (newSettings) => {
+    const updated = { ...governanceSettings, ...newSettings };
+    setGovernanceSettings(updated);
+    safeSetItem('sunvine_governance_settings', updated);
+
+    // If maxDealerMarginPerKW was updated, adjust any tier margin caps that exceed this national ceiling
+    if (newSettings.maxDealerMarginPerKW) {
+      const ceilingCap = Number(newSettings.maxDealerMarginPerKW);
+      setTierMargins(prev => {
+        const updatedTiers = { ...prev };
+        let modified = false;
+        Object.keys(updatedTiers).forEach(key => {
+          if (updatedTiers[key] && updatedTiers[key].maxMarginCapPerKw > ceilingCap) {
+            updatedTiers[key] = { ...updatedTiers[key], maxMarginCapPerKw: ceilingCap };
+            modified = true;
+          }
+        });
+        if (modified) {
+          safeSetItem('sunvine_tier_margins', updatedTiers);
+        }
+        return modified ? updatedTiers : prev;
+      });
+    }
+
+    addNotification({
+      type: 'warning',
+      icon: 'shield',
+      title: 'Margin Governance & Policy Updated',
+      description: `Max dealer margin ceiling set to ₹${Number(updated.maxDealerMarginPerKW).toLocaleString('en-IN')}/kW. Quote expiry: ${updated.quoteExpiryDays} days.`,
+      targetTab: 'dealer_settings',
       audience: 'all'
     });
   };
@@ -730,12 +855,15 @@ const safeSetItem = (key, value) => {
         updatePricingPresets,
         tierMargins,
         updateTierMargins,
+        governanceSettings,
+        updateGovernanceSettings,
         modulesList,
         setModulesList,
         invertersList,
         setInvertersList,
         dealers,
         addDealer,
+        updateDealer,
         toggleDealerStatus,
         updateDealerMarginCap,
         updateDealerPassword,

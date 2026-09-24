@@ -3,13 +3,14 @@ import { useApp } from '../../context/AppContext';
 import { useToast } from '../Shared/Toast';
 
 export default function AllQuotations() {
-  const { quotations, setPreviewQuotation, setActiveTab, dealers, addNotification } = useApp();
+  const { quotations, setPreviewQuotation, setActiveTab, dealers, addNotification, updateQuotationStatus } = useApp();
   const { addToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTabFilter, setActiveTabFilter] = useState('all');
   const [marginProfileFilter, setMarginProfileFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+  const [selectedAuditQuote, setSelectedAuditQuote] = useState(null);
 
   // Top Filter Controls (SR-18)
   const [datePresetLabel, setDatePresetLabel] = useState('Current Fiscal (2025-26)');
@@ -183,6 +184,38 @@ export default function AllQuotations() {
   const totalCapacityKW = filteredQuotes.reduce((acc, q) => acc + (parseFloat(q.systemCapacityKW || q.capacity || 0)), 0);
   const totalCapacityMW = (totalCapacityKW / 1000).toFixed(2);
   const avgValue = totalProposalsCount > 0 ? Math.round(totalValue / totalProposalsCount) : 0;
+
+  // Dynamic Average Dealer Margin calculation (SR-21)
+  // Weight-average: total dealer margin rupees / total commissioned kW
+  const { avgMarginPerKw, avgMarginComplianceStatus } = (() => {
+    const quotesWithMargin = filteredQuotes.filter(q =>
+      (q.dealerMarginPerKW || q.dealerTotalMargin) && (q.systemCapacityKW || q.capacity)
+    );
+    if (quotesWithMargin.length === 0) return { avgMarginPerKw: 0, avgMarginComplianceStatus: 'no-data' };
+
+    const totalMarginRupees = quotesWithMargin.reduce((acc, q) => {
+      const kw = parseFloat(q.systemCapacityKW || q.capacity || 0);
+      const marginPerKw = q.dealerMarginPerKW ||
+        (q.dealerTotalMargin && kw ? Math.round(q.dealerTotalMargin / kw) : 0);
+      return acc + (marginPerKw * kw);
+    }, 0);
+
+    const totalKwWithMargin = quotesWithMargin.reduce((acc, q) =>
+      acc + parseFloat(q.systemCapacityKW || q.capacity || 0), 0);
+
+    const avg = totalKwWithMargin > 0 ? Math.round(totalMarginRupees / totalKwWithMargin) : 0;
+
+    // Flag any quote with margin > ₹5,500/kW as non-compliant
+    const flaggedCount = quotesWithMargin.filter(q => {
+      const kw = parseFloat(q.systemCapacityKW || q.capacity || 0);
+      const marg = q.dealerMarginPerKW ||
+        (q.dealerTotalMargin && kw ? Math.round(q.dealerTotalMargin / kw) : 0);
+      return marg > 5500;
+    }).length;
+
+    const status = flaggedCount > 0 ? 'flagged' : avg > 5000 ? 'review' : 'compliant';
+    return { avgMarginPerKw: avg, avgMarginComplianceStatus: status };
+  })();
 
   const totalPages = Math.ceil(filteredQuotes.length / pageSize) || 1;
   const paginatedQuotes = filteredQuotes.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -667,14 +700,42 @@ export default function AllQuotations() {
           </div>
           <div className="mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="font-headline-lg text-headline-xl text-[#0F1B2E] font-bold">₹ 3,250 <span className="text-sm font-normal text-secondary">/ kW</span></span>
+              {avgMarginPerKw > 0 ? (
+                <span className="font-headline-lg text-headline-xl text-[#0F1B2E] font-bold">
+                  ₹ {avgMarginPerKw.toLocaleString('en-IN')}
+                  <span className="text-sm font-normal text-secondary"> / kW</span>
+                </span>
+              ) : (
+                <span className="font-headline-lg text-xl text-secondary font-bold">— / kW</span>
+              )}
             </div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-[#2E7D32]">
-                <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                Audit Compliant
+            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+              {avgMarginComplianceStatus === 'compliant' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-[#2E7D32]">
+                  <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                  Audit Compliant
+                </span>
+              )}
+              {avgMarginComplianceStatus === 'review' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                  <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                  Under Review
+                </span>
+              )}
+              {avgMarginComplianceStatus === 'flagged' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
+                  <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
+                  Flagged – Exceeds Cap
+                </span>
+              )}
+              {avgMarginComplianceStatus === 'no-data' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container text-secondary">
+                  No margin data
+                </span>
+              )}
+              <span className="text-[11px] text-secondary font-label-xs">
+                {totalProposalsCount > 0 ? `Across ${totalProposalsCount} proposals` : 'No proposals'}
               </span>
-              <span className="text-[11px] text-secondary font-label-xs">Within Gujarat EPC Caps</span>
             </div>
           </div>
         </div>
@@ -837,7 +898,11 @@ export default function AllQuotations() {
                         >
                           <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
                         </button>
-                        <button className="p-1.5 hover:bg-surface-container-high rounded text-secondary hover:text-[#256676]" title="Margin Audit Sheet">
+                        <button
+                          onClick={() => setSelectedAuditQuote(q)}
+                          className="p-1.5 hover:bg-surface-container-high rounded text-secondary hover:text-[#256676] cursor-pointer"
+                          title="Margin Audit Sheet"
+                        >
                           <span className="material-symbols-outlined text-sm">shield</span>
                         </button>
                       </div>
@@ -884,6 +949,195 @@ export default function AllQuotations() {
           </div>
         </div>
       </div>
+
+      {/* MARGIN AUDIT SHEET MODAL (SR-28) */}
+      {selectedAuditQuote && (() => {
+        const q = selectedAuditQuote;
+        const capKw = Number(q.systemCapacityKW || q.capacity || 5);
+        const marginPerKw = q.dealerMarginPerKW || (q.dealerTotalMargin && capKw ? Math.round(q.dealerTotalMargin / capKw) : 3200);
+        const totalMargin = q.dealerTotalMargin || (marginPerKw * capKw);
+        const totalAmt = q.grandTotalCustomer || q.totalAmount || 0;
+        const baseCost = q.baseCost || (totalAmt - totalMargin);
+        const baseRate = capKw > 0 ? Math.round(baseCost / capKw) : 59800;
+        const subsidy = q.subsidyAmount || (capKw <= 2 ? 60000 : 78000);
+        const netPayable = q.netPayable || Math.max(0, totalAmt - subsidy);
+        const isFlagged = marginPerKw > 6000 || q.isFlagged;
+        const quoteRef = q.quoteNumber || q.id || 'QUOTATION';
+
+        const handleApproveMargin = () => {
+          if (updateQuotationStatus) {
+            updateQuotationStatus(q.id, 'Approved / Sanctioned');
+          }
+          if (addNotification) {
+            addNotification({
+              type: 'success',
+              icon: 'verified',
+              title: `Quotation Approved: ${quoteRef}`,
+              description: `Super Admin approved margin spread (₹${marginPerKw.toLocaleString('en-IN')}/kW) for ${q.customerName || 'Customer'}.`,
+              audience: 'all'
+            });
+          }
+          addToast({
+            title: 'Margin Sanctioned',
+            message: `Proposal ${quoteRef} sanctioned with margin of ₹${marginPerKw.toLocaleString('en-IN')}/kW.`,
+            type: 'success'
+          });
+          setSelectedAuditQuote(null);
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-surface-container-high animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between pb-4 border-b border-[#E4E7EB]">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isFlagged ? 'bg-amber-100 text-amber-800' : 'bg-primary-container/20 text-primary'}`}>
+                    <span className="material-symbols-outlined text-[24px]">shield</span>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-headline-sm text-lg font-bold text-on-surface">Margin Audit &amp; Compliance Sheet</h3>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${isFlagged ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-emerald-100 text-emerald-800'}`}>
+                        {isFlagged ? 'Audit Required' : 'Compliant'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-secondary mt-0.5 font-mono">
+                      Ref: <strong className="text-on-surface">{quoteRef}</strong> • Partner: {q.dealerName || 'Dealer'} ({q.dealerId || 'N/A'})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedAuditQuote(null)}
+                  className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-secondary cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-xl">close</span>
+                </button>
+              </div>
+
+              {/* Status Alert Banner */}
+              <div className={`mt-4 p-3.5 rounded-xl border flex items-start gap-3 ${
+                isFlagged
+                  ? 'bg-red-50 border-red-200 text-red-900'
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              }`}>
+                <span className="material-symbols-outlined text-[20px] shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {isFlagged ? 'error' : 'check_circle'}
+                </span>
+                <div className="text-xs">
+                  <div className="font-bold">
+                    {isFlagged ? 'Regulatory Margin Cap Warning' : 'Policy & Tier Compliant'}
+                  </div>
+                  <p className="mt-0.5 text-secondary">
+                    {isFlagged
+                      ? `Dealer spread of ₹${marginPerKw.toLocaleString('en-IN')}/kW exceeds the standard Gujarat solar margin threshold of ₹6,000/kW. Super Admin review is mandatory before DISCOM subsidy filing.`
+                      : `Dealer spread of ₹${marginPerKw.toLocaleString('en-IN')}/kW is within standard partner tier guidelines (≤ ₹6,000/kW). Eligible for automated EPC dispatch.`}
+                  </p>
+                </div>
+              </div>
+
+              {/* System Specs Overview */}
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-surface-container-low text-xs">
+                <div>
+                  <span className="text-[10px] text-secondary uppercase font-semibold">Customer</span>
+                  <div className="font-bold text-on-surface truncate">{q.customerName || 'N/A'}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] text-secondary uppercase font-semibold">Location / DISCOM</span>
+                  <div className="font-bold text-on-surface truncate">{q.city || 'Gujarat'} • {q.discom || 'PGVCL'}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] text-secondary uppercase font-semibold">System Capacity</span>
+                  <div className="font-bold text-on-surface">{capKw} kW ({q.projectType || 'Rooftop'})</div>
+                </div>
+                <div>
+                  <span className="text-[10px] text-secondary uppercase font-semibold">Hardware Stack</span>
+                  <div className="font-bold text-on-surface truncate">{q.solarModule || 'Waaree 585W'}</div>
+                </div>
+              </div>
+
+              {/* Financial & Spread Breakdown Table */}
+              <div className="mt-4 border border-[#E4E7EB] rounded-xl overflow-hidden text-xs">
+                <div className="bg-[#0F1B2E] text-white p-2.5 font-bold uppercase tracking-wider text-[11px] flex items-center justify-between">
+                  <span>Component / Sizing Metric</span>
+                  <span>Amount (INR)</span>
+                </div>
+                <div className="divide-y divide-[#E4E7EB]">
+                  <div className="p-2.5 flex items-center justify-between hover:bg-surface-container-low/50">
+                    <div>
+                      <div className="font-medium text-on-surface">Base Procurement &amp; EPC Cost</div>
+                      <div className="text-[10px] text-secondary font-mono">{capKw} kW @ ₹{baseRate.toLocaleString('en-IN')}/kW</div>
+                    </div>
+                    <span className="font-bold font-mono">₹ {baseCost.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className={`p-2.5 flex items-center justify-between ${isFlagged ? 'bg-amber-50/50' : ''}`}>
+                    <div>
+                      <div className="font-semibold text-on-surface flex items-center gap-1.5">
+                        <span>Partner Commercial Margin</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${isFlagged ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-800'}`}>
+                          ₹{marginPerKw.toLocaleString('en-IN')}/kW spread
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-secondary">Added on top of base EPC cost</div>
+                    </div>
+                    <span className={`font-bold font-mono ${isFlagged ? 'text-red-700' : 'text-emerald-700'}`}>
+                      + ₹ {totalMargin.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="p-2.5 flex items-center justify-between bg-surface-container-low/30 font-bold">
+                    <span className="text-on-surface">Total Quoted to Customer</span>
+                    <span className="font-mono text-sm">₹ {totalAmt.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="p-2.5 flex items-center justify-between text-secondary">
+                    <div>
+                      <div className="font-medium text-primary">PM Surya Ghar Central Subsidy (DBT)</div>
+                      <div className="text-[10px] text-secondary">Disbursed directly into consumer bank account</div>
+                    </div>
+                    <span className="font-bold font-mono text-primary">- ₹ {subsidy.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="p-3 flex items-center justify-between bg-[#F0FDF4] border-t-2 border-[#6CBF3D]/50">
+                    <div>
+                      <div className="font-bold text-on-surface text-sm uppercase">Net Customer Payable</div>
+                      <div className="text-[10px] text-secondary">Out-of-pocket investment after subsidy</div>
+                    </div>
+                    <span className="text-base font-black font-mono text-[#0F1B2E]">₹ {netPayable.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-6 pt-4 border-t border-[#E4E7EB] flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleViewPdf(q);
+                    setSelectedAuditQuote(null);
+                  }}
+                  className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-[#E4E7EB] hover:bg-surface-container text-on-surface transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                  <span>View Customer Proposal PDF</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAuditQuote(null)}
+                    className="px-4 py-2 text-xs font-semibold text-secondary hover:bg-surface-container rounded-lg transition-colors cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApproveMargin}
+                    className="px-4 py-2 text-xs font-bold rounded-lg bg-primary-container text-white hover:bg-primary transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">verified</span>
+                    <span>Sanction &amp; Approve Proposal</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

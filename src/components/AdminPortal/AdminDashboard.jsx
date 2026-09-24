@@ -55,6 +55,10 @@ export default function AdminDashboard() {
   const [presetSaveMsg, setPresetSaveMsg] = useState('');
   const [presetError, setPresetError] = useState('');
 
+  // Audit Trail Modal State (SR-19)
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [auditTargetQuote, setAuditTargetQuote] = useState(null);
+
   // Filter quotations strictly by active date range
   const dateFilteredQuotes = useMemo(() => {
     return (quotations || []).filter(q => {
@@ -672,21 +676,24 @@ export default function AdminDashboard() {
       <section className="flex flex-col gap-4 w-full min-w-0 max-w-full">
           <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest shadow-sm overflow-hidden">
             {/* Table Header Controls */}
-            <div className="p-5 border-b border-surface-container-highest flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">
-                  Dealer Quotation Feed &amp; Audit Activity
-                </h2>
-                <p className="font-body-sm text-body-sm text-secondary mt-0.5">
-                  Real-time ledger of dealer quotes, customer bids, and margins.
-                </p>
+            <div className="p-4 sm:p-5 border-b border-surface-container-highest flex flex-col gap-3">
+              {/* Title row */}
+              <div className="flex items-start justify-between gap-3 min-w-0 flex-wrap">
+                <div className="min-w-0">
+                  <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface truncate">
+                    Dealer Quotation Feed &amp; Audit Activity
+                  </h2>
+                  <p className="font-body-sm text-body-sm text-secondary mt-0.5">
+                    Real-time ledger of dealer quotes, customer bids, and margins.
+                  </p>
+                </div>
               </div>
 
-              {/* Functional Filter Status Pills with Live Counts */}
-              <div className="flex items-center bg-surface-container-low p-1 rounded-lg border border-surface-container-highest font-label-sm text-label-sm overflow-x-auto max-w-full shrink-0">
+              {/* Functional Filter Status Pills with Live Counts — scrollable row */}
+              <div className="flex items-center bg-surface-container-low p-1 rounded-lg border border-surface-container-highest font-label-sm text-label-sm overflow-x-auto max-w-full">
                 <button
                   onClick={() => { setFilterStatus('all'); setCurrentPage(1); }}
-                  className={`px-3 py-1.5 rounded whitespace-nowrap transition-colors ${
+                  className={`px-3 py-1.5 rounded whitespace-nowrap transition-colors shrink-0 ${
                     filterStatus === 'all'
                       ? 'bg-surface-container-lowest font-semibold text-on-surface shadow-xs'
                       : 'text-secondary hover:text-on-surface'
@@ -696,7 +703,7 @@ export default function AdminDashboard() {
                 </button>
                 <button
                   onClick={() => { setFilterStatus('pending'); setCurrentPage(1); }}
-                  className={`px-3 py-1.5 rounded whitespace-nowrap transition-colors ${
+                  className={`px-3 py-1.5 rounded whitespace-nowrap transition-colors shrink-0 ${
                     filterStatus === 'pending'
                       ? 'bg-surface-container-lowest font-semibold text-on-surface shadow-xs'
                       : 'text-secondary hover:text-on-surface'
@@ -706,7 +713,7 @@ export default function AdminDashboard() {
                 </button>
                 <button
                   onClick={() => { setFilterStatus('approved'); setCurrentPage(1); }}
-                  className={`px-3 py-1.5 rounded whitespace-nowrap transition-colors ${
+                  className={`px-3 py-1.5 rounded whitespace-nowrap transition-colors shrink-0 ${
                     filterStatus === 'approved'
                       ? 'bg-surface-container-lowest font-semibold text-on-surface shadow-xs'
                       : 'text-secondary hover:text-on-surface'
@@ -716,7 +723,7 @@ export default function AdminDashboard() {
                 </button>
                 <button
                   onClick={() => { setFilterStatus('commissioned'); setCurrentPage(1); }}
-                  className={`px-3 py-1.5 rounded whitespace-nowrap transition-colors ${
+                  className={`px-3 py-1.5 rounded whitespace-nowrap transition-colors shrink-0 ${
                     filterStatus === 'commissioned'
                       ? 'bg-surface-container-lowest font-semibold text-on-surface shadow-xs'
                       : 'text-secondary hover:text-on-surface'
@@ -727,9 +734,9 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Data Table */}
+            {/* Data Table — isolated overflow container */}
             <div className="overflow-x-auto w-full">
-              <table className="w-full text-left border-collapse min-w-[720px] md:min-w-full">
+              <table className="w-full text-left border-collapse min-w-[720px]">
                 <thead>
                   <tr className="bg-inverse-surface text-on-primary font-label-sm text-label-sm h-11 border-none">
                     <th className="px-4 py-3 font-semibold tracking-wider">Quotation ID</th>
@@ -806,7 +813,12 @@ export default function AdminDashboard() {
                               >
                                 <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
                               </button>
-                              <button className="p-1 hover:text-primary hover:bg-surface-container rounded" title="Audit Trail">
+                              <button
+                                type="button"
+                                onClick={() => { setAuditTargetQuote(q); setShowAuditModal(true); }}
+                                className="p-1 hover:text-primary hover:bg-surface-container rounded cursor-pointer"
+                                title="View Audit Trail"
+                              >
                                 <span className="material-symbols-outlined text-[18px]">history</span>
                               </button>
                             </div>
@@ -827,7 +839,7 @@ export default function AdminDashboard() {
                 </span> of <span className="font-semibold text-on-surface">{statusFilteredQuotes.length.toLocaleString('en-IN')}</span> entries
               </span>
               
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
                 {/* Previous Button */}
                 <button
                   type="button"
@@ -838,60 +850,75 @@ export default function AdminDashboard() {
                   <span className="material-symbols-outlined text-[18px]">chevron_left</span>
                 </button>
 
-                {/* Page Number 1 */}
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(1)}
-                  className={`px-3 py-1 rounded font-semibold transition-colors ${
-                    currentPage === 1 ? 'bg-primary text-on-primary' : 'hover:bg-surface-container text-on-surface'
-                  }`}
-                >
-                  1
-                </button>
+                {/* Dynamic windowed page buttons */}
+                {(() => {
+                  const delta = 2; // pages on each side of currentPage
+                  const pages = [];
+                  const rangeStart = Math.max(2, currentPage - delta);
+                  const rangeEnd = Math.min(totalPages - 1, currentPage + delta);
 
-                {/* Page Number 2 */}
-                {totalPages >= 2 && (
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(2)}
-                    className={`px-3 py-1 rounded font-semibold transition-colors ${
-                      currentPage === 2 ? 'bg-primary text-on-primary' : 'hover:bg-surface-container text-on-surface'
-                    }`}
-                  >
-                    2
-                  </button>
-                )}
+                  // Always show page 1
+                  pages.push(
+                    <button
+                      key={1}
+                      type="button"
+                      onClick={() => setCurrentPage(1)}
+                      className={`px-3 py-1 rounded font-semibold transition-colors ${
+                        currentPage === 1 ? 'bg-primary text-on-primary' : 'hover:bg-surface-container text-on-surface'
+                      }`}
+                    >
+                      1
+                    </button>
+                  );
 
-                {/* Page Number 3 */}
-                {totalPages >= 3 && (
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(3)}
-                    className={`px-3 py-1 rounded font-semibold transition-colors ${
-                      currentPage === 3 ? 'bg-primary text-on-primary' : 'hover:bg-surface-container text-on-surface'
-                    }`}
-                  >
-                    3
-                  </button>
-                )}
+                  // Left ellipsis
+                  if (rangeStart > 2) {
+                    pages.push(
+                      <span key="left-ellipsis" className="px-1 text-secondary select-none">…</span>
+                    );
+                  }
 
-                {/* Ellipsis if many pages */}
-                {totalPages > 4 && (
-                  <span className="px-1 text-secondary">...</span>
-                )}
+                  // Window pages around currentPage
+                  for (let p = rangeStart; p <= rangeEnd; p++) {
+                    pages.push(
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setCurrentPage(p)}
+                        className={`px-3 py-1 rounded font-semibold transition-colors ${
+                          currentPage === p ? 'bg-primary text-on-primary' : 'hover:bg-surface-container text-on-surface'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  }
 
-                {/* Last Page */}
-                {totalPages > 3 && (
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(totalPages)}
-                    className={`px-3 py-1 rounded font-semibold transition-colors ${
-                      currentPage === totalPages ? 'bg-primary text-on-primary' : 'hover:bg-surface-container text-on-surface'
-                    }`}
-                  >
-                    {totalPages}
-                  </button>
-                )}
+                  // Right ellipsis
+                  if (rangeEnd < totalPages - 1) {
+                    pages.push(
+                      <span key="right-ellipsis" className="px-1 text-secondary select-none">…</span>
+                    );
+                  }
+
+                  // Always show last page (if more than 1)
+                  if (totalPages > 1) {
+                    pages.push(
+                      <button
+                        key={totalPages}
+                        type="button"
+                        onClick={() => setCurrentPage(totalPages)}
+                        className={`px-3 py-1 rounded font-semibold transition-colors ${
+                          currentPage === totalPages ? 'bg-primary text-on-primary' : 'hover:bg-surface-container text-on-surface'
+                        }`}
+                      >
+                        {totalPages}
+                      </button>
+                    );
+                  }
+
+                  return pages;
+                })()}
 
                 {/* Next Button */}
                 <button
@@ -1012,6 +1039,101 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================= */}
+      {/* AUDIT TRAIL MODAL (SR-19)                                      */}
+      {/* ============================================================= */}
+      {showAuditModal && auditTargetQuote && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-surface-container-lowest rounded-2xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-surface-container-highest animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-surface-container-low shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-primary-container/15 text-primary flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-2xl">history</span>
+                </div>
+                <div>
+                  <h3 className="font-headline-sm text-base sm:text-lg font-bold text-on-surface">
+                    Audit Trail
+                  </h3>
+                  <p className="text-xs text-secondary mt-0.5">
+                    {auditTargetQuote.quoteNumber || auditTargetQuote.id} · {auditTargetQuote.customerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowAuditModal(false); setAuditTargetQuote(null); }}
+                className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-secondary cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <div className="py-4 overflow-y-auto flex-1 space-y-2">
+              {/* Timeline */}
+              {[
+                {
+                  icon: 'add_circle',
+                  iconColor: 'text-primary',
+                  label: 'Quotation Created',
+                  detail: `Created by ${auditTargetQuote.dealerName || 'Dealer'}`,
+                  timestamp: auditTargetQuote.date || auditTargetQuote.displayDate || '—',
+                },
+                {
+                  icon: 'edit',
+                  iconColor: 'text-secondary',
+                  label: 'Specs Configured',
+                  detail: `${auditTargetQuote.systemCapacityKW || '—'} kW system · ${auditTargetQuote.moduleCount || ''} modules`,
+                  timestamp: auditTargetQuote.date || '—',
+                },
+                {
+                  icon: 'payments',
+                  iconColor: 'text-tertiary',
+                  label: 'Pricing Locked',
+                  detail: `₹${(auditTargetQuote.grandTotalCustomer || auditTargetQuote.totalAmount || 0).toLocaleString('en-IN')} total · ₹${(auditTargetQuote.dealerTotalMargin || 0).toLocaleString('en-IN')} margin`,
+                  timestamp: auditTargetQuote.date || '—',
+                },
+                ...(auditTargetQuote.status && !auditTargetQuote.status.toLowerCase().includes('draft') ? [{
+                  icon: 'task_alt',
+                  iconColor: 'text-green-600',
+                  label: `Status: ${auditTargetQuote.status}`,
+                  detail: 'Proposal submitted to customer',
+                  timestamp: auditTargetQuote.sentDate || auditTargetQuote.date || '—',
+                }] : []),
+              ].map((event, idx) => (
+                <div key={idx} className="flex gap-3 items-start">
+                  <div className="flex flex-col items-center">
+                    <span className={`material-symbols-outlined text-xl ${event.iconColor}`}>{event.icon}</span>
+                    {idx < 3 && <div className="w-px flex-1 min-h-[24px] bg-surface-container-high mt-1" />}
+                  </div>
+                  <div className="flex-1 pb-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-semibold text-on-surface text-xs">{event.label}</span>
+                      <span className="text-[11px] text-secondary font-mono">{event.timestamp}</span>
+                    </div>
+                    <p className="text-xs text-secondary mt-0.5">{event.detail}</p>
+                  </div>
+                </div>
+              ))}
+
+              <div className="mt-2 p-3 rounded-xl bg-surface-container-low text-xs text-secondary border border-surface-container-highest flex items-start gap-2">
+                <span className="material-symbols-outlined text-sm shrink-0 mt-0.5 text-amber-500">info</span>
+                <span>Full revision history will be available once server-side audit logging is enabled.</span>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-surface-container-low flex items-center justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => { setShowAuditModal(false); setAuditTargetQuote(null); }}
+                className="px-4 py-2 rounded-lg border border-surface-container-highest text-secondary hover:text-on-surface text-xs font-semibold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -158,6 +158,11 @@ export default function CreateQuotation() {
     ? ((dealerMarginINR / baseProjectCost) * 100).toFixed(1)
     : '0.0';
 
+  // Tier Margin Cap & Audit Validation (SR-24)
+  const maxMarginCapPerKw = currentDealer?.maxMarginCapPerKw || tierConfig?.maxMarginCapPerKw || 6000;
+  const currentMarginPerKw = kw > 0 ? Math.round(dealerMarginINR / kw) : 0;
+  const isMarginExceeded = currentMarginPerKw > maxMarginCapPerKw;
+
   // Total Customer Quoted Project Cost (Base Cost + Dealer Margin)
   const totalCost = baseProjectCost + dealerMarginINR;
 
@@ -263,12 +268,15 @@ export default function CreateQuotation() {
       dealerMargin: dealerMarginINR,
       dealerTotalMargin: dealerMarginINR,
       dealerMarginPerKW: Math.round(dealerMarginINR / kw),
+      isFlagged: isMarginExceeded,
+      requiresAudit: isMarginExceeded,
+      auditFlagReason: isMarginExceeded ? `Margin of ₹${currentMarginPerKw}/kW exceeds tier cap of ₹${maxMarginCapPerKw}/kW` : null,
       totalAmount: totalCost,
       grandTotalCustomer: totalCost,
       subsidyAmount: subsidy,
       netPayable: finalPayable,
-      status: isEdit ? (editingQuotation.status || 'Draft') : 'Draft',
-      statusClass: isEdit ? (editingQuotation.statusClass || 'bg-secondary/15 text-secondary') : 'bg-secondary/15 text-secondary',
+      status: isEdit ? (editingQuotation.status || 'Draft') : (isMarginExceeded ? 'Audit Required' : 'Draft'),
+      statusClass: isEdit ? (editingQuotation.statusClass || 'bg-secondary/15 text-secondary') : (isMarginExceeded ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-secondary/15 text-secondary'),
       dealerCode: currentDealer?.id || 'SV-DLR-0104',
       dealerName: currentDealer?.firmName || 'Rajesh Solar Solutions'
     };
@@ -285,8 +293,8 @@ export default function CreateQuotation() {
       setSaveStatus(isEdit ? 'Quotation updated successfully!' : 'Draft saved successfully to cloud!');
       addToast({
         title: isEdit ? 'Quotation Updated' : 'Draft Saved',
-        message: `Quotation #${quotePayload.id} for ${custName} saved successfully.`,
-        type: 'success'
+        message: `Quotation #${quotePayload.id} for ${custName} saved successfully.${isMarginExceeded ? ' Note: Margin exceeds tier cap and requires compliance audit.' : ''}`,
+        type: isMarginExceeded ? 'warning' : 'success'
       });
       setTimeout(() => setSaveStatus(''), 3000);
     } catch (e) {
@@ -308,6 +316,14 @@ export default function CreateQuotation() {
         type: 'warning'
       });
       return;
+    }
+
+    if (isMarginExceeded) {
+      addToast({
+        title: 'Margin Audit Alert',
+        message: `Configured margin (₹${currentMarginPerKw.toLocaleString('en-IN')}/kW) exceeds your tier cap of ₹${maxMarginCapPerKw.toLocaleString('en-IN')}/kW. Proposal flagged for super admin compliance audit.`,
+        type: 'warning'
+      });
     }
 
     const isEdit = Boolean(editingQuotation?.id);
@@ -335,12 +351,15 @@ export default function CreateQuotation() {
       baseRatePerKW: ratePerKw,
       dealerMarginPerKW: Math.round(dealerMarginINR / kw),
       dealerTotalMargin: dealerMarginINR,
+      isFlagged: isMarginExceeded,
+      requiresAudit: isMarginExceeded,
+      auditFlagReason: isMarginExceeded ? `Margin of ₹${currentMarginPerKw}/kW exceeds tier cap of ₹${maxMarginCapPerKw}/kW` : null,
       totalAmount: totalCost,
       subsidyAmount: subsidy,
       grandTotalCustomer: totalCost,
       netPayable: finalPayable,
-      status: isEdit ? (editingQuotation.status || 'Active / Sent') : 'Active / Sent',
-      statusClass: isEdit ? (editingQuotation.statusClass || 'bg-primary/15 text-primary') : 'bg-primary/15 text-primary',
+      status: isEdit ? (editingQuotation.status || 'Active / Sent') : (isMarginExceeded ? 'Audit Required' : 'Active / Sent'),
+      statusClass: isEdit ? (editingQuotation.statusClass || 'bg-primary/15 text-primary') : (isMarginExceeded ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-primary/15 text-primary'),
       dealerId: currentDealer?.id || 'SV-DLR-0104'
     };
 
@@ -395,19 +414,19 @@ export default function CreateQuotation() {
         </div>
 
         {/* Stepper Indicator */}
-        <div className="flex items-center bg-surface-container-lowest p-1.5 rounded-xl shadow-sm self-start border border-surface-container-high overflow-hidden max-w-full">
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary font-label-sm">
+        <div className="flex items-center bg-surface-container-lowest p-1.5 rounded-xl shadow-sm self-start border border-surface-container-high overflow-x-auto max-w-full">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary font-label-sm shrink-0">
             <span className="w-5 h-5 rounded-full bg-primary text-on-primary flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
-            <span className="text-xs font-semibold">Details &amp; Pricing</span>
-            <span className="bg-primary-container/20 text-on-primary-container text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide">Active</span>
+            <span className="text-xs font-semibold whitespace-nowrap">Details &amp; Pricing</span>
+            <span className="bg-primary-container/20 text-on-primary-container text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide shrink-0">Active</span>
           </div>
           <div className="w-4 h-0.5 bg-surface-container-high mx-1 shrink-0"></div>
           <div
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-secondary/60 font-label-sm select-none cursor-not-allowed opacity-75"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-secondary/60 font-label-sm select-none cursor-not-allowed opacity-75 shrink-0"
             title="Complete quotation details and use 'Preview & Send' button below to proceed"
           >
             <span className="w-5 h-5 rounded-full bg-surface-container-high text-secondary/60 flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
-            <span className="text-xs font-medium">Preview &amp; Send</span>
+            <span className="text-xs font-medium whitespace-nowrap">Preview &amp; Send</span>
           </div>
         </div>
       </div>
@@ -420,10 +439,10 @@ export default function CreateQuotation() {
         </div>
       )}
 
-      {/* Form Layout Grid (Asymmetrical Desktop Split: 7 Cols Left / 5 Cols Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Specs & Inputs (7 cols) */}
-        <div className="lg:col-span-7 flex flex-col gap-6">
+      {/* Form Layout Grid (Stacked on Mobile/Tablet, Asymmetrical Split on Desktop >=1280px: 7 Cols Left / 5 Cols Right) */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full min-w-0">
+        {/* Left Column: Specs & Inputs (7 cols on XL) */}
+        <div className="xl:col-span-7 flex flex-col gap-6 min-w-0">
           {/* Card 1: Customer Details */}
           <section className="bg-surface-container-lowest rounded-xl p-4 sm:p-5 md:p-6 shadow-sm border border-surface-container-high">
             <div className="flex items-start justify-between pb-4 mb-4 border-b border-surface-container-high/60 gap-2">
@@ -576,7 +595,7 @@ export default function CreateQuotation() {
                       { brand: 'APS', model: '600W TOPCon Bifacial (ALMM List-I)' },
                       { brand: 'Adani', model: '550W Vertex Mono PERC' },
                       { brand: 'Rayzone', model: '550W Bifacial TOPCon' }
-                    ]).map((mod, idx) => {
+                    ]).filter(mod => !mod.isArchived).map((mod, idx) => {
                       const fullName = `${mod.brand} ${mod.model}`;
                       const isNew = isCatalogItemNew ? isCatalogItemNew(mod) : false;
                       return (
@@ -622,7 +641,7 @@ export default function CreateQuotation() {
                       { brand: 'Solis', model: 'S6-GR1P-5K (1-Phase 2 MPPT)' },
                       { brand: 'Sungrow', model: 'SG5.0RS Residential Grid-Tied' },
                       { brand: 'Growatt', model: 'MIN 5000TL-X Dual MPPT' }
-                    ]).map((inv, idx) => {
+                    ]).filter(inv => !inv.isArchived).map((inv, idx) => {
                       const fullName = `${inv.brand} ${inv.model}`;
                       const isNew = isCatalogItemNew ? isCatalogItemNew(inv) : false;
                       return (
@@ -752,8 +771,8 @@ export default function CreateQuotation() {
           </div>
         </div>
 
-        {/* Right Column: Pricing & Subsidy Calculator (5 cols) */}
-        <div className="lg:col-span-5 flex flex-col gap-6">
+        {/* Right Column: Pricing & Subsidy Calculator (5 cols on XL) */}
+        <div className="xl:col-span-5 flex flex-col gap-6 min-w-0">
           <section className="bg-surface-container-lowest rounded-xl p-4 sm:p-5 md:p-6 shadow-sm border border-surface-container-high flex flex-col gap-4">
             <div className="flex items-start justify-between pb-4 border-b border-surface-container-high/60 gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -1014,14 +1033,49 @@ export default function CreateQuotation() {
               )}
 
               <div className="text-[11px] text-secondary flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-surface-container-high">
-                <span className="whitespace-normal sm:whitespace-nowrap">
-                  Spread: <strong className="text-on-surface font-bold">{formatINR(Math.round(dealerMarginINR / kw))} / kW</strong> ({effectiveMarginPercent}%)
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span>
+                    Spread: <strong className={isMarginExceeded ? 'text-error font-bold' : 'text-on-surface font-bold'}>{formatINR(currentMarginPerKw)} / kW</strong> ({effectiveMarginPercent}%)
+                  </span>
+                  <span className="text-secondary/60">•</span>
+                  <span className="text-[10px] bg-surface-container px-2 py-0.5 rounded font-medium">
+                    Cap: <strong>{formatINR(maxMarginCapPerKw)}/kW</strong> ({currentDealer?.tier || 'Gold'})
+                  </span>
+                </div>
                 <span className="inline-flex items-center gap-1 text-primary font-medium text-[10px] bg-primary/10 px-2 py-0.5 rounded-full shrink-0">
                   <span className="material-symbols-outlined text-[12px]">lock</span>
                   <span>Confidential (Hidden from Customer PDF)</span>
                 </span>
               </div>
+
+              {isMarginExceeded && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-on-surface text-xs flex items-start gap-2.5 mt-1 animate-in fade-in">
+                  <span className="material-symbols-outlined text-[18px] text-error shrink-0">warning</span>
+                  <div className="flex-1">
+                    <div className="font-bold text-error">
+                      Tier Margin Cap Exceeded ({formatINR(currentMarginPerKw)}/kW &gt; {formatINR(maxMarginCapPerKw)}/kW)
+                    </div>
+                    <p className="text-[11px] text-secondary mt-0.5">
+                      Your configured spread exceeds the {currentDealer?.tier || 'Standard'} tier threshold. This quotation will be flagged for Super Admin compliance audit upon submission.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (marginMode === 'amount') {
+                          setDealerMarginFixed(Math.round(maxMarginCapPerKw * kw));
+                        } else {
+                          const capPct = Math.min(50, ((maxMarginCapPerKw * kw) / (baseProjectCost || 1)) * 100);
+                          setDealerMarginRate(parseFloat(capPct.toFixed(1)));
+                        }
+                      }}
+                      className="mt-1.5 text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">tune</span>
+                      <span>Clamp to Tier Cap ({formatINR(Math.round(maxMarginCapPerKw * kw))})</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 

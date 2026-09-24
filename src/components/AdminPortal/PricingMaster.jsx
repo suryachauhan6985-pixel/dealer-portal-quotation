@@ -77,6 +77,12 @@ export default function PricingMaster() {
   // Tier margins state
   const [localTierMargins, setLocalTierMargins] = useState(() => tierMargins || {});
 
+  useEffect(() => {
+    if (tierMargins && Object.keys(tierMargins).length > 0) {
+      setLocalTierMargins(tierMargins);
+    }
+  }, [tierMargins]);
+
   // Add Module Modal state
   const [showAddModuleModal, setShowAddModuleModal] = useState(false);
   const [newModuleForm, setNewModuleForm] = useState({
@@ -104,6 +110,13 @@ export default function PricingMaster() {
   // Capacity selector for BOM Tab (e.g. 2.2, 3.3, 4.4, 5.5, 6.6, 8.0, 10.0)
   const [selectedBomCapacity, setSelectedBomCapacity] = useState('3.3');
   const [customBomKwInput, setCustomBomKwInput] = useState('');
+
+  // WhatsApp broadcast state (SR-23)
+  const [showWhatsAppBroadcastModal, setShowWhatsAppBroadcastModal] = useState(false);
+  const [selectedDealerPhone, setSelectedDealerPhone] = useState('');
+  const [customBroadcastPhone, setCustomBroadcastPhone] = useState('');
+  const [dealerSearchQuery, setDealerSearchQuery] = useState('');
+  const [copiedMessage, setCopiedMessage] = useState(false);
 
   // Form states initialized with pricingMaster or realistic defaults
   const [rate1to3, setRate1to3] = useState(pricingMaster?.baseRates?.tier1to3kw || 62000);
@@ -183,6 +196,66 @@ export default function PricingMaster() {
   const triggerToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3500);
+  };
+
+  // WhatsApp Broadcast Engine (SR-23)
+  const getBroadcastMessage = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://sunvine-dealer.vprotech.online';
+    const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    return `*☀️ SUNVINE RENEWABLE ENERGY - OFFICIAL PRICING REVISION NOTICE*
+
+Dear EPC Partners & Authorized Dealers,
+
+Please find the revised turnkey EPC benchmark rates and PM Surya Ghar DBT subsidy slabs effective *${dateStr}* across all Gujarat territories (PGVCL / DGVCL / UGVCL / MGVCL):
+
+📊 *BENCHMARK EPC BASE RATES*
+━━━━━━━━━━━━━━━━━━━━
+• *1.0 kW – 3.0 kW Residential:* *₹${Number(rate1to3).toLocaleString('en-IN')} / kW*
+• *3.0 kW – 10.0 kW Residential:* *₹${Number(rate3to10).toLocaleString('en-IN')} / kW*
+• *Commercial & Industrial (> 10 kW):* *₹${Number(rateCommercial).toLocaleString('en-IN')} / kW*
+
+🏛️ *CENTRAL GOVT. PM SURYA GHAR DBT SUBSIDY*
+━━━━━━━━━━━━━━━━━━━━
+• *1 kW System:* ₹30,000 Direct Benefit Transfer
+• *2 kW System:* ₹60,000 Direct Benefit Transfer
+• *≥ 3 kW System:* Up to ₹78,000 Maximum Central Subsidy
+
+⚙️ *KEY HARDWARE SPECIFICATIONS*
+• Solar Modules: ${selectedDefaultModule}
+• Solar Inverter: ${selectedDefaultInverter}
+• Composite GST: 13.8% included in BoS matrix
+• Portal Proposals: All new quotations will automatically apply these updated matrices.
+
+🔗 *Access Dealer Portal & Create Proposals:*
+${origin}/?tab=pricing_master
+
+📞 *Sunvine Dealer Helpdesk:* +91 80000 50580
+🏢 *Sunvine Renewable Energy*, Metoda GIDC, Rajkot, Gujarat.`;
+  };
+
+  const handleOpenWhatsAppBroadcast = (phone = null) => {
+    const msg = getBroadcastMessage();
+    let url;
+    if (phone) {
+      const cleanDigits = String(phone).replace(/\D/g, '');
+      const fullPhone = cleanDigits.length === 10 ? '91' + cleanDigits : cleanDigits;
+      url = `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(msg)}`;
+    } else {
+      url = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+    }
+    window.open(url, '_blank');
+    triggerToast('WhatsApp opened with updated pricing catalog!');
+  };
+
+  const handleCopyBroadcastMessage = () => {
+    const msg = getBroadcastMessage();
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(msg);
+      setCopiedMessage(true);
+      setTimeout(() => setCopiedMessage(false), 2500);
+      triggerToast('Broadcast message copied to clipboard!');
+    }
   };
 
   // Handle saving matrix changes
@@ -448,6 +521,15 @@ export default function PricingMaster() {
           >
             <span className="material-symbols-outlined text-lg text-secondary">restart_alt</span>
             <span>Reset to Defaults</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowWhatsAppBroadcastModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-emerald-600/30 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-label-md font-label-md transition-colors shadow-xs text-xs sm:text-sm cursor-pointer font-bold"
+            title="Broadcast Price Update to WhatsApp"
+          >
+            <span className="material-symbols-outlined text-lg text-emerald-700">forum</span>
+            <span>Broadcast WhatsApp</span>
           </button>
           <button
             onClick={handleSave}
@@ -1049,6 +1131,84 @@ export default function PricingMaster() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* SECTION B.3: Live Sync & WhatsApp Broadcast Card (SR-23) */}
+              <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-surface-container-low gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                      <span className="material-symbols-outlined text-xl">share</span>
+                    </div>
+                    <div>
+                      <h2 className="font-headline-md text-headline-md text-inverse-surface font-bold">
+                        Live Sync &amp; WhatsApp Broadcast
+                      </h2>
+                      <p className="font-body-sm text-body-sm text-secondary">
+                        Broadcast updated pricing matrices, subsidy guidelines, and BOM catalog to Gujarat dealer WhatsApp groups.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowWhatsAppBroadcastModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-label-md text-xs sm:text-sm font-bold rounded-lg transition-all shadow-sm cursor-pointer self-start sm:self-auto"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">forum</span>
+                    <span>Broadcast Price Update to WhatsApp</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl border border-surface-container-highest bg-surface-container-low/50 flex items-start gap-3">
+                    <span className="material-symbols-outlined text-emerald-600 text-xl mt-0.5">verified</span>
+                    <div>
+                      <div className="font-bold text-on-surface text-sm">{totalDealersCount} Authorized Dealers</div>
+                      <p className="text-xs text-secondary mt-0.5">Active Gujarat solar EPC partners ready to receive real-time rate updates.</p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl border border-surface-container-highest bg-surface-container-low/50 flex items-start gap-3">
+                    <span className="material-symbols-outlined text-primary text-xl mt-0.5">sync_alt</span>
+                    <div>
+                      <div className="font-bold text-on-surface text-sm">Discom Tariff Grids Synced</div>
+                      <p className="text-xs text-secondary mt-0.5">PGVCL, DGVCL, UGVCL, and MGVCL net-metering slabs unified.</p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl border border-surface-container-highest bg-surface-container-low/50 flex items-start gap-3">
+                    <span className="material-symbols-outlined text-amber-600 text-xl mt-0.5">verified_user</span>
+                    <div>
+                      <div className="font-bold text-on-surface text-sm">ALMM Module List Validated</div>
+                      <p className="text-xs text-secondary mt-0.5">Approved MNRE List-I TOPCon &amp; Mono Bifacial panels verified.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-surface-container-low flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-xs text-secondary">
+                    <span className="material-symbols-outlined text-emerald-600 text-base">check_circle</span>
+                    <span>Last synced: {pricingMaster?.lastSynced || 'Today, just now'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenWhatsAppBroadcast()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-emerald-600 text-emerald-700 hover:bg-emerald-50 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-base">open_in_new</span>
+                      <span>Quick Open WhatsApp Web</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowWhatsAppBroadcastModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                    >
+                      <span className="material-symbols-outlined text-base">send</span>
+                      <span>Broadcast Dispatcher</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </>
@@ -2263,6 +2423,183 @@ export default function PricingMaster() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* WhatsApp Price Update Broadcast Modal (SR-23) */}
+      {showWhatsAppBroadcastModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-surface-container-lowest rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-surface-container-highest animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-surface-container-low shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-2xl">forum</span>
+                </div>
+                <div>
+                  <h3 className="font-headline-sm text-base sm:text-lg font-bold text-on-surface">
+                    Broadcast Price Update to WhatsApp
+                  </h3>
+                  <p className="text-xs text-secondary">
+                    Transmit official benchmark rates &amp; DBT subsidy slabs across {totalDealersCount} Gujarat EPC partners
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWhatsAppBroadcastModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-secondary cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4 overflow-y-auto flex-1 pr-1">
+              {/* Broadcast Options Banner */}
+              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-emerald-700 text-2xl shrink-0">mark_chat_unread</span>
+                  <div>
+                    <span className="font-bold text-emerald-900 text-xs sm:text-sm block">Broadcast to All Dealer Groups</span>
+                    <span className="text-[11px] text-emerald-800">Opens WhatsApp Web with pre-formatted catalog text ready to share with any group or contact.</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleOpenWhatsAppBroadcast();
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-base">send</span>
+                  <span>Launch WhatsApp Web</span>
+                </button>
+              </div>
+
+              {/* Pre-formatted Message Preview */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-secondary">drafts</span>
+                    Pre-formatted Broadcast Message Preview
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCopyBroadcastMessage}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">{copiedMessage ? 'check' : 'content_copy'}</span>
+                    <span>{copiedMessage ? 'Copied!' : 'Copy Text'}</span>
+                  </button>
+                </div>
+                <div className="p-3 bg-surface-container-low rounded-xl border border-surface-container-highest text-xs font-mono text-on-surface whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed select-all">
+                  {getBroadcastMessage()}
+                </div>
+              </div>
+
+              {/* Send to Specific Dealer or Custom Contact */}
+              <div className="border-t border-surface-container-low pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider">
+                    Direct Send to Specific Partner Contact
+                  </h4>
+                  <span className="text-[11px] text-secondary">Search from {totalDealersCount} Gujarat dealers</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary text-base">search</span>
+                    <input
+                      type="text"
+                      placeholder="Search dealer by name, city, or phone..."
+                      value={dealerSearchQuery}
+                      onChange={(e) => setDealerSearchQuery(e.target.value)}
+                      className="w-full h-9 pl-9 pr-3 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs text-on-surface focus:outline-none focus:border-primary"
+                    />
+                  </div>
+
+                  {/* Custom phone input */}
+                  <div className="relative sm:w-48 flex items-center">
+                    <span className="absolute left-2.5 text-xs text-secondary font-mono">+91</span>
+                    <input
+                      type="tel"
+                      placeholder="Custom 10-digit #"
+                      value={customBroadcastPhone}
+                      onChange={(e) => setCustomBroadcastPhone(e.target.value)}
+                      className="w-full h-9 pl-11 pr-2 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-xs font-mono text-on-surface focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!customBroadcastPhone || customBroadcastPhone.replace(/\D/g, '').length < 10}
+                    onClick={() => handleOpenWhatsAppBroadcast(customBroadcastPhone)}
+                    className="h-9 px-3 bg-primary-container hover:bg-primary text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1 shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-sm">send</span>
+                    <span>Send Custom</span>
+                  </button>
+                </div>
+
+                {/* Filtered Dealers Mini List */}
+                <div className="space-y-1.5 max-h-40 overflow-y-auto border border-surface-container-highest rounded-xl p-2 bg-surface-container-lowest">
+                  {(dealers || [])
+                    .filter((d) => {
+                      if (!dealerSearchQuery.trim()) return true;
+                      const q = dealerSearchQuery.toLowerCase();
+                      return (
+                        (d.name && d.name.toLowerCase().includes(q)) ||
+                        (d.city && d.city.toLowerCase().includes(q)) ||
+                        (d.phone && d.phone.toLowerCase().includes(q)) ||
+                        (d.company && d.company.toLowerCase().includes(q))
+                      );
+                    })
+                    .slice(0, 10)
+                    .map((dealer, dIdx) => (
+                      <div
+                        key={dIdx}
+                        className="p-2 rounded-lg bg-surface-container-low/50 hover:bg-surface-container-low flex items-center justify-between text-xs transition-colors"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="font-semibold text-on-surface truncate flex items-center gap-1.5">
+                            <span>{dealer.name || dealer.company}</span>
+                            {dealer.tier && (
+                              <span className="px-1.5 py-0.2 rounded text-[10px] bg-primary/10 text-primary uppercase font-bold">
+                                {dealer.tier}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-secondary flex items-center gap-2 mt-0.5">
+                            <span>{dealer.city || 'Gujarat'}</span>
+                            <span>•</span>
+                            <span className="font-mono">{dealer.phone || '+91 98250 12345'}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenWhatsAppBroadcast(dealer.phone || '9825012345')}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">chat</span>
+                          <span>WhatsApp</span>
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-surface-container-low flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-secondary flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm text-emerald-600">security</span>
+                Official Sunvine Broadcast protocol active
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowWhatsAppBroadcastModal(false)}
+                className="px-4 py-2 rounded-lg border border-surface-container-highest text-secondary hover:text-on-surface text-xs font-semibold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
