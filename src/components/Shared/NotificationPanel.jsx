@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import { APP_VERSION } from '../../config/version';
 
 export default function NotificationPanel({
   isOpen,
@@ -243,8 +244,8 @@ export default function NotificationPanel({
                 title="View latest deployment release notes and system changelog"
               >
                 <span className="material-symbols-outlined text-[13px]">receipt_long</span>
-                <span className="hidden sm:inline">v2.1.1 Logs</span>
-                <span className="sm:hidden">v2.1.1</span>
+                <span className="hidden sm:inline">v{APP_VERSION} Logs</span>
+                <span className="sm:hidden">v{APP_VERSION}</span>
               </button>
             </div>
           </div>

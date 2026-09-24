@@ -300,14 +300,15 @@ export default function Navigation() {
           MOBILE BOTTOM TAB BAR: Exact Stitch Design (26_78314a1fb43e40518984de1bee26f24b_3__Dealer_Dashboard__Mobile_.html)
           ======================================================== */}
       <nav className="no-print fixed bottom-0 left-0 right-0 w-full z-50 bg-surface/95 backdrop-blur-xl border-t border-surface-container-high shadow-[0_-2px_12px_rgba(0,0,0,0.05)] md:hidden pb-[max(0px,env(safe-area-inset-bottom))]">
-        <div className="flex items-center justify-around h-16 px-1 w-full max-w-full overflow-hidden">
-          {menuItems.slice(0, 5).map((item) => {
+        {/* Scrollable tab bar — supports up to 6 admin tabs without clipping (SR-17) */}
+        <div className="flex items-center h-16 px-1 w-full overflow-x-auto overflow-y-hidden scrollbar-hide">
+          {menuItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => handleMenuClick(item.id)}
-                className={`flex flex-col items-center justify-center flex-1 min-h-[44px] py-1 px-0.5 gap-0.5 rounded-lg transition-colors overflow-hidden min-w-0 ${isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-on-surface'
+                className={`flex flex-col items-center justify-center shrink-0 flex-1 min-w-[52px] max-w-[72px] min-h-[44px] py-1 px-0.5 gap-0.5 rounded-lg transition-colors overflow-hidden ${isActive ? 'text-primary font-semibold' : 'text-secondary hover:text-on-surface'
                   }`}
               >
                 <span className="material-symbols-outlined text-[20px] sm:text-[22px] shrink-0" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>

@@ -33,7 +33,7 @@ export default function PDFTemplate({ quotation, activePage = 'all' }) {
     multiBrandComparison = false,
     multiBrandPackages = null,
     selectedModuleMake = '',
-    selectedInverterMake = ''
+    selectedInverterMake = '',
   } = quotation;
 
   // Resolve standard engineering BOM for this kW
@@ -53,7 +53,7 @@ export default function PDFTemplate({ quotation, activePage = 'all' }) {
   return (
     <div className="pdf-document font-sans text-[#1B1F23] bg-white print:bg-white select-none">
       {/* ========================================================
-          PAGE 1: EXACT ORIGINAL MIRANA TECHNOCAST COVER PAGE
+          PAGE 1: DYNAMIC SUNVINE PROPOSAL COVER PAGE (SR-34)
           ======================================================== */}
       <div className={`pdf-page pdf-page-cover relative w-[210mm] h-[297mm] max-h-[297mm] mx-auto bg-white border border-gray-300 shadow-xl print:!border-none print:!shadow-none print:!m-0 print:!mb-0 print:!p-0 print:!h-[295mm] print:!max-h-[295mm] mb-8 overflow-hidden items-center justify-center box-border ${activePage === 'all' || activePage === 1 ? 'flex' : 'hidden print:flex'}`}>
         <img

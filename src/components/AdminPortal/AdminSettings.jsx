@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 
 export default function AdminSettings() {
-  const { addNotification } = useApp();
+  const { governanceSettings, updateGovernanceSettings, setActiveTab: setActiveTabGlobal } = useApp();
   const [activeTab, setActiveTab] = useState('governance');
   const [saved, setSaved] = useState(false);
   const [maintenance, setMaintenance] = useState(false);
 
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState(() => governanceSettings || {
     enforceAlmm: true,
     pmSuryaGharActive: true,
     maxDealerMarginPerKW: 8000,
@@ -21,18 +21,18 @@ export default function AdminSettings() {
     lastBackupTimestamp: 'Today, 01:15 AM'
   });
 
+  useEffect(() => {
+    if (governanceSettings) {
+      setSettings(governanceSettings);
+    }
+  }, [governanceSettings]);
+
   const handleSave = (e) => {
     e.preventDefault();
-    setSaved(true);
-    if (addNotification) {
-      addNotification({
-        type: 'warning',
-        icon: 'shield',
-        title: 'Margin Governance & Policy Updated',
-        description: `Max dealer margin ceiling set to ₹${Number(settings.maxDealerMarginPerKW).toLocaleString('en-IN')}/kW. Quote expiry: ${settings.quoteExpiryDays} days.`,
-        targetTab: 'dealer_settings'
-      });
+    if (updateGovernanceSettings) {
+      updateGovernanceSettings(settings);
     }
+    setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
 
@@ -42,9 +42,23 @@ export default function AdminSettings() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-surface-container-lowest p-6 rounded-xl shadow-sm">
         <div className="flex flex-col gap-2 max-w-4xl">
           <div className="flex items-center gap-2 text-secondary font-label-xs text-label-xs uppercase tracking-wider">
-            <span className="hover:text-primary transition-colors cursor-pointer">Admin Operations</span>
+            <button
+              type="button"
+              onClick={() => setActiveTabGlobal && setActiveTabGlobal('admin_dashboard')}
+              className="hover:text-primary transition-colors cursor-pointer text-left"
+              title="Navigate to Executive Overview"
+            >
+              Admin Operations
+            </button>
             <span className="text-secondary/40 font-bold">/</span>
-            <span className="hover:text-primary transition-colors cursor-pointer">Global System Architecture</span>
+            <button
+              type="button"
+              onClick={() => setActiveTab('governance')}
+              className="hover:text-primary transition-colors cursor-pointer text-left"
+              title="Reset to Governance view"
+            >
+              Global System Architecture
+            </button>
             <span className="text-secondary/40 font-bold">/</span>
             <span className="text-on-surface font-semibold">Master Settings</span>
           </div>
@@ -69,14 +83,12 @@ export default function AdminSettings() {
             <button
               type="button"
               onClick={() => setMaintenance(!maintenance)}
-              className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                maintenance ? 'bg-error' : 'bg-surface-container-highest'
-              }`}
+              className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${maintenance ? 'bg-error' : 'bg-surface-container-highest'
+                }`}
             >
               <span
-                className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  maintenance ? 'translate-x-4' : 'translate-x-0'
-                }`}
+                className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${maintenance ? 'translate-x-4' : 'translate-x-0'
+                  }`}
               />
             </button>
             <span className="font-label-xs text-label-xs font-bold text-secondary">
@@ -93,7 +105,7 @@ export default function AdminSettings() {
             <span className="material-symbols-outlined text-[18px]">
               {saved ? 'verified' : 'lock_reset'}
             </span>
-            <span>{saved ? 'Enforced Globally' : 'Deploy &amp; Publish'}</span>
+            <span>{saved ? 'Enforced Globally' : 'Save changes'}</span>
           </button>
         </div>
       </div>
@@ -103,11 +115,10 @@ export default function AdminSettings() {
         <div className="flex items-center gap-1 px-4 overflow-x-auto bg-surface-container-low/40">
           <button
             onClick={() => setActiveTab('governance')}
-            className={`flex items-center gap-2 py-3 px-3.5 font-label-sm text-label-sm whitespace-nowrap transition-colors ${
-              activeTab === 'governance'
+            className={`flex items-center gap-2 py-3 px-3.5 font-label-sm text-label-sm whitespace-nowrap transition-colors ${activeTab === 'governance'
                 ? 'font-bold text-on-surface bg-surface-container-lowest rounded-t-lg shadow-sm'
                 : 'text-secondary hover:text-on-surface'
-            }`}
+              }`}
           >
             <span className="material-symbols-outlined text-[17px] text-primary-container">shield_person</span>
             <span>1. Enterprise Governance &amp; ALMM</span>
@@ -116,11 +127,10 @@ export default function AdminSettings() {
 
           <button
             onClick={() => setActiveTab('margins')}
-            className={`flex items-center gap-2 py-3 px-3.5 font-label-sm text-label-sm whitespace-nowrap transition-colors ${
-              activeTab === 'margins'
+            className={`flex items-center gap-2 py-3 px-3.5 font-label-sm text-label-sm whitespace-nowrap transition-colors ${activeTab === 'margins'
                 ? 'font-bold text-on-surface bg-surface-container-lowest rounded-t-lg shadow-sm'
                 : 'text-secondary hover:text-on-surface'
-            }`}
+              }`}
           >
             <span className="material-symbols-outlined text-[17px]">pie_chart</span>
             <span>2. Dealer Quota &amp; Margin Caps</span>
@@ -129,11 +139,10 @@ export default function AdminSettings() {
 
           <button
             onClick={() => setActiveTab('infrastructure')}
-            className={`flex items-center gap-2 py-3 px-3.5 font-label-sm text-label-sm whitespace-nowrap transition-colors ${
-              activeTab === 'infrastructure'
+            className={`flex items-center gap-2 py-3 px-3.5 font-label-sm text-label-sm whitespace-nowrap transition-colors ${activeTab === 'infrastructure'
                 ? 'font-bold text-on-surface bg-surface-container-lowest rounded-t-lg shadow-sm'
                 : 'text-secondary hover:text-on-surface'
-            }`}
+              }`}
           >
             <span className="material-symbols-outlined text-[17px]">hub</span>
             <span>3. DISCOM Grid Node Bridge</span>

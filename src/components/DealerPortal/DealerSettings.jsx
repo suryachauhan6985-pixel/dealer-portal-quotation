@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 
 export default function DealerSettings() {
@@ -16,26 +16,34 @@ export default function DealerSettings() {
     }, 3500);
   };
 
-  const [form, setForm] = useState({
-    agencyName: currentDealer?.firmName || currentDealer?.agencyName || 'Surya Solar Tech Private Limited',
-    contactPerson: currentDealer?.contactPerson || 'Rajesh Kumar',
-    phone: currentDealer?.phone || '+91 98765 43210',
-    email: currentDealer?.email || 'rajesh@suryasolartech.in',
-    gstin: currentDealer?.gstin || '24AFPFS7402A1Z7',
-    pan: currentDealer?.pan || 'AABCS1429B',
-    address: currentDealer?.address || 'Shop No. 12, GIDC Industrial Estate, Metoda, Rajkot, Gujarat - 360021',
-    defaultDiscom: 'PGVCL (Paschim Gujarat Vij Company Ltd)',
-    discomDivision: 'Rajkot Rural Division / Metoda Sub-division',
-    gedaLicenseNo: 'GEDA/EPC/2024/0981',
-    defaultPaymentTerms: '30% Advance, 50% on Delivery, 20% on Net-metering',
-    defaultDeliveryWeeks: '3 to 4 Weeks from GEDA Approval',
-    bankName: 'State Bank of India',
-    accountNumber: '394857201948',
-    ifscCode: 'SBIN0001234',
-    whatsappAlerts: true,
-    emailAlerts: true,
-    autoPdfDownload: true
+  const getDealerFormData = (dealer) => ({
+    agencyName: dealer?.firmName || dealer?.agencyName || 'Surya Solar Tech Private Limited',
+    contactPerson: dealer?.contactPerson || 'Rajesh Kumar',
+    phone: dealer?.phone || dealer?.mobile || '+91 98765 43210',
+    email: dealer?.email || 'rajesh@suryasolartech.in',
+    gstin: dealer?.gstin || '24AFPFS7402A1Z7',
+    pan: dealer?.pan || 'AABCS1429B',
+    address: dealer?.address || 'Shop No. 12, GIDC Industrial Estate, Metoda, Rajkot, Gujarat - 360021',
+    defaultDiscom: dealer?.defaultDiscom || dealer?.discom || 'PGVCL (Paschim Gujarat Vij Company Ltd)',
+    discomDivision: dealer?.discomDivision || 'Rajkot Rural Division / Metoda Sub-division',
+    gedaLicenseNo: dealer?.gedaLicenseNo || 'GEDA/EPC/2024/0981',
+    defaultPaymentTerms: dealer?.defaultPaymentTerms || '30% Advance, 50% on Delivery, 20% on Net-metering',
+    defaultDeliveryWeeks: dealer?.defaultDeliveryWeeks || '3 to 4 Weeks from GEDA Approval',
+    bankName: dealer?.bankName || 'State Bank of India',
+    accountNumber: dealer?.accountNumber || '394857201948',
+    ifscCode: dealer?.ifscCode || 'SBIN0001234',
+    whatsappAlerts: dealer?.whatsappAlerts !== undefined ? dealer.whatsappAlerts : true,
+    emailAlerts: dealer?.emailAlerts !== undefined ? dealer.emailAlerts : true,
+    autoPdfDownload: dealer?.autoPdfDownload !== undefined ? dealer.autoPdfDownload : true
   });
+
+  const [form, setForm] = useState(() => getDealerFormData(currentDealer));
+
+  useEffect(() => {
+    if (currentDealer) {
+      setForm(getDealerFormData(currentDealer));
+    }
+  }, [currentDealer]);
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
@@ -66,16 +74,37 @@ export default function DealerSettings() {
     reader.readAsDataURL(file);
   };
 
+  const handleDiscard = () => {
+    setForm(getDealerFormData(currentDealer));
+    setSaved(false);
+    triggerToast('Changes discarded', 'info');
+  };
+
   const handleSave = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (updateDealerProfile) {
       updateDealerProfile({
         firmName: form.agencyName,
+        agencyName: form.agencyName,
         contactPerson: form.contactPerson,
+        phone: form.phone,
+        mobile: form.phone,
         email: form.email,
         gstin: form.gstin,
         pan: form.pan,
         address: form.address,
+        defaultDiscom: form.defaultDiscom,
+        discom: form.defaultDiscom,
+        discomDivision: form.discomDivision,
+        gedaLicenseNo: form.gedaLicenseNo,
+        defaultPaymentTerms: form.defaultPaymentTerms,
+        defaultDeliveryWeeks: form.defaultDeliveryWeeks,
+        bankName: form.bankName,
+        accountNumber: form.accountNumber,
+        ifscCode: form.ifscCode,
+        whatsappAlerts: form.whatsappAlerts,
+        emailAlerts: form.emailAlerts,
+        autoPdfDownload: form.autoPdfDownload
       });
     }
     setSaved(true);
@@ -156,7 +185,7 @@ export default function DealerSettings() {
         {/* Action Buttons */}
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
           <button
-            onClick={() => setSaved(false)}
+            onClick={handleDiscard}
             type="button"
             className="px-3.5 sm:px-4 py-2 bg-surface-container-lowest text-on-surface hover:bg-surface-container-low transition-colors duration-150 font-label-md text-xs sm:text-label-md rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer whitespace-nowrap border border-surface-container-high"
           >
@@ -330,7 +359,7 @@ export default function DealerSettings() {
                   <span className="material-symbols-outlined text-secondary text-[18px]">lock</span>
                   <div className="flex flex-col">
                     <span className="font-label-xs text-label-xs text-secondary uppercase tracking-wider">Dealer Unique ID</span>
-                    <span className="font-headline-sm text-headline-sm font-mono text-on-surface">SV-DLR-GJ-0842</span>
+                    <span className="font-headline-sm text-headline-sm font-mono text-on-surface">{currentDealer?.id || 'SV-DLR-GJ-0842'}</span>
                   </div>
                 </div>
               </div>

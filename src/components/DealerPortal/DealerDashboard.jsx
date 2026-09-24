@@ -141,6 +141,16 @@ export default function DealerDashboard() {
     setActiveTab('preview_quote');
   };
 
+  const handleDownloadRateMatrix = () => {
+    const link = document.createElement('a');
+    link.href = '/mirana.pdf';
+    link.download = 'Sunvine_Official_Rate_Matrix_2026.pdf';
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const recentQuotes = (quotations && quotations.length > 0)
     ? quotations.slice(0, 5).map(q => ({
         ...q,
@@ -157,7 +167,7 @@ export default function DealerDashboard() {
     : [];
 
   return (
-    <div className="flex flex-col w-full gap-space-lg">
+    <div className="flex flex-col w-full max-w-full min-w-0 overflow-x-hidden gap-space-lg">
       {/* Top Operational Control & Profile Header */}
       <section className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md pb-space-sm">
         <div className="flex items-start md:items-center gap-3 sm:gap-space-md min-w-0">
@@ -330,27 +340,29 @@ export default function DealerDashboard() {
         </div>
       </section>
 
-      {/* Interactive Solar Estimator Banner Action Card */}
-      <section className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary-container to-primary text-on-primary p-space-lg md:p-space-xl shadow-md">
-        {/* Subtle Geometric SVG Watermark Pattern */}
-        <svg className="absolute right-0 top-0 bottom-0 h-full opacity-10 pointer-events-none transform translate-x-12" fill="none" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
-          <polygon fill="currentColor" points="40,20 180,20 140,180 0,180"></polygon>
-          <polygon fill="currentColor" points="190,20 330,20 290,180 150,180"></polygon>
-          <polygon fill="currentColor" points="340,20 480,20 440,180 300,180"></polygon>
-          <line stroke="currentColor" strokeWidth="6" x1="20" x2="460" y1="100" y2="100"></line>
-          <line stroke="currentColor" strokeWidth="4" x1="10" x2="450" y1="60" y2="60"></line>
-          <line stroke="currentColor" strokeWidth="4" x1="0" x2="440" y1="140" y2="140"></line>
-        </svg>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-space-lg">
-          <div className="max-w-2xl">
+      {/* Interactive Solar Estimator Banner Action Card (SR-26) */}
+      <section className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary-container to-primary text-on-primary p-4 sm:p-space-lg md:p-space-xl shadow-md w-full max-w-full box-border">
+        {/* Subtle Geometric SVG Watermark Pattern (Clipped in absolute container to prevent horizontal overflow) */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <svg className="absolute right-0 top-0 bottom-0 h-full opacity-10 pointer-events-none transform translate-x-12" fill="none" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+            <polygon fill="currentColor" points="40,20 180,20 140,180 0,180"></polygon>
+            <polygon fill="currentColor" points="190,20 330,20 290,180 150,180"></polygon>
+            <polygon fill="currentColor" points="340,20 480,20 440,180 300,180"></polygon>
+            <line stroke="currentColor" strokeWidth="6" x1="20" x2="460" y1="100" y2="100"></line>
+            <line stroke="currentColor" strokeWidth="4" x1="10" x2="450" y1="60" y2="60"></line>
+            <line stroke="currentColor" strokeWidth="4" x1="0" x2="440" y1="140" y2="140"></line>
+          </svg>
+        </div>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-space-lg w-full max-w-full">
+          <div className="max-w-2xl min-w-0">
             <div className="flex items-center gap-space-xs text-primary-fixed font-label-sm uppercase tracking-wider mb-space-xs">
               <span className="material-symbols-outlined text-[18px]">bolt</span>
               <span>Fast EPC Engine • Instant DISCOM Rates</span>
             </div>
-            <h2 className="font-headline-lg text-headline-lg text-on-primary font-bold">
+            <h2 className="font-headline-lg text-lg sm:text-headline-lg text-on-primary font-bold">
               Need a quick quotation for a customer?
             </h2>
-            <p className="font-body-md text-body-md text-on-primary/90 mt-1 max-w-xl">
+            <p className="font-body-md text-xs sm:text-body-md text-on-primary/90 mt-1 max-w-xl">
               Generate customized solar EPC quotations with instant subsidy calculations in under 2 minutes.
             </p>
           </div>
@@ -360,7 +372,7 @@ export default function DealerDashboard() {
               if (clearActiveDraftQuote) clearActiveDraftQuote();
               setActiveTab('create_quote');
             }}
-            className="shrink-0 flex items-center justify-center gap-space-sm bg-surface-container-lowest text-primary hover:bg-surface-container hover:text-on-primary-container px-space-lg py-3 rounded-lg font-label-md transition-all shadow-sm active:scale-95"
+            className="shrink-0 flex items-center justify-center gap-space-sm bg-surface-container-lowest text-primary hover:bg-surface-container hover:text-on-primary-container px-4 sm:px-space-lg py-2.5 sm:py-3 rounded-lg font-label-md transition-all shadow-sm active:scale-95 w-full sm:w-auto"
             type="button"
           >
             <span>+ Create New Quotation</span>
@@ -382,7 +394,7 @@ export default function DealerDashboard() {
             onClick={() => setActiveTab('my_quotes')}
             className="flex items-center gap-space-xs font-label-sm text-label-sm text-primary hover:text-on-primary-container font-semibold transition-colors"
           >
-            <span>View All (42)</span>
+            <span>View All ({quotations?.length || 0})</span>
             <span className="material-symbols-outlined text-[16px]">east</span>
           </button>
         </div>
@@ -517,23 +529,6 @@ export default function DealerDashboard() {
           </table>
         </div>
       </section>
-
-      {/* Notification Banner / Channel Support Quick Tip */}
-      <footer className="mt-space-sm p-space-md bg-surface-container-low rounded-xl flex items-center justify-between flex-wrap gap-space-sm">
-        <div className="flex items-center gap-space-sm text-secondary font-body-sm">
-          <span className="material-symbols-outlined text-tertiary text-[20px]">info</span>
-          <span>DISCOM subsidy slabs for PM Surya Ghar: Muft Bijli Yojana have been refreshed for Gujarat circles (PGVCL, DGVCL, MGVCL, UGVCL, Torrent).</span>
-        </div>
-        <div className="flex items-center gap-space-md text-label-xs font-label-xs">
-          <a className="text-primary hover:underline cursor-pointer" onClick={() => setActiveTab('create_quote')}>
-            Download Revised Rate Matrix
-          </a>
-          <span className="text-secondary">•</span>
-          <a className="text-secondary hover:text-on-surface cursor-pointer" onClick={() => setActiveTab('dealer_settings')}>
-            Contact EPC Territory Manager
-          </a>
-        </div>
-      </footer>
     </div>
   );
 }
