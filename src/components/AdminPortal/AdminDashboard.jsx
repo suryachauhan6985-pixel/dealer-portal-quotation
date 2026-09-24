@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import ViewModeToggle, { useTableViewMode } from '../Shared/ViewModeToggle';
 
 // Helper to reliably parse date strings into millisecond timestamps
 const parseQuoteDateToMs = (dateStr) => {
@@ -58,6 +59,9 @@ export default function AdminDashboard() {
   // Audit Trail Modal State (SR-19)
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [auditTargetQuote, setAuditTargetQuote] = useState(null);
+
+  // View Mode State (SR-59: Card vs Table view)
+  const [viewMode, setViewMode] = useTableViewMode('admin_quotation_feed');
 
   // Filter quotations strictly by active date range
   const dateFilteredQuotes = useMemo(() => {
@@ -731,6 +735,7 @@ export default function AdminDashboard() {
                     Real-time ledger of dealer quotes, customer bids, and margins.
                   </p>
                 </div>
+                <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
               </div>
 
               {/* Functional Filter Status Pills with Live Counts — scrollable row */}
@@ -778,35 +783,18 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Data Table — isolated overflow container */}
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-left border-collapse min-w-[720px]">
-                <thead>
-                  <tr className="bg-inverse-surface text-on-primary font-label-sm text-label-sm h-11 border-none">
-                    <th className="px-4 py-3 font-semibold tracking-wider">Quotation ID</th>
-                    <th className="px-4 py-3 font-semibold tracking-wider">Date</th>
-                    <th className="px-4 py-3 font-semibold tracking-wider">Dealer Name</th>
-                    <th className="px-4 py-3 font-semibold tracking-wider">Customer / Firm</th>
-                    <th className="px-4 py-3 font-semibold tracking-wider text-right">Capacity</th>
-                    <th className="px-4 py-3 font-semibold tracking-wider text-right">Total Quoted</th>
-                    <th className="px-4 py-3 font-semibold tracking-wider text-right">Margin</th>
-                    <th className="px-4 py-3 font-semibold tracking-wider text-center">Status</th>
-                    <th className="px-4 py-3 font-semibold tracking-wider text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-container-highest font-body-sm text-body-sm">
-                  {paginatedFeedQuotes.length === 0 ? (
-                    <tr>
-                      <td colSpan="9" className="px-4 py-12 text-center text-secondary">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <span className="material-symbols-outlined text-[36px] text-outline">description</span>
-                          <span className="font-semibold text-on-surface">No quotation records found</span>
-                          <span className="text-xs">Try selecting a different date range or status filter.</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedFeedQuotes.map((q, idx) => {
+            {/* Card View Mode (Default on Mobile, responsive grid) */}
+            {viewMode === 'card' ? (
+              <div className="p-4 sm:p-5">
+                {paginatedFeedQuotes.length === 0 ? (
+                  <div className="py-12 text-center text-secondary flex flex-col items-center justify-center gap-2">
+                    <span className="material-symbols-outlined text-[36px] text-outline">description</span>
+                    <span className="font-semibold text-on-surface">No quotation records found</span>
+                    <span className="text-xs">Try selecting a different date range or status filter.</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                    {paginatedFeedQuotes.map((q, idx) => {
                       const quoteId = q.quoteNumber || q.id;
                       const marginAmt = q.dealerTotalMargin || (q.dealerMarginPerKW ? Math.round(q.dealerMarginPerKW * (q.systemCapacityKW || 5)) : 24000);
                       const totalAmt = q.grandTotalCustomer || q.totalAmount || 325000;
@@ -815,25 +803,14 @@ export default function AdminDashboard() {
                       const dealerInfo = getDealerCellData(q);
 
                       return (
-                        <tr key={q.id || idx} className="bg-surface-container-lowest hover:bg-surface-container-low transition-colors duration-150">
-                          <td className="px-4 py-3.5 font-label-md font-semibold text-primary">{quoteId}</td>
-                          <td className="px-4 py-3.5 text-secondary whitespace-nowrap">{q.displayDate || q.date}</td>
-                          <td className="px-4 py-3.5">
-                            <div className="font-medium text-on-surface">{dealerInfo.name}</div>
-                            <div className="text-[11px] text-secondary font-mono flex items-center gap-1 mt-0.5">{dealerInfo.subtext}</div>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <div className="font-medium text-on-surface">{q.customerName}</div>
-                            <div className="text-[11px] text-secondary">{q.city}, {q.state || 'GJ'}</div>
-                          </td>
-                          <td className="px-4 py-3.5 text-right font-semibold text-on-surface tabular-nums">{q.systemCapacityKW} kW</td>
-                          <td className="px-4 py-3.5 text-right font-semibold text-on-surface tabular-nums">₹{totalAmt.toLocaleString('en-IN')}</td>
-                          <td className="px-4 py-3.5 text-right tabular-nums">
-                            <div className="text-primary font-semibold">₹{marginAmt.toLocaleString('en-IN')}</div>
-                            <div className="text-[10px] text-secondary">({marginPct}%)</div>
-                          </td>
-                          <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-label-xs font-semibold ${
+                        <div key={q.id || idx} className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-4 shadow-xs flex flex-col justify-between gap-3 hover:border-primary/40 transition-all">
+                          {/* Card Header */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="font-mono text-xs font-bold text-primary">{quoteId}</span>
+                              <div className="text-[11px] text-secondary mt-0.5">{q.displayDate || q.date}</div>
+                            </div>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-label-xs font-semibold ${
                               statusStr.toLowerCase().includes('approved') ? 'bg-primary-container/20 text-primary' :
                               statusStr.toLowerCase().includes('commission') ? 'bg-tertiary/20 text-tertiary' :
                               statusStr.toLowerCase().includes('pending') ? 'bg-secondary-container text-on-secondary-container' :
@@ -841,40 +818,175 @@ export default function AdminDashboard() {
                             }`}>
                               {statusStr}
                             </span>
-                          </td>
-                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1 text-secondary">
-                              <button
-                                onClick={() => handleViewQuote(q)}
-                                className="p-1 hover:text-primary hover:bg-surface-container rounded"
-                                title="View Details"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">visibility</span>
-                              </button>
-                              <button
-                                onClick={() => handleViewQuote(q)}
-                                className="p-1 hover:text-primary hover:bg-surface-container rounded"
-                                title="Download PDF"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => { setAuditTargetQuote(q); setShowAuditModal(true); }}
-                                className="p-1 hover:text-primary hover:bg-surface-container rounded cursor-pointer"
-                                title="View Audit Trail"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">history</span>
-                              </button>
+                          </div>
+
+                          {/* Card Body */}
+                          <div className="flex flex-col gap-2 pt-1 border-t border-surface-container-highest text-xs">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-secondary shrink-0">Dealer:</span>
+                              <div className="text-right min-w-0">
+                                <div className="font-semibold text-on-surface truncate">{dealerInfo.name}</div>
+                                <div className="text-[10px] text-secondary font-mono">{dealerInfo.subtext}</div>
+                              </div>
                             </div>
-                          </td>
-                        </tr>
+
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-secondary shrink-0">Customer:</span>
+                              <div className="text-right min-w-0">
+                                <div className="font-semibold text-on-surface truncate">{q.customerName}</div>
+                                <div className="text-[10px] text-secondary">{q.city}, {q.state || 'GJ'}</div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-surface-container-highest/60 bg-surface-container-low/40 p-2 rounded-lg text-center">
+                              <div>
+                                <span className="text-[10px] text-secondary block">Capacity</span>
+                                <span className="font-bold text-on-surface font-mono">{q.systemCapacityKW} kW</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-secondary block">Total Quoted</span>
+                                <span className="font-bold text-on-surface font-mono text-[11px]">₹{totalAmt.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-secondary block">Margin</span>
+                                <span className="font-bold text-primary font-mono text-[11px]">₹{marginAmt.toLocaleString('en-IN')} ({marginPct}%)</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Footer / Actions */}
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface-container-highest">
+                            <button
+                              onClick={() => handleViewQuote(q)}
+                              className="px-2.5 py-1 text-xs rounded-lg border border-surface-container-high hover:border-primary text-secondary hover:text-primary flex items-center gap-1 transition-colors cursor-pointer"
+                              title="View Details"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">visibility</span>
+                              <span>View</span>
+                            </button>
+                            <button
+                              onClick={() => handleViewQuote(q)}
+                              className="px-2.5 py-1 text-xs rounded-lg border border-surface-container-high hover:border-primary text-secondary hover:text-primary flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Download PDF"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">picture_as_pdf</span>
+                              <span>PDF</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setAuditTargetQuote(q); setShowAuditModal(true); }}
+                              className="px-2.5 py-1 text-xs rounded-lg border border-surface-container-high hover:border-primary text-secondary hover:text-primary flex items-center gap-1 transition-colors cursor-pointer"
+                              title="View Audit Trail"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">history</span>
+                              <span>Audit</span>
+                            </button>
+                          </div>
+                        </div>
                       );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Data Table — isolated overflow container */
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left border-collapse min-w-[720px]">
+                  <thead>
+                    <tr className="bg-inverse-surface text-on-primary font-label-sm text-label-sm h-11 border-none">
+                      <th className="px-4 py-3 font-semibold tracking-wider">Quotation ID</th>
+                      <th className="px-4 py-3 font-semibold tracking-wider">Date</th>
+                      <th className="px-4 py-3 font-semibold tracking-wider">Dealer Name</th>
+                      <th className="px-4 py-3 font-semibold tracking-wider">Customer / Firm</th>
+                      <th className="px-4 py-3 font-semibold tracking-wider text-right">Capacity</th>
+                      <th className="px-4 py-3 font-semibold tracking-wider text-right">Total Quoted</th>
+                      <th className="px-4 py-3 font-semibold tracking-wider text-right">Margin</th>
+                      <th className="px-4 py-3 font-semibold tracking-wider text-center">Status</th>
+                      <th className="px-4 py-3 font-semibold tracking-wider text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-container-highest font-body-sm text-body-sm">
+                    {paginatedFeedQuotes.length === 0 ? (
+                      <tr>
+                        <td colSpan="9" className="px-4 py-12 text-center text-secondary">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <span className="material-symbols-outlined text-[36px] text-outline">description</span>
+                            <span className="font-semibold text-on-surface">No quotation records found</span>
+                            <span className="text-xs">Try selecting a different date range or status filter.</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedFeedQuotes.map((q, idx) => {
+                        const quoteId = q.quoteNumber || q.id;
+                        const marginAmt = q.dealerTotalMargin || (q.dealerMarginPerKW ? Math.round(q.dealerMarginPerKW * (q.systemCapacityKW || 5)) : 24000);
+                        const totalAmt = q.grandTotalCustomer || q.totalAmount || 325000;
+                        const marginPct = ((marginAmt / totalAmt) * 100).toFixed(1);
+                        const statusStr = q.status || 'Approved';
+                        const dealerInfo = getDealerCellData(q);
+
+                        return (
+                          <tr key={q.id || idx} className="bg-surface-container-lowest hover:bg-surface-container-low transition-colors duration-150">
+                            <td className="px-4 py-3.5 font-label-md font-semibold text-primary">{quoteId}</td>
+                            <td className="px-4 py-3.5 text-secondary whitespace-nowrap">{q.displayDate || q.date}</td>
+                            <td className="px-4 py-3.5">
+                              <div className="font-medium text-on-surface">{dealerInfo.name}</div>
+                              <div className="text-[11px] text-secondary font-mono flex items-center gap-1 mt-0.5">{dealerInfo.subtext}</div>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="font-medium text-on-surface">{q.customerName}</div>
+                              <div className="text-[11px] text-secondary">{q.city}, {q.state || 'GJ'}</div>
+                            </td>
+                            <td className="px-4 py-3.5 text-right font-semibold text-on-surface tabular-nums">{q.systemCapacityKW} kW</td>
+                            <td className="px-4 py-3.5 text-right font-semibold text-on-surface tabular-nums">₹{totalAmt.toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-3.5 text-right tabular-nums">
+                              <div className="text-primary font-semibold">₹{marginAmt.toLocaleString('en-IN')}</div>
+                              <div className="text-[10px] text-secondary">({marginPct}%)</div>
+                            </td>
+                            <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-label-xs font-semibold ${
+                                statusStr.toLowerCase().includes('approved') ? 'bg-primary-container/20 text-primary' :
+                                statusStr.toLowerCase().includes('commission') ? 'bg-tertiary/20 text-tertiary' :
+                                statusStr.toLowerCase().includes('pending') ? 'bg-secondary-container text-on-secondary-container' :
+                                'bg-surface-container-highest text-secondary'
+                              }`}>
+                                {statusStr}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1 text-secondary">
+                                <button
+                                  onClick={() => handleViewQuote(q)}
+                                  className="p-1 hover:text-primary hover:bg-surface-container rounded cursor-pointer"
+                                  title="View Details"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                </button>
+                                <button
+                                  onClick={() => handleViewQuote(q)}
+                                  className="p-1 hover:text-primary hover:bg-surface-container rounded cursor-pointer"
+                                  title="Download PDF"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setAuditTargetQuote(q); setShowAuditModal(true); }}
+                                  className="p-1 hover:text-primary hover:bg-surface-container rounded cursor-pointer"
+                                  title="View Audit Trail"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">history</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Table Footer: Data-Driven Real Pagination */}
             <div className="p-4 border-t border-surface-container-highest flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-secondary font-label-sm text-label-sm">

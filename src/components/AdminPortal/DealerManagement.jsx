@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import ViewModeToggle, { useTableViewMode } from '../Shared/ViewModeToggle';
 
 export default function DealerManagement() {
   const { dealers, addDealer, updateDealer, toggleDealerStatus, updateDealerPassword, tierMargins, updateTierMargins, addNotification, setActiveTab } = useApp();
@@ -12,6 +13,7 @@ export default function DealerManagement() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingDealer, setEditingDealer] = useState(null);
   const [showTierModal, setShowTierModal] = useState(false);
+  const [viewMode, setViewMode] = useTableViewMode('admin_dealer_mgmt');
 
   // Onboarding Form States
   const [newFirm, setNewFirm] = useState('');
@@ -939,7 +941,7 @@ export default function DealerManagement() {
           </div>
         </div>
 
-        {/* Quick Tabs */}
+        {/* Quick Tabs & View Mode Toggle */}
         <div className="pt-3 border-t border-[#F1F4F9] flex flex-wrap items-center justify-between gap-3 text-label-sm">
           <div className="flex items-center gap-1 bg-[#F6F8F7] p-1 rounded-lg">
             <button
@@ -975,16 +977,163 @@ export default function DealerManagement() {
               Suspended ({suspendedDealersCount})
             </button>
           </div>
-          <div className="text-body-sm text-secondary">
-            Showing <span className="font-semibold text-on-surface">{filteredDealers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredDealers.length)}</span> of <span className="font-semibold text-on-surface">{filteredDealers.length}</span> Gujarat Dealers
+          <div className="flex items-center gap-3">
+            <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+            <div className="text-body-sm text-secondary">
+              Showing <span className="font-semibold text-on-surface">{filteredDealers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredDealers.length)}</span> of <span className="font-semibold text-on-surface">{filteredDealers.length}</span> Gujarat Dealers
+            </div>
           </div>
         </div>
       </div>
 
-      {/* DATA TABLE */}
+      {/* DATA PRESENTATION: CARDS OR TABLE */}
       <div className="bg-white rounded-xl border border-[#E4E7EB] shadow-[0px_2px_8px_rgba(0,0,0,0.06)] overflow-hidden">
-        <div className="overflow-x-auto xl:overflow-x-hidden">
-          <table className="w-full text-left border-collapse table-auto">
+        {viewMode === 'card' ? (
+          <div className="p-4 sm:p-5">
+            {paginatedDealers.length === 0 ? (
+              <div className="py-12 text-center text-secondary">
+                <span className="material-symbols-outlined text-4xl text-secondary/40 block mb-2">search_off</span>
+                No Gujarat dealers match your current filter criteria.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {paginatedDealers.map((d) => {
+                  const isGold = d.tier.includes('Gold');
+                  const isPlat = d.tier.includes('Platinum');
+                  const isDiam = d.tier.includes('Diamond');
+                  const tierColor = isPlat
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : isDiam
+                    ? 'bg-purple-50 text-purple-800 border-purple-200'
+                    : isGold
+                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                    : 'bg-gray-100 text-gray-800 border-gray-300';
+                  const initials = (d.firmName || 'ST').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+                  const discomText = (d.discom || '').includes('Circle') ? d.discom : `${d.discom || 'PGVCL'} Circle`;
+                  const tierKey = (d.tier || '').toLowerCase().includes('diamond') ? 'diamond' :
+                                  (d.tier || '').toLowerCase().includes('platinum') ? 'platinum' :
+                                  (d.tier || '').toLowerCase().includes('silver') ? 'silver' : 'gold';
+                  const conf = tierMargins?.[tierKey] || { defaultMarginPerKw: 4500, maxMarginCapPerKw: 6000 };
+
+                  return (
+                    <div key={d.id} className="bg-white border border-[#E4E7EB] rounded-xl p-4 shadow-xs flex flex-col justify-between gap-3 hover:border-primary/50 transition-all">
+                      {/* Header */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-[#0F1B2E] bg-surface-container px-2 py-0.5 rounded">
+                          #{d.id}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                          d.status === 'Active'
+                            ? 'bg-[#6CBF3D]/15 text-[#2E7D32]'
+                            : 'bg-surface-container text-secondary'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${d.status === 'Active' ? 'bg-[#2E7D32]' : 'bg-secondary'}`}></span>
+                          {d.status}
+                        </span>
+                      </div>
+
+                      {/* Firm & Contact details */}
+                      <div className="flex items-start gap-2.5">
+                        {d.avatar ? (
+                          <img
+                            alt={d.contactPerson}
+                            className="w-10 h-10 rounded-full object-cover ring-2 ring-[#6CBF3D]/40 shrink-0 mt-0.5"
+                            src={d.avatar}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-surface-container-high text-primary font-bold flex items-center justify-center text-xs shrink-0 border border-primary/20 mt-0.5">
+                            {initials}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-poppins font-semibold text-on-surface text-sm truncate leading-tight">
+                            {d.firmName}
+                          </h3>
+                          <p className="text-xs text-secondary mt-0.5 font-medium">{d.contactPerson}</p>
+                          <p className="text-[11px] text-secondary font-mono mt-0.5 truncate">{d.mobile} • {d.email}</p>
+                        </div>
+                      </div>
+
+                      {/* Region & Tier */}
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#F1F4F9] text-xs">
+                        <div>
+                          <div className="text-secondary text-[11px]">Region &amp; DISCOM</div>
+                          <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                            {discomText}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${tierColor}`}>
+                            <span className="material-symbols-outlined text-[12px]">military_tech</span> {d.tier || conf.tierName}
+                          </div>
+                          <div className="text-[10px] text-secondary mt-0.5">Cap: ₹{(d.maxMarginCapPerKw || conf.maxMarginCapPerKw).toLocaleString('en-IN')}/kW</div>
+                        </div>
+                      </div>
+
+                      {/* Metrics bar */}
+                      <div className="grid grid-cols-2 gap-2 bg-[#F6F8F7] p-2.5 rounded-lg text-xs">
+                        <div>
+                          <span className="text-[10px] text-secondary block">Quotes Issued</span>
+                          <span className="font-semibold text-on-surface font-poppins">{d.totalQuotes} Quotes</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-secondary block">Capacity Sold</span>
+                          <span className="font-bold text-on-surface font-poppins">
+                            {d.totalCapacityKw >= 1000 ? `${(d.totalCapacityKw / 1000).toFixed(2)} MW` : `${d.totalCapacityKw} kW`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Footer Actions */}
+                      <div className="flex items-center justify-between pt-2 border-t border-[#F1F4F9]">
+                        <span className="font-mono text-[10px] text-secondary truncate max-w-[130px]">
+                          GSTIN: {d.gstin ? `${d.gstin.slice(0, 4)}...${d.gstin.slice(-3)}` : 'Verified'}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setCredModalDealer(d);
+                              setEditPassword(d.password || 'dealer123');
+                              setShowEditPassword(false);
+                              setCopiedCreds(false);
+                              setCredSavedNotice(false);
+                            }}
+                            className="px-2 py-1 text-xs rounded border border-[#E4E7EB] hover:border-primary text-[#6CBF3D] hover:bg-[#6CBF3D]/10 flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Manage Password & Credentials"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">key</span>
+                            <span>Key</span>
+                          </button>
+                          <button
+                            onClick={() => toggleDealerStatus(d.id)}
+                            className={`px-2 py-1 text-xs rounded border border-[#E4E7EB] transition-colors flex items-center gap-1 cursor-pointer ${
+                              d.status === 'Active' ? 'text-secondary hover:text-error hover:border-error' : 'text-primary hover:border-primary'
+                            }`}
+                            title={d.status === 'Active' ? 'Suspend Portal Access' : 'Activate Dealer'}
+                          >
+                            <span className="material-symbols-outlined text-[15px]">
+                              {d.status === 'Active' ? 'block' : 'check_circle'}
+                            </span>
+                            <span>{d.status === 'Active' ? 'Suspend' : 'Activate'}</span>
+                          </button>
+                          <button
+                            onClick={() => handleEditDealer(d)}
+                            className="p-1 rounded border border-[#E4E7EB] hover:border-on-surface text-secondary hover:text-[#0F1B2E] transition-colors cursor-pointer"
+                            title="Edit Dealer Profile"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto xl:overflow-x-hidden">
+            <table className="w-full text-left border-collapse table-auto">
             <thead>
               <tr className="bg-[#0F1B2E] text-white text-label-xs uppercase tracking-wider h-11 select-none">
                 <th className="py-3 px-3.5 font-semibold text-left whitespace-nowrap min-w-[120px]">Dealer ID</th>
@@ -1160,6 +1309,7 @@ export default function DealerManagement() {
             </tbody>
           </table>
         </div>
+      )}
 
         {/* Table Footer with real Gujarat pagination */}
         <div className="p-4 border-t border-[#E4E7EB] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-secondary font-label-sm text-label-sm">
