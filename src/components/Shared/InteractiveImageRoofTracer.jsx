@@ -391,7 +391,7 @@ export default function InteractiveImageRoofTracer({
 
   // Final confirmation: Compute mathematically closed CAD polygon supporting both 90° and Non-90° / Slanted walls!
   const handleGenerateCADAnd3D = () => {
-    const n = sides.length;
+    const n = Math.min(sides.length, pins.length);
     if (pins.length < 3 || n < 3) {
       alert('Please trace at least 3 walls to form a closed roof boundary.');
       return;
@@ -403,13 +403,13 @@ export default function InteractiveImageRoofTracer({
 
     for (let i = 0; i < n; i++) {
       const s = sides[i];
-      const len = parseFloat(s.lengthFt) || 10;
+      const len = parseFloat(s?.lengthFt) || 10;
       totalPerimeter += len;
 
-      const p1 = pins[i];
-      const p2 = pins[(i + 1) % n];
-      const dxImage = p2.xPct - p1.xPct;
-      const dyImage = p2.yPct - p1.yPct;
+      const p1 = pins[i] || pins[0];
+      const p2 = pins[(i + 1) % pins.length] || pins[0];
+      const dxImage = (p2.xPct ?? 50) - (p1.xPct ?? 50);
+      const dyImage = (p2.yPct ?? 50) - (p1.yPct ?? 50);
       let angle = Math.atan2(dyImage, dxImage);
 
       // If angle is within 4° of cardinal axes (0, 90, 180, 270), snap to exact cardinal
@@ -423,8 +423,8 @@ export default function InteractiveImageRoofTracer({
         len,
         dx: len * Math.cos(angle),
         dz: len * Math.sin(angle),
-        name: s.name,
-        dirCode: s.direction
+        name: s?.name || `Side ${i + 1}`,
+        dirCode: s?.direction || 'E'
       });
     }
 
@@ -456,8 +456,8 @@ export default function InteractiveImageRoofTracer({
     }
 
     // 4. Center coordinates around (0, 0)
-    const xs = rawVertices.map(v => v.x);
-    const zs = rawVertices.map(v => v.z);
+    const xs = rawVertices.map(v => v?.x ?? 0);
+    const zs = rawVertices.map(v => v?.z ?? 0);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minZ = Math.min(...zs);
@@ -466,23 +466,27 @@ export default function InteractiveImageRoofTracer({
     const midZ = (minZ + maxZ) / 2;
 
     const customVertices = rawVertices.map(v => ({
-      x: Number((v.x - midX).toFixed(1)),
-      z: Number((v.z - midZ).toFixed(1)),
-      label: v.label
+      x: Number(((v?.x ?? 0) - midX).toFixed(1)),
+      z: Number(((v?.z ?? 0) - midZ).toFixed(1)),
+      label: v?.label || 'Corner'
     }));
 
     const widthFt = Math.max(10, Math.round(maxX - minX));
     const depthFt = Math.max(10, Math.round(maxZ - minZ));
 
+    const enrichedWalls = sides.slice(0, n).map((s, idx) => ({
+      side: idx + 1,
+      name: s.name,
+      lengthFt: parseFloat(s.lengthFt) || 10,
+      direction: s.direction,
+      p1: customVertices[idx] || { x: 0, z: 0 },
+      p2: customVertices[(idx + 1) % customVertices.length] || { x: 0, z: 0 }
+    }));
+
     onApplyGeometry({
       customVertices,
-      walls: sides.map((s, idx) => ({
-        side: idx + 1,
-        name: s.name,
-        lengthFt: parseFloat(s.lengthFt) || 10,
-        direction: s.direction
-      })),
-      corners: pins.map((p, i) => ({
+      walls: enrichedWalls,
+      corners: pins.slice(0, n).map((p, i) => ({
         corner_number: i + 1,
         x_pct: p.xPct,
         y_pct: p.yPct,

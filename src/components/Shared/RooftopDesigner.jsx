@@ -82,13 +82,14 @@ export function getRoofPolygonVertices(roof) {
  * Computes side lengths (walls) for a polygon
  */
 export function getRoofWalls(vertices) {
+  if (!vertices || vertices.length < 2) return [];
   const walls = [];
   const n = vertices.length;
   for (let i = 0; i < n; i++) {
-    const p1 = vertices[i];
-    const p2 = vertices[(i + 1) % n];
-    const dx = p2.x - p1.x;
-    const dz = p2.z - p1.z;
+    const p1 = vertices[i] || { x: 0, z: 0 };
+    const p2 = vertices[(i + 1) % n] || { x: 0, z: 0 };
+    const dx = (p2.x ?? 0) - (p1.x ?? 0);
+    const dz = (p2.z ?? 0) - (p1.z ?? 0);
     const lengthFt = Number(Math.sqrt(dx * dx + dz * dz).toFixed(1));
     walls.push({
       index: i + 1,
@@ -148,16 +149,22 @@ export default function RooftopDesigner({
   const rawWalls = useMemo(() => getRoofWalls(vertices), [vertices]);
   const walls = useMemo(() => {
     if (config.walls && config.walls.length >= 3) {
-      return config.walls.map((w, idx) => ({
-        index: w.index || w.side || idx + 1,
-        side: w.side || idx + 1,
-        name: w.name || `Side ${idx + 1}`,
-        lengthFt: parseFloat(w.lengthFt) || 10,
-        direction: w.direction || 'E'
-      }));
+      return config.walls.map((w, idx) => {
+        const p1 = w.p1 || (vertices && vertices[idx]) || { x: 0, z: 0 };
+        const p2 = w.p2 || (vertices && vertices[(idx + 1) % (vertices.length || 1)]) || { x: 0, z: 0 };
+        return {
+          index: w.index || w.side || idx + 1,
+          side: w.side || idx + 1,
+          name: w.name || `Side ${idx + 1}`,
+          lengthFt: parseFloat(w.lengthFt) || 10,
+          direction: w.direction || 'E',
+          p1,
+          p2
+        };
+      });
     }
     return rawWalls;
-  }, [config.walls, rawWalls]);
+  }, [config.walls, rawWalls, vertices]);
 
   const handleTracerSidesChange = useCallback(newSides => {
     if (!newSides || newSides.length === 0) return;
@@ -430,10 +437,13 @@ export default function RooftopDesigner({
 
   // Traced geometry callback from InteractiveImageRoofTracer
   const handleApplyTracedGeometry = tracedData => {
-    const minX = Math.min(...tracedData.customVertices.map(v => v.x));
-    const maxX = Math.max(...tracedData.customVertices.map(v => v.x));
-    const minZ = Math.min(...tracedData.customVertices.map(v => v.z));
-    const maxZ = Math.max(...tracedData.customVertices.map(v => v.z));
+    if (!tracedData || !tracedData.customVertices || tracedData.customVertices.length < 3) return;
+    const xs = tracedData.customVertices.map(v => v?.x ?? 0);
+    const zs = tracedData.customVertices.map(v => v?.z ?? 0);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minZ = Math.min(...zs);
+    const maxZ = Math.max(...zs);
     const wTotal = Math.max(10, Math.round(maxX - minX));
     const dTotal = Math.max(10, Math.round(maxZ - minZ));
 
@@ -447,6 +457,12 @@ export default function RooftopDesigner({
 
     const pHeight = parseFloat(tracedData.parapetHeightFt) || config.parapetHeightFt || 3.0;
 
+    const wallsWithPoints = (tracedData.walls || []).map((w, idx) => ({
+      ...w,
+      p1: w.p1 || tracedData.customVertices[idx] || { x: 0, z: 0 },
+      p2: w.p2 || tracedData.customVertices[(idx + 1) % tracedData.customVertices.length] || { x: 0, z: 0 }
+    }));
+
     const updated = {
       ...config,
       type: 'custom_polygon',
@@ -455,7 +471,7 @@ export default function RooftopDesigner({
       depthFt: dTotal,
       parapetHeightFt: pHeight,
       customVertices: tracedData.customVertices,
-      walls: tracedData.walls,
+      walls: wallsWithPoints,
       corners: tracedData.corners,
       safeSolarZone: safeZone,
       isPendingUpload: false
@@ -1297,10 +1313,12 @@ function RenderRoofBlueprintSvg({ vertices, walls, obstacles = [], safeZone = nu
 
       {/* 4. Wall Dimensions Overlay */}
       {walls.map((w, idx) => {
-        const x1 = toSvgX(w.p1.x);
-        const y1 = toSvgY(w.p1.z);
-        const x2 = toSvgX(w.p2.x);
-        const y2 = toSvgY(w.p2.z);
+        const p1 = w?.p1 || (vertices && vertices[idx]) || { x: 0, z: 0 };
+        const p2 = w?.p2 || (vertices && vertices[(idx + 1) % (vertices.length || 1)]) || { x: 0, z: 0 };
+        const x1 = toSvgX(p1.x ?? 0);
+        const y1 = toSvgY(p1.z ?? 0);
+        const x2 = toSvgX(p2.x ?? 0);
+        const y2 = toSvgY(p2.z ?? 0);
 
         const midX = (x1 + x2) / 2;
         const midY = (y1 + y2) / 2;

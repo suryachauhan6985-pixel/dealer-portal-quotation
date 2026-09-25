@@ -459,11 +459,13 @@ export default function SolarStructure3DViewer({
       const bandY = -(f * 3.048);
       const floorCenterY = -((f - 0.5) * 3.048);
 
-      polyWalls.forEach(w => {
-        const x1 = w.p1.x * 0.3048;
-        const z1 = w.p1.z * 0.3048;
-        const x2 = w.p2.x * 0.3048;
-        const z2 = w.p2.z * 0.3048;
+      polyWalls.forEach((w, idx) => {
+        const p1 = w?.p1 || (polyVerts && polyVerts[idx]) || { x: 0, z: 0 };
+        const p2 = w?.p2 || (polyVerts && polyVerts[(idx + 1) % (polyVerts.length || 1)]) || { x: 0, z: 0 };
+        const x1 = (p1.x ?? 0) * 0.3048;
+        const z1 = (p1.z ?? 0) * 0.3048;
+        const x2 = (p2.x ?? 0) * 0.3048;
+        const z2 = (p2.z ?? 0) * 0.3048;
 
         const dx = x2 - x1;
         const dz = z2 - z1;
@@ -514,11 +516,13 @@ export default function SolarStructure3DViewer({
 
     // 5e. Parapet Walls along Rooftop Boundary
     if (parapetHeightM > 0.05) {
-      polyWalls.forEach(w => {
-        const x1 = w.p1.x * 0.3048;
-        const z1 = w.p1.z * 0.3048;
-        const x2 = w.p2.x * 0.3048;
-        const z2 = w.p2.z * 0.3048;
+      polyWalls.forEach((w, idx) => {
+        const p1 = w?.p1 || (polyVerts && polyVerts[idx]) || { x: 0, z: 0 };
+        const p2 = w?.p2 || (polyVerts && polyVerts[(idx + 1) % (polyVerts.length || 1)]) || { x: 0, z: 0 };
+        const x1 = (p1.x ?? 0) * 0.3048;
+        const z1 = (p1.z ?? 0) * 0.3048;
+        const x2 = (p2.x ?? 0) * 0.3048;
+        const z2 = (p2.z ?? 0) * 0.3048;
 
         const dx = x2 - x1;
         const dz = z2 - z1;
