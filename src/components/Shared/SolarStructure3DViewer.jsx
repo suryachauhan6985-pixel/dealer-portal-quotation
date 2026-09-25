@@ -484,17 +484,34 @@ export default function SolarStructure3DViewer({
         }
       });
 
-      // Windows
-      const winX = (polyBounds.minX * 0.3048) - 0.02;
-      const winZ = (polyBounds.minZ * 0.3048) - 0.02;
+      // Windows attached flush to actual building wall faces
+      polyWalls.forEach((w, idx) => {
+        const p1 = w?.p1 || (polyVerts && polyVerts[idx]) || { x: 0, z: 0 };
+        const p2 = w?.p2 || (polyVerts && polyVerts[(idx + 1) % (polyVerts.length || 1)]) || { x: 0, z: 0 };
+        const x1 = (p1.x ?? 0) * 0.3048;
+        const z1 = (p1.z ?? 0) * 0.3048;
+        const x2 = (p2.x ?? 0) * 0.3048;
+        const z2 = (p2.z ?? 0) * 0.3048;
 
-      const wGroup = new THREE.Group();
-      wGroup.position.set(winX + 2.0, floorCenterY, winZ);
-      const frame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.4, 0.04), windowFrameMat);
-      wGroup.add(frame);
-      const glass = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 0.02), windowGlassMat);
-      wGroup.add(glass);
-      scene.add(wGroup);
+        const dx = x2 - x1;
+        const dz = z2 - z1;
+        const segLen = Math.sqrt(dx * dx + dz * dz);
+        if (segLen >= 3.2 && idx < 2) {
+          const segAngle = Math.atan2(dz, dx);
+          const midX = (x1 + x2) / 2;
+          const midZ = (z1 + z2) / 2;
+
+          const wGroup = new THREE.Group();
+          wGroup.position.set(midX, floorCenterY, midZ);
+          wGroup.rotation.y = -segAngle;
+
+          const frame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.4, 0.06), windowFrameMat);
+          wGroup.add(frame);
+          const glass = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 0.02), windowGlassMat);
+          wGroup.add(glass);
+          scene.add(wGroup);
+        }
+      });
     }
 
     // 5d. Ground Level Foundation Plane & Lawn at Y = -buildingHeightM
@@ -858,6 +875,7 @@ export default function SolarStructure3DViewer({
     const mountOffsetX = clampedMountCenter.x * 0.3048;
     const mountOffsetZ = clampedMountCenter.z * 0.3048;
     structureGroup.position.set(mountOffsetX, 0, mountOffsetZ);
+    scene.add(structureGroup);
 
     // 8. 3D Visual Markings (100% Shadow-Free Zone & Wall Clearance Dimension Lines)
     if (showOverlays) {
