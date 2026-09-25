@@ -34,6 +34,21 @@ export default function SolarStructure3DViewer({
   const [nudgeXFt, setNudgeXFt] = useState(0);
   const [nudgeZFt, setNudgeZFt] = useState(0);
 
+  // Parapet Wall Anchoring vs Terrace Floor Ballast Mount
+  // 'all_floor': Standard RCC slab anchors (4x M10 bolts)
+  // 'rear_wall': Rear legs anchor directly into parapet beam (M12/M16 chemical studs + L-cleats)
+  // 'front_wall': Front legs anchor into parapet beam
+  const [wallMountMode, setWallMountMode] = useState('all_floor');
+
+  // Cross-Bracing / Knee Support State (auto-recommended for >=6.0ft walkable structures)
+  const [crossBracingEnabled, setCrossBracingEnabled] = useState(() => (initialFrontLegHeightFt || 2.5) >= 6.0);
+
+  useEffect(() => {
+    if (frontLegFt >= 6.0) {
+      setCrossBracingEnabled(true);
+    }
+  }, [frontLegFt]);
+
   // Sun Simulation States (Day cycle 8 AM to 5 PM)
   const [sunHour, setSunHour] = useState(12.0);
   const [isSunPlaying, setIsSunPlaying] = useState(false);
@@ -186,7 +201,25 @@ export default function SolarStructure3DViewer({
     const frontHMm = elevation.frontLegHeightMm;
     const rearHMm = elevation.rearLegHeightMm;
 
+    const isRearWall = wallMountMode === 'rear_wall';
+    const isFrontWall = wallMountMode === 'front_wall';
+
+    const wallMountSpec = {
+      basePlate: '100mm × 100mm × 8mm HDG L-Cleat Angle',
+      fasteners: '2× M12 × 150mm High-Tensile Studs + Chemical Capsule (HIT-RE 500) + Spring Washers & Lock Nuts',
+      mountType: 'Parapet Wall Anchored (दीवार में केमिकल स्टड)'
+    };
+
+    const floorMountSpec = {
+      basePlate: '150mm × 150mm × 6mm MS Plate',
+      fasteners: '4× M10 × 100mm Anchor Fasteners + Rubber Damping Pad',
+      mountType: 'Terrace Floor Ballast / Slab Anchor (छत पर एंकर)'
+    };
+
     if (legPairs === 2) {
+      const flSpec = isFrontWall ? wallMountSpec : floorMountSpec;
+      const rlSpec = isRearWall ? wallMountSpec : floorMountSpec;
+
       rows.push(
         {
           tag: 'FL-1',
@@ -196,8 +229,9 @@ export default function SolarStructure3DViewer({
           heightMm: frontHMm,
           heightIn: (frontH * 12).toFixed(1),
           spec: '60mm × 40mm × 2.0mm HDG GI Box',
-          basePlate: '150mm × 150mm × 6mm MS Plate',
-          fasteners: '4× M10 × 100mm Anchor Fasteners',
+          basePlate: flSpec.basePlate,
+          fasteners: flSpec.fasteners,
+          mountType: flSpec.mountType,
           status: roofFit.fits ? '✓ Safe & Clear' : '⚠️ Warning: Exceeds Roof'
         },
         {
@@ -208,8 +242,9 @@ export default function SolarStructure3DViewer({
           heightMm: frontHMm,
           heightIn: (frontH * 12).toFixed(1),
           spec: '60mm × 40mm × 2.0mm HDG GI Box',
-          basePlate: '150mm × 150mm × 6mm MS Plate',
-          fasteners: '4× M10 × 100mm Anchor Fasteners',
+          basePlate: flSpec.basePlate,
+          fasteners: flSpec.fasteners,
+          mountType: flSpec.mountType,
           status: roofFit.fits ? '✓ Safe & Clear' : '⚠️ Warning: Exceeds Roof'
         },
         {
@@ -220,8 +255,9 @@ export default function SolarStructure3DViewer({
           heightMm: rearHMm,
           heightIn: (rearH * 12).toFixed(1),
           spec: '60mm × 40mm × 2.0mm HDG GI Box',
-          basePlate: '150mm × 150mm × 6mm MS Plate',
-          fasteners: '4× M10 × 100mm Anchor Fasteners',
+          basePlate: rlSpec.basePlate,
+          fasteners: rlSpec.fasteners,
+          mountType: rlSpec.mountType,
           status: roofFit.fits ? '✓ Safe & Clear' : '⚠️ Warning: Exceeds Roof'
         },
         {
@@ -232,25 +268,28 @@ export default function SolarStructure3DViewer({
           heightMm: rearHMm,
           heightIn: (rearH * 12).toFixed(1),
           spec: '60mm × 40mm × 2.0mm HDG GI Box',
-          basePlate: '150mm × 150mm × 6mm MS Plate',
-          fasteners: '4× M10 × 100mm Anchor Fasteners',
+          basePlate: rlSpec.basePlate,
+          fasteners: rlSpec.fasteners,
+          mountType: rlSpec.mountType,
           status: roofFit.fits ? '✓ Safe & Clear' : '⚠️ Warning: Exceeds Roof'
         }
       );
     } else {
       const legNames = [
-        { tag: 'FL-1', name: 'Front-Left Column (आगे बायाँ पैर)', pos: 'Front / South (आगे)' },
-        { tag: 'FC-2', name: 'Front-Center Column (आगे मध्य पैर)', pos: 'Front / South (आगे)' },
-        { tag: 'FR-3', name: 'Front-Right Column (आगे दायाँ पैर)', pos: 'Front / South (आगे)' },
-        { tag: 'RL-1', name: 'Rear-Left Column (पीछे बायाँ पैर)', pos: 'Rear / North (पीछे)' },
-        { tag: 'RC-2', name: 'Rear-Center Column (पीछे मध्य पैर)', pos: 'Rear / North (पीछे)' },
-        { tag: 'RR-3', name: 'Rear-Right Column (पीछे दायाँ पैर)', pos: 'Rear / North (पीछे)' }
+        { tag: 'FL-1', name: 'Front-Left Column (आगे बायाँ पैर)', pos: 'Front / South (आगे)', isFront: true },
+        { tag: 'FC-2', name: 'Front-Center Column (आगे मध्य पैर)', pos: 'Front / South (आगे)', isFront: true },
+        { tag: 'FR-3', name: 'Front-Right Column (आगे दायाँ पैर)', pos: 'Front / South (आगे)', isFront: true },
+        { tag: 'RL-1', name: 'Rear-Left Column (पीछे बायाँ पैर)', pos: 'Rear / North (पीछे)', isFront: false },
+        { tag: 'RC-2', name: 'Rear-Center Column (पीछे मध्य पैर)', pos: 'Rear / North (पीछे)', isFront: false },
+        { tag: 'RR-3', name: 'Rear-Right Column (पीछे दायाँ पैर)', pos: 'Rear / North (पीछे)', isFront: false }
       ];
 
-      legNames.forEach((l, idx) => {
-        const isFront = idx < 3;
+      legNames.forEach((l) => {
+        const isFront = l.isFront;
         const h = isFront ? frontH : rearH;
         const hMm = isFront ? frontHMm : rearHMm;
+        const spec = (isFront && isFrontWall) || (!isFront && isRearWall) ? wallMountSpec : floorMountSpec;
+
         rows.push({
           tag: l.tag,
           name: l.name,
@@ -259,14 +298,15 @@ export default function SolarStructure3DViewer({
           heightMm: hMm,
           heightIn: (h * 12).toFixed(1),
           spec: '60mm × 40mm × 2.0mm HDG GI Box',
-          basePlate: '150mm × 150mm × 6mm MS Plate',
-          fasteners: '4× M10 × 100mm Anchor Fasteners',
+          basePlate: spec.basePlate,
+          fasteners: spec.fasteners,
+          mountType: spec.mountType,
           status: roofFit.fits ? '✓ Safe & Clear' : '⚠️ Warning: Exceeds Roof'
         });
       });
     }
     return rows;
-  }, [legPairs, elevation, roofFit]);
+  }, [legPairs, elevation, roofFit, wallMountMode]);
 
   const handleCopySchedule = () => {
     const text = legEngineeringData
@@ -600,11 +640,30 @@ export default function SolarStructure3DViewer({
       fLeg.castShadow = true;
       structureGroup.add(fLeg);
 
-      // Front Base Plate
-      const fPlate = new THREE.Mesh(basePlateGeo, basePlateMat);
-      fPlate.position.set(x, 0.008, frontZ);
-      fPlate.receiveShadow = true;
-      structureGroup.add(fPlate);
+      // Front Base Plate or Wall Cleat
+      if (wallMountMode === 'front_wall') {
+        const cleatGeo = new THREE.BoxGeometry(0.12, 0.12, 0.08);
+        const cleatMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.2 });
+        const cleat = new THREE.Mesh(cleatGeo, cleatMat);
+        cleat.position.set(x, 0.08, frontZ - 0.03);
+        structureGroup.add(cleat);
+
+        const studGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.15, 8);
+        const studMat = new THREE.MeshStandardMaterial({ color: 0xE2E8F0, metalness: 0.95, roughness: 0.15 });
+        const stud1 = new THREE.Mesh(studGeo, studMat);
+        stud1.rotation.x = Math.PI / 2;
+        stud1.position.set(x - 0.03, 0.08, frontZ - 0.08);
+        structureGroup.add(stud1);
+        const stud2 = new THREE.Mesh(studGeo, studMat);
+        stud2.rotation.x = Math.PI / 2;
+        stud2.position.set(x + 0.03, 0.08, frontZ - 0.08);
+        structureGroup.add(stud2);
+      } else {
+        const fPlate = new THREE.Mesh(basePlateGeo, basePlateMat);
+        fPlate.position.set(x, 0.008, frontZ);
+        fPlate.receiveShadow = true;
+        structureGroup.add(fPlate);
+      }
 
       // Rear Leg Column
       const rLegGeo = new THREE.BoxGeometry(colWidth, rearHM, colDepth);
@@ -613,16 +672,81 @@ export default function SolarStructure3DViewer({
       rLeg.castShadow = true;
       structureGroup.add(rLeg);
 
-      // Rear Base Plate
-      const rPlate = new THREE.Mesh(basePlateGeo, basePlateMat);
-      rPlate.position.set(x, 0.008, rearZ);
-      rPlate.receiveShadow = true;
-      structureGroup.add(rPlate);
+      // Rear Base Plate or Wall Cleat
+      if (wallMountMode === 'rear_wall') {
+        const cleatGeo = new THREE.BoxGeometry(0.12, 0.12, 0.08);
+        const cleatMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.2 });
+        const cleat = new THREE.Mesh(cleatGeo, cleatMat);
+        cleat.position.set(x, 0.08, rearZ + 0.03);
+        structureGroup.add(cleat);
+
+        const studGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.15, 8);
+        const studMat = new THREE.MeshStandardMaterial({ color: 0xE2E8F0, metalness: 0.95, roughness: 0.15 });
+        const stud1 = new THREE.Mesh(studGeo, studMat);
+        stud1.rotation.x = Math.PI / 2;
+        stud1.position.set(x - 0.03, 0.08, rearZ + 0.08);
+        structureGroup.add(stud1);
+        const stud2 = new THREE.Mesh(studGeo, studMat);
+        stud2.rotation.x = Math.PI / 2;
+        stud2.position.set(x + 0.03, 0.08, rearZ + 0.08);
+        structureGroup.add(stud2);
+      } else {
+        const rPlate = new THREE.Mesh(basePlateGeo, basePlateMat);
+        rPlate.position.set(x, 0.008, rearZ);
+        rPlate.receiveShadow = true;
+        structureGroup.add(rPlate);
+      }
     }
 
     // 7. Tilted Plane Group Facing South
     const tableCenterY = (frontHM + rearHM) / 2;
     const tableCenterZ = (frontZ + rearZ) / 2;
+
+    // Cross-Bracing / Diagonal Knee Supports
+    if (crossBracingEnabled) {
+      const braceMat = new THREE.MeshStandardMaterial({ color: 0xF59E0B, metalness: 0.85, roughness: 0.25 });
+      for (let i = 0; i < legPairs; i++) {
+        const x = -arrayWM / 2 + (i * legSpacing);
+        // Diagonal knee brace from rear leg to table
+        const p1 = new THREE.Vector3(x, rearHM * 0.55, rearZ);
+        const p2 = new THREE.Vector3(x, tableCenterY, tableCenterZ - 0.15);
+        const dir = new THREE.Vector3().subVectors(p2, p1);
+        const len = dir.length();
+        const kGeo = new THREE.CylinderGeometry(0.018, 0.018, len, 8);
+        const kBrace = new THREE.Mesh(kGeo, braceMat);
+        kBrace.position.copy(p1).add(dir.clone().multiplyScalar(0.5));
+        kBrace.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+        kBrace.castShadow = true;
+        structureGroup.add(kBrace);
+      }
+
+      // X-Cross Bracing between bays along the X axis
+      for (let i = 0; i < legPairs - 1; i++) {
+        const x1 = -arrayWM / 2 + (i * legSpacing);
+        const x2 = -arrayWM / 2 + ((i + 1) * legSpacing);
+        const bayZ = rearZ;
+
+        // Diagonal 1: (x1, 0.2) -> (x2, rearHM * 0.85)
+        const v1 = new THREE.Vector3(x1, 0.2, bayZ);
+        const v2 = new THREE.Vector3(x2, rearHM * 0.85, bayZ);
+        const d1 = new THREE.Vector3().subVectors(v2, v1);
+        const b1 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, d1.length(), 8), braceMat);
+        b1.position.copy(v1).add(d1.clone().multiplyScalar(0.5));
+        b1.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d1.clone().normalize());
+        b1.castShadow = true;
+        structureGroup.add(b1);
+
+        // Diagonal 2: (x2, 0.2) -> (x1, rearHM * 0.85)
+        const v3 = new THREE.Vector3(x2, 0.2, bayZ);
+        const v4 = new THREE.Vector3(x1, rearHM * 0.85, bayZ);
+        const d2 = new THREE.Vector3().subVectors(v4, v3);
+        const b2 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, d2.length(), 8), braceMat);
+        b2.position.copy(v3).add(d2.clone().multiplyScalar(0.5));
+        b2.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d2.clone().normalize());
+        b2.castShadow = true;
+        structureGroup.add(b2);
+      }
+    }
 
     const tiltedPlaneGroup = new THREE.Group();
     tiltedPlaneGroup.position.set(0, tableCenterY, tableCenterZ);
@@ -854,7 +978,7 @@ export default function SolarStructure3DViewer({
         container.removeChild(renderer.domElement);
       }
     };
-  }, [layout, elevation, activeRoof, floorConfig, legPairs, clampedMountCenter]);
+  }, [layout, elevation, activeRoof, floorConfig, legPairs, clampedMountCenter, wallMountMode, crossBracingEnabled]);
 
   // Handle Camera Presets
   const setCameraPreset = preset => {
@@ -1017,7 +1141,83 @@ export default function SolarStructure3DViewer({
         </div>
       </div>
 
-      {/* 2b. Interactive Structure Positioning Toolbar (छत पर स्ट्रक्चर की सटीक जगह सेट करें) */}
+      {/* 2b. Wall Anchoring & Wind Load Cross-Bracing Controls */}
+      <div className="px-4 py-2.5 bg-slate-950/90 border-b border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-3 text-white text-xs">
+        {/* Foundation & Wall Anchoring Mode */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-amber-400 text-[18px]">foundation</span>
+            <div>
+              <span className="font-bold text-white block">Leg Foundation Mode (फाउंडेशन / दीवार):</span>
+              <span className="text-[10px] text-slate-400">
+                {wallMountMode === 'all_floor'
+                  ? 'Standard RCC slab fasteners (छत पर एंकर)'
+                  : 'Parapet beam chemical anchor studs (दीवार में केमिकल स्टड)'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+            {[
+              { id: 'all_floor', label: 'All Floor (छत)', icon: 'crop_square' },
+              { id: 'rear_wall', label: 'Rear Wall (दीवार)', icon: 'vertical_align_top' },
+              { id: 'front_wall', label: 'Front Wall', icon: 'vertical_align_bottom' }
+            ].map(m => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setWallMountMode(m.id)}
+                className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  wallMountMode === m.id
+                    ? 'bg-amber-400 text-slate-950 shadow-xs'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <span>{m.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Knee Support & Cross-Bracing */}
+        <div className="flex items-center justify-between gap-3 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#6CBF3D] text-[18px]">cyclone</span>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-white">Cross-Bracing (150 km/h सपोर्ट):</span>
+                {frontLegFt >= 6.0 && (
+                  <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-500/20 text-amber-400 uppercase">
+                    Recommended
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] text-slate-400">
+                {crossBracingEnabled
+                  ? '✓ 40×40mm HDG Diagonal Knee & X-Bay Braces Included'
+                  : 'Basic standard structure without diagonal supports'}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setCrossBracingEnabled(!crossBracingEnabled)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+              crossBracingEnabled
+                ? 'bg-[#6CBF3D] text-slate-950 shadow-xs'
+                : 'bg-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[15px]">
+              {crossBracingEnabled ? 'check_circle' : 'add_circle'}
+            </span>
+            <span>{crossBracingEnabled ? 'Bracing Active' : 'Add Bracing'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2c. Interactive Structure Positioning Toolbar (छत पर स्ट्रक्चर की सटीक जगह सेट करें) */}
       <div className="px-4 py-2.5 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-white text-xs">
         <div className="flex items-center gap-4 flex-wrap">
           <span className="font-bold text-slate-300 flex items-center gap-1">
@@ -1364,17 +1564,27 @@ export default function SolarStructure3DViewer({
           </div>
 
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
-            <span className="text-[11px] text-slate-400 font-semibold">Anchor Fasteners:</span>
+            <span className="text-[11px] text-slate-400 font-semibold">Fasteners &amp; Studs:</span>
             <span className="text-xl font-black text-amber-400 mt-1">
-              {(legPairs * 2) * 4} <span className="text-xs font-normal text-slate-400">Pcs</span>
+              {wallMountMode === 'all_floor'
+                ? `${(legPairs * 2) * 4} Pcs`
+                : `${(legPairs * 4)} M10 + ${legPairs * 2} M12`}
             </span>
-            <span className="text-[10px] text-slate-500 mt-0.5">4 per leg (M10×100mm Anchor Bolts)</span>
+            <span className="text-[10px] text-slate-500 mt-0.5">
+              {wallMountMode === 'all_floor'
+                ? '4 per leg (M10×100mm Anchor Bolts)'
+                : `${legPairs} Wall Cleats + M12 Chemical Studs`}
+            </span>
           </div>
 
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
-            <span className="text-[11px] text-slate-400 font-semibold">Wind Load Standard:</span>
-            <span className="text-xl font-black text-emerald-400 mt-1">140 km/h</span>
-            <span className="text-[10px] text-slate-500 mt-0.5">IS 875 Part 3 Compliant</span>
+            <span className="text-[11px] text-slate-400 font-semibold">Wind Load Rating:</span>
+            <span className="text-xl font-black text-emerald-400 mt-1">
+              {crossBracingEnabled ? '150 km/h ★' : '130 km/h'}
+            </span>
+            <span className="text-[10px] text-slate-500 mt-0.5">
+              {crossBracingEnabled ? 'Knee & X-Bay Bracing Certified' : 'IS 875 Part 3 Standard'}
+            </span>
           </div>
         </div>
 

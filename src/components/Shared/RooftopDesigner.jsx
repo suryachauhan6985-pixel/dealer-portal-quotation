@@ -466,6 +466,76 @@ export default function RooftopDesigner({
     setBlueprintViewMode('cad');
   };
 
+  // Start fresh on a blank millimeter CAD blueprint grid (No sketch upload needed!)
+  const handleStartBlankGridCanvas = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1000;
+    canvas.height = 700;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Dark CAD blueprint background
+      ctx.fillStyle = '#080d1a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Fine grid
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= canvas.width; x += 25) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= canvas.height; y += 25) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      // Major grid (100px)
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+      ctx.lineWidth = 1.5;
+      for (let x = 0; x <= canvas.width; x += 100) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= canvas.height; y += 100) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      // Compass & instructions
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 13px monospace';
+      ctx.fillText('📐 SUNVINE CAD MILLIMETER BLANK CANVAS — POINT-TO-POINT PEN TOOL', 30, 35);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '11px sans-serif';
+      ctx.fillText('Click anywhere to place corners P1, P2, P3... then close loop on P1 to set dimensions & 3D view', 30, 55);
+    }
+    const dataUrl = canvas.toDataURL('image/png');
+    setUploadPreview(dataUrl);
+    setScanResult(null);
+
+    const updated = {
+      ...DEFAULT_ROOF_CONFIG,
+      name: 'Custom CAD Grid Rooftop',
+      uploadedImage: dataUrl,
+      isPendingUpload: false,
+      corners: [],
+      walls: [],
+      customVertices: null
+    };
+
+    setConfig(updated);
+    if (onSaveRoofConfig) onSaveRoofConfig(updated);
+    setBlueprintViewMode('tracer');
+  };
+
   const handleClearDrawing = () => {
     setConfig(DEFAULT_ROOF_CONFIG);
     setUploadPreview(null);
@@ -576,13 +646,23 @@ export default function RooftopDesigner({
               </div>
             </div>
 
-            {uploadPreview && (
+            {uploadPreview ? (
               <button
                 type="button"
                 onClick={handleClearDrawing}
                 className="px-2.5 py-1 text-[11px] font-bold text-rose-400 hover:bg-rose-950/50 rounded-lg border border-rose-500/30 cursor-pointer shrink-0 transition-colors"
               >
                 Clear / New
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleStartBlankGridCanvas}
+                className="px-2.5 py-1 text-[11px] font-bold text-cyan-400 hover:bg-cyan-950/50 rounded-lg border border-cyan-500/30 cursor-pointer shrink-0 transition-colors flex items-center gap-1"
+                title="Start drawing roof boundaries directly on a blank CAD millimeter grid"
+              >
+                <span className="material-symbols-outlined text-[14px]">grid_4x4</span>
+                <span>Blank Grid</span>
               </button>
             )}
           </div>
@@ -679,6 +759,28 @@ export default function RooftopDesigner({
                   </div>
                 )}
               </div>
+
+              {/* Draw on Blank CAD Grid (Zero image required) */}
+              {!uploadPreview && !isScanning && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-px bg-slate-850"></div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">OR</span>
+                    <div className="flex-1 h-px bg-slate-850"></div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleStartBlankGridCanvas}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-950/80 to-slate-900 hover:from-cyan-900 hover:to-slate-800 text-cyan-300 font-bold text-xs flex items-center justify-center gap-2 border border-cyan-500/30 hover:border-cyan-400/50 cursor-pointer shadow-md transition-all group"
+                  >
+                    <span className="material-symbols-outlined text-[18px] text-cyan-400 group-hover:scale-110 transition-transform">
+                      grid_4x4
+                    </span>
+                    <span>Draw on Blank CAD Grid (बिना फ़ोटो डायरेक्ट नाप खींचें)</span>
+                  </button>
+                </>
+              )}
 
               {/* Optional AI Auto-Scan Button */}
               {uploadPreview && !isScanning && (
