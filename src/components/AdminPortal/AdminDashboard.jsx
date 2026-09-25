@@ -29,7 +29,9 @@ export default function AdminDashboard() {
     setActiveTab, 
     setPreviewQuotation,
     pricingPresets,
-    updatePricingPresets
+    updatePricingPresets,
+    clearEditingQuotation,
+    clearActiveDraftQuote
   } = useApp();
 
   // Active Date Range Filter (Default: October 2025 as seen in dashboard ledger)
@@ -514,6 +516,21 @@ export default function AdminDashboard() {
           >
             <span className="material-symbols-outlined text-[16px] sm:text-[18px]">download</span>
             <span>Export Ledger</span>
+          </button>
+
+          {/* Create Company Direct Quotation Button */}
+          <button
+            onClick={() => {
+              if (clearEditingQuotation) clearEditingQuotation();
+              if (clearActiveDraftQuote) clearActiveDraftQuote();
+              setActiveTab('create_quote');
+            }}
+            type="button"
+            className="flex items-center gap-1.5 sm:gap-2 bg-primary hover:bg-primary/90 text-on-primary font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-label-md text-xs sm:text-sm transition-all shadow-sm cursor-pointer active:scale-95"
+            title="Create Sunvine Direct Company Quotation (Zero Dealer Margin)"
+          >
+            <span className="material-symbols-outlined text-[16px] sm:text-[18px]">add_circle</span>
+            <span>New Direct Quote</span>
           </button>
         </div>
       </div>

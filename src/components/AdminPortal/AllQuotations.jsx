@@ -4,7 +4,7 @@ import { useToast } from '../Shared/Toast';
 import ViewModeToggle, { useTableViewMode } from '../Shared/ViewModeToggle';
 
 export default function AllQuotations() {
-  const { quotations, setPreviewQuotation, setActiveTab, dealers, addNotification, updateQuotationStatus } = useApp();
+  const { quotations, setPreviewQuotation, setActiveTab, dealers, addNotification, updateQuotationStatus, clearEditingQuotation, clearActiveDraftQuote } = useApp();
   const { addToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTabFilter, setActiveTabFilter] = useState('all');
@@ -620,12 +620,27 @@ export default function AllQuotations() {
           {/* Export proposals button */}
           <button
             onClick={handleExportProposals}
-            className="bg-[#0F1B2E] hover:bg-[#182a45] text-white font-label-md py-2 px-4 rounded-lg flex items-center gap-2 text-xs shadow-sm transition-colors border border-[#0F1B2E] cursor-pointer"
+            className="bg-[#0F1B2E] hover:bg-[#182a45] text-white font-label-md py-2 px-3.5 rounded-lg flex items-center gap-2 text-xs shadow-sm transition-colors border border-[#0F1B2E] cursor-pointer"
             type="button"
             title="Export Gujarat proposals ledger as CSV/Excel"
           >
             <span className="material-symbols-outlined text-[#6CBF3D]">file_download</span>
             <span>Export Gujarat Proposals (Excel)</span>
+          </button>
+
+          {/* Create Direct Quotation button */}
+          <button
+            onClick={() => {
+              if (clearEditingQuotation) clearEditingQuotation();
+              if (clearActiveDraftQuote) clearActiveDraftQuote();
+              setActiveTab('create_quote');
+            }}
+            className="bg-primary hover:bg-primary/90 text-on-primary font-label-md py-2 px-3.5 rounded-lg flex items-center gap-2 text-xs font-semibold shadow-sm transition-all cursor-pointer active:scale-95"
+            type="button"
+            title="Create Sunvine Direct Company Quotation (Zero Dealer Margin)"
+          >
+            <span className="material-symbols-outlined text-[16px]">add_circle</span>
+            <span>New Direct Quote</span>
           </button>
         </div>
       </div>
