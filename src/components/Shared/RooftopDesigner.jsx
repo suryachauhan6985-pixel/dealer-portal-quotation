@@ -143,9 +143,35 @@ export default function RooftopDesigner({
     setShowApiKeySetting(false);
   };
 
-  // Compute vertices and walls dynamically from whatever is active
+  // Compute vertices and walls dynamically from whatever is active (synced with traced sides!)
   const vertices = useMemo(() => getRoofPolygonVertices(config), [config]);
-  const walls = useMemo(() => getRoofWalls(vertices), [vertices]);
+  const rawWalls = useMemo(() => getRoofWalls(vertices), [vertices]);
+  const walls = useMemo(() => {
+    if (config.walls && config.walls.length >= 3) {
+      return config.walls.map((w, idx) => ({
+        index: w.index || w.side || idx + 1,
+        side: w.side || idx + 1,
+        name: w.name || `Side ${idx + 1}`,
+        lengthFt: parseFloat(w.lengthFt) || 10,
+        direction: w.direction || 'E'
+      }));
+    }
+    return rawWalls;
+  }, [config.walls, rawWalls]);
+
+  const handleTracerSidesChange = useCallback(newSides => {
+    if (!newSides || newSides.length === 0) return;
+    setConfig(prev => ({
+      ...prev,
+      walls: newSides.map((s, idx) => ({
+        index: idx + 1,
+        side: idx + 1,
+        name: s.name,
+        lengthFt: parseFloat(s.lengthFt) || 10,
+        direction: s.direction
+      }))
+    }));
+  }, []);
   const totalPerimeterFt = useMemo(() => walls.reduce((acc, w) => acc + w.lengthFt, 0).toFixed(1), [walls]);
   const estimatedAreaSqFt = useMemo(() => {
     let area = 0;
@@ -911,6 +937,7 @@ export default function RooftopDesigner({
                 initialWalls={config.walls || walls}
                 initialParapetHeight={config.parapetHeightFt || 3.0}
                 onApplyGeometry={handleApplyTracedGeometry}
+                onSidesChange={handleTracerSidesChange}
                 onClose={() => setBlueprintViewMode('cad')}
               />
             ) : config.isPendingUpload && !uploadPreview ? (

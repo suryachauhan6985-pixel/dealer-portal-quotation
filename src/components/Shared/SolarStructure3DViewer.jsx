@@ -30,9 +30,49 @@ export default function SolarStructure3DViewer({
   const [legCountChoice, setLegCountChoice] = useState('6'); // '6' (Suggested/Recommended for 3x2), '4' (Economy)
   const [copySuccess, setCopySuccess] = useState(false);
 
-  // Manual Nudge Sliders (X & Z fine-tuning)
+  // Manual Nudge Sliders (X & Z fine-tuning across entire roof)
   const [nudgeXFt, setNudgeXFt] = useState(0);
   const [nudgeZFt, setNudgeZFt] = useState(0);
+
+  // Sun Simulation States (Day cycle 8 AM to 5 PM)
+  const [sunHour, setSunHour] = useState(12.0);
+  const [isSunPlaying, setIsSunPlaying] = useState(false);
+  const [showOverlays, setShowOverlays] = useState(true);
+  const sunLightRef = useRef(null);
+
+  // Animate Sun Position during simulation
+  useEffect(() => {
+    if (!isSunPlaying) return;
+    const interval = setInterval(() => {
+      setSunHour(prev => {
+        if (prev >= 17.0) return 8.0;
+        return Number((prev + 0.25).toFixed(2));
+      });
+    }, 200);
+    return () => clearInterval(interval);
+  }, [isSunPlaying]);
+
+  // Dynamically move directional sunlight without re-creating WebGL scene
+  useEffect(() => {
+    if (sunLightRef.current) {
+      const sunAzimuthRad = ((sunHour - 12) * 16 * Math.PI) / 180;
+      const sunAltitudeRad = ((72 - Math.abs(sunHour - 12) * 6.5) * Math.PI) / 180;
+      const sunDist = 32;
+      const sunX = sunDist * Math.cos(sunAltitudeRad) * Math.sin(sunAzimuthRad);
+      const sunY = sunDist * Math.sin(sunAltitudeRad);
+      const sunZ = -sunDist * Math.cos(sunAltitudeRad) * Math.cos(sunAzimuthRad);
+      sunLightRef.current.position.set(sunX, sunY, sunZ);
+    }
+  }, [sunHour]);
+
+  const getSunHourLabel = hour => {
+    const whole = Math.floor(hour);
+    const min = Math.round((hour - whole) * 60);
+    const minStr = min < 10 ? `0${min}` : `${min}`;
+    const period = whole >= 12 ? 'PM' : 'AM';
+    const displayH = whole > 12 ? whole - 12 : whole;
+    return `${displayH}:${minStr} ${period}`;
+  };
 
   const controlsRef = useRef(null);
   const cameraRef = useRef(null);
@@ -275,22 +315,30 @@ export default function SolarStructure3DViewer({
     controls.target.set(0, 0, 0);
     controlsRef.current = controls;
 
-    // 3. Lighting (Sun in South = -Z direction)
+    // 3. Lighting (Sun in South = -Z direction, dynamic with sunHour)
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
     scene.add(ambientLight);
 
+    const sunAzimuthRad = ((sunHour - 12) * 16 * Math.PI) / 180;
+    const sunAltitudeRad = ((72 - Math.abs(sunHour - 12) * 6.5) * Math.PI) / 180;
+    const sunDist = 32;
+    const sunX = sunDist * Math.cos(sunAltitudeRad) * Math.sin(sunAzimuthRad);
+    const sunY = sunDist * Math.sin(sunAltitudeRad);
+    const sunZ = -sunDist * Math.cos(sunAltitudeRad) * Math.cos(sunAzimuthRad);
+
     const sunLight = new THREE.DirectionalLight(0xfff8e7, 1.4);
-    sunLight.position.set(6, 22, -18);
+    sunLight.position.set(sunX, sunY, sunZ);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.camera.near = 0.5;
-    sunLight.shadow.camera.far = 60;
-    sunLight.shadow.camera.left = -22;
-    sunLight.shadow.camera.right = 22;
-    sunLight.shadow.camera.top = 22;
-    sunLight.shadow.camera.bottom = -22;
+    sunLight.shadow.camera.far = 65;
+    sunLight.shadow.camera.left = -25;
+    sunLight.shadow.camera.right = 25;
+    sunLight.shadow.camera.top = 25;
+    sunLight.shadow.camera.bottom = -25;
     scene.add(sunLight);
+    sunLightRef.current = sunLight;
 
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x94a3b8, 0.4);
     scene.add(hemiLight);
@@ -683,9 +731,93 @@ export default function SolarStructure3DViewer({
     const mountOffsetZ = clampedMountCenter.z * 0.3048;
     structureGroup.position.set(mountOffsetX, 0, mountOffsetZ);
 
-    scene.add(structureGroup);
+    // 8. 3D Visual Markings (100% Shadow-Free Zone & Wall Clearance Dimension Lines)
+    if (showOverlays) {
+      const overlayGroup = new THREE.Group();
 
-    // 8. True South Compass Arrow
+      // 100% Shadow-Free Optimal Solar Zone on Roof Floor
+      const sz = activeRoof.safeSolarZone;
+      const szW = (sz?.availableWidthFt || polyBounds.spanX * 0.75) * 0.3048;
+      const szD = (sz?.availableDepthFt || polyBounds.spanZ * 0.5) * 0.3048;
+      const szCX = (sz?.centerXFt !== undefined ? sz.centerXFt : (polyBounds.minX + polyBounds.maxX) / 2) * 0.3048;
+      const szCZ = (sz?.centerZFt !== undefined ? sz.centerZFt : (polyBounds.minZ + polyBounds.maxZ) / 2) * 0.3048;
+
+      const szGeo = new THREE.PlaneGeometry(szW, szD);
+      const szMat = new THREE.MeshBasicMaterial({
+        color: 0x10B981,
+        transparent: true,
+        opacity: 0.12,
+        side: THREE.DoubleSide
+      });
+      const szMesh = new THREE.Mesh(szGeo, szMat);
+      szMesh.rotation.x = -Math.PI / 2;
+      szMesh.position.set(szCX, 0.015, szCZ);
+      overlayGroup.add(szMesh);
+
+      // Border outline for safe zone
+      const szEdges = new THREE.EdgesGeometry(szGeo);
+      const szLineMat = new THREE.LineBasicMaterial({ color: 0x10B981, linewidth: 2 });
+      const szOutline = new THREE.LineSegments(szEdges, szLineMat);
+      szOutline.rotation.x = -Math.PI / 2;
+      szOutline.position.set(szCX, 0.02, szCZ);
+      overlayGroup.add(szOutline);
+
+      // Dimension Clearance Lines from structure array to 4 walls
+      const lineMat = new THREE.LineDashedMaterial({
+        color: 0x0284C7,
+        dashSize: 0.25,
+        gapSize: 0.12,
+        linewidth: 2
+      });
+
+      // Line to South wall (-Z)
+      const southZWall = polyBounds.minZ * 0.3048;
+      const southArrayZ = mountOffsetZ + frontZ;
+      const sGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(mountOffsetX, 0.03, southArrayZ),
+        new THREE.Vector3(mountOffsetX, 0.03, southZWall)
+      ]);
+      const sLine = new THREE.Line(sGeo, lineMat);
+      sLine.computeLineDistances();
+      overlayGroup.add(sLine);
+
+      // Line to North wall (+Z)
+      const northZWall = polyBounds.maxZ * 0.3048;
+      const northArrayZ = mountOffsetZ + rearZ;
+      const nGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(mountOffsetX, 0.03, northArrayZ),
+        new THREE.Vector3(mountOffsetX, 0.03, northZWall)
+      ]);
+      const nLine = new THREE.Line(nGeo, lineMat);
+      nLine.computeLineDistances();
+      overlayGroup.add(nLine);
+
+      // Line to West wall (-X)
+      const westXWall = polyBounds.minX * 0.3048;
+      const westArrayX = mountOffsetX - arrayWM / 2;
+      const wGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(westArrayX, 0.03, mountOffsetZ),
+        new THREE.Vector3(westXWall, 0.03, mountOffsetZ)
+      ]);
+      const wLine = new THREE.Line(wGeo, lineMat);
+      wLine.computeLineDistances();
+      overlayGroup.add(wLine);
+
+      // Line to East wall (+X)
+      const eastXWall = polyBounds.maxX * 0.3048;
+      const eastArrayX = mountOffsetX + arrayWM / 2;
+      const eGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(eastArrayX, 0.03, mountOffsetZ),
+        new THREE.Vector3(eastXWall, 0.03, mountOffsetZ)
+      ]);
+      const eLine = new THREE.Line(eGeo, lineMat);
+      eLine.computeLineDistances();
+      overlayGroup.add(eLine);
+
+      scene.add(overlayGroup);
+    }
+
+    // 9. True South Compass Arrow
     const compassGroup = new THREE.Group();
     const arrowDir = new THREE.Vector3(0, 0, -1);
     const arrowOrigin = new THREE.Vector3(mountOffsetX, 0.02, mountOffsetZ + frontZ - 1.2);
@@ -890,35 +1022,35 @@ export default function SolarStructure3DViewer({
         <div className="flex items-center gap-4 flex-wrap">
           <span className="font-bold text-slate-300 flex items-center gap-1">
             <span className="material-symbols-outlined text-[#6CBF3D] text-[18px]">open_with</span>
-            <span>Fine-Tune Structure Position:</span>
+            <span>Move Structure Across Roof:</span>
           </span>
 
-          {/* Left/Right Nudge */}
+          {/* Left/Right Nudge across full roof */}
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] text-slate-400 font-semibold">Left/Right:</span>
             <input
               type="range"
-              min="-12"
-              max="12"
+              min={-Math.max(15, Math.round(polyBounds.spanX * 0.45))}
+              max={Math.max(15, Math.round(polyBounds.spanX * 0.45))}
               step="0.5"
               value={nudgeXFt}
               onChange={e => setNudgeXFt(parseFloat(e.target.value))}
-              className="w-24 accent-[#6CBF3D] cursor-pointer"
+              className="w-28 accent-[#6CBF3D] cursor-pointer"
             />
             <span className="font-mono text-slate-300 w-10 text-right">{nudgeXFt > 0 ? `+${nudgeXFt}` : nudgeXFt}&apos;</span>
           </div>
 
-          {/* Front/Back Nudge */}
+          {/* Front/Back Nudge across full roof */}
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] text-slate-400 font-semibold">Front/Back:</span>
             <input
               type="range"
-              min="-12"
-              max="12"
+              min={-Math.max(15, Math.round(polyBounds.spanZ * 0.45))}
+              max={Math.max(15, Math.round(polyBounds.spanZ * 0.45))}
               step="0.5"
               value={nudgeZFt}
               onChange={e => setNudgeZFt(parseFloat(e.target.value))}
-              className="w-24 accent-[#6CBF3D] cursor-pointer"
+              className="w-28 accent-[#6CBF3D] cursor-pointer"
             />
             <span className="font-mono text-slate-300 w-10 text-right">{nudgeZFt > 0 ? `+${nudgeZFt}` : nudgeZFt}&apos;</span>
           </div>
@@ -929,7 +1061,7 @@ export default function SolarStructure3DViewer({
               setNudgeXFt(0);
               setNudgeZFt(0);
             }}
-            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-amber-300 border border-slate-700 cursor-pointer"
+            className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-amber-300 border border-slate-700 cursor-pointer"
           >
             🎯 Auto-Center Inside Safe Zone
           </button>
@@ -939,26 +1071,93 @@ export default function SolarStructure3DViewer({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] text-slate-400 font-semibold">Clearances to Walls:</span>
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-            clampedMountCenter.southClearance < 2.0 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'
+            clampedMountCenter.southClearance < 1.5 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'
           }`}>
             South: {clampedMountCenter.southClearance}ft
           </span>
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-            clampedMountCenter.northClearance < 2.0 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'
+            clampedMountCenter.northClearance < 1.5 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'
           }`}>
             North: {clampedMountCenter.northClearance}ft
           </span>
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-            clampedMountCenter.westClearance < 2.0 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'
+            clampedMountCenter.westClearance < 1.5 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'
           }`}>
             West: {clampedMountCenter.westClearance}ft
           </span>
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-            clampedMountCenter.eastClearance < 2.0 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'
+            clampedMountCenter.eastClearance < 1.5 ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'
           }`}>
             East: {clampedMountCenter.eastClearance}ft
           </span>
         </div>
+      </div>
+
+      {/* 2c. Sun Position & Shadow Simulation Bar */}
+      <div className="px-4 py-2 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-white text-xs">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 font-bold text-amber-300">
+            <span className="material-symbols-outlined text-amber-400 text-[18px]">wb_sunny</span>
+            <span>Sun &amp; Shadow Simulation:</span>
+          </div>
+
+          {/* Play / Pause Button */}
+          <button
+            type="button"
+            onClick={() => setIsSunPlaying(!isSunPlaying)}
+            className={`px-2.5 py-1 rounded-lg font-black text-xs flex items-center gap-1 cursor-pointer transition-all ${
+              isSunPlaying
+                ? 'bg-rose-500 text-white animate-pulse'
+                : 'bg-amber-400 text-slate-950 hover:brightness-110'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[15px]">
+              {isSunPlaying ? 'pause' : 'play_arrow'}
+            </span>
+            <span>{isSunPlaying ? 'Pause Simulation' : 'Simulate Sun Cycle'}</span>
+          </button>
+
+          {/* Time Slider */}
+          <div className="flex items-center gap-1.5 bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800">
+            <input
+              type="range"
+              min="8.0"
+              max="17.0"
+              step="0.5"
+              value={sunHour}
+              onChange={e => {
+                setIsSunPlaying(false);
+                setSunHour(parseFloat(e.target.value));
+              }}
+              className="w-24 accent-amber-400 cursor-pointer"
+            />
+            <span className="font-mono font-bold text-amber-300 w-16 text-center text-[11px]">
+              {getSunHourLabel(sunHour)}
+            </span>
+          </div>
+
+          <span className="text-[10px] text-slate-400">
+            {sunHour < 11
+              ? '🌅 पूर्व की धूप (सुबह)'
+              : sunHour <= 13.5
+              ? '☀️ दोपहर 12 बजे (साउथ सूर्य - न्यूनतम छाया)'
+              : '🌇 शाम का सूर्य (पश्चिम धूप)'}
+          </span>
+        </div>
+
+        {/* 3D Clearance & Shadow Overlays Toggle */}
+        <button
+          type="button"
+          onClick={() => setShowOverlays(!showOverlays)}
+          className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+            showOverlays
+              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+              : 'bg-slate-900 text-slate-400 border-slate-800'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[16px]">visibility</span>
+          <span>{showOverlays ? '✓ 3D Markings & Shadow-Free Zone ON' : 'Show 3D Markings'}</span>
+        </button>
       </div>
 
       {/* 3. 3D WebGL Canvas Container */}
@@ -1001,33 +1200,71 @@ export default function SolarStructure3DViewer({
         </div>
       </div>
 
-      {/* 4. Front Leg Height Slider */}
-      <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-white">
+      {/* 4. Front Leg Height Slider & Elevated Controls (Up to 12ft Walkable / Gazebo) */}
+      <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 text-white">
         <div className="flex items-center gap-2.5">
           <span className="material-symbols-outlined text-[#6CBF3D] text-[22px]">height</span>
           <div>
-            <span className="text-xs font-bold block text-white">
-              Fine-tune Front Leg Height (आगे के पैर की ऊंचाई):
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-white">
+                Front Leg / Clear Height (आगे के पैर की ऊंचाई):
+              </span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded font-extrabold bg-[#6CBF3D]/20 text-[#6CBF3D]">
+                {frontLegFt >= 7 ? '🚶 Walkable / Elevated Structure' : '⚡ Standard Ballast Structure'}
+              </span>
+            </div>
             <span className="text-[11px] text-slate-400">
-              Rear leg automatically adjusts to maintain optimal 18° South tilt angle.
+              पीछे के पैर (Rear legs) 18° साउथ टिल्ट के अनुसार अपने-आप सेट होते हैं।
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <input
-            type="range"
-            min="1.5"
-            max="6.0"
-            step="0.1"
-            value={frontLegFt}
-            onChange={e => setFrontLegFt(parseFloat(e.target.value))}
-            className="w-36 accent-[#6CBF3D] cursor-pointer"
-          />
-          <span className="w-16 text-center px-2 py-1 rounded bg-slate-800 border border-slate-700 font-black text-xs text-[#6CBF3D]">
-            {frontLegFt} ft
-          </span>
+        {/* Quick Height Presets & Direct Number Input */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+            {[
+              { val: 2.5, label: '2.5 ft' },
+              { val: 4.5, label: '4.5 ft' },
+              { val: 7.0, label: '7 ft (Walkable)' },
+              { val: 8.5, label: '8.5 ft (Gazebo)' },
+              { val: 10.0, label: '10 ft (High)' }
+            ].map(preset => (
+              <button
+                key={`leg_preset_${preset.val}`}
+                type="button"
+                onClick={() => setFrontLegFt(preset.val)}
+                className={`px-2 py-1 rounded text-[11px] font-bold cursor-pointer transition-all ${
+                  frontLegFt === preset.val
+                    ? 'bg-[#6CBF3D] text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-slate-900 px-2 py-1 rounded-xl border border-slate-800">
+            <input
+              type="range"
+              min="1.5"
+              max="12.0"
+              step="0.25"
+              value={frontLegFt}
+              onChange={e => setFrontLegFt(parseFloat(e.target.value))}
+              className="w-28 accent-[#6CBF3D] cursor-pointer"
+            />
+            <input
+              type="number"
+              step="0.5"
+              min="1.5"
+              max="14.0"
+              value={frontLegFt}
+              onChange={e => setFrontLegFt(parseFloat(e.target.value) || 2.5)}
+              className="w-14 h-6 text-center font-mono font-bold text-xs bg-slate-950 text-[#6CBF3D] border border-slate-700 rounded outline-none focus:border-[#6CBF3D]"
+            />
+            <span className="text-xs text-slate-400 font-bold">ft</span>
+          </div>
         </div>
       </div>
 

@@ -34,6 +34,7 @@ export default function InteractiveImageRoofTracer({
   initialWalls = [],
   initialParapetHeight = 3.0,
   onApplyGeometry,
+  onSidesChange,
   onClose
 }) {
   const containerRef = useRef(null);
@@ -48,8 +49,8 @@ export default function InteractiveImageRoofTracer({
   // Tool Mode in Stage 1: 'pen' (Photoshop Pen Tool - Point & Click) vs 'freehand' (Drag)
   const [toolMode, setToolMode] = useState('pen');
 
-  // Ortho 90° Snap Toggle (Default: false -> Point-to-Point straight at ANY angle)
-  const [isOrthoSnap, setIsOrthoSnap] = useState(false);
+  // Ortho 90° Snap Toggle (Default: true -> 100% Crisp 90° CAD Lines)
+  const [isOrthoSnap, setIsOrthoSnap] = useState(true);
   const [isShiftDown, setIsShiftDown] = useState(false);
 
   // Corner pins stored as percentages (0 to 100) of image width/height
@@ -189,10 +190,11 @@ export default function InteractiveImageRoofTracer({
       }
 
       setSides(newSides);
+      if (onSidesChange) onSidesChange(newSides);
       setIsLoopClosed(true);
       setActiveStep('dimensions');
     },
-    [sides]
+    [sides, onSidesChange]
   );
 
   // Apply snap logic (if ortho snap active or shift held, snap to 90°; otherwise FREE point-to-point)
@@ -382,6 +384,7 @@ export default function InteractiveImageRoofTracer({
       if (next[idx]) {
         next[idx] = { ...next[idx], lengthFt: val };
       }
+      if (onSidesChange) onSidesChange(next);
       return next;
     });
   };
@@ -850,7 +853,7 @@ export default function InteractiveImageRoofTracer({
             );
           })}
 
-          {/* Compact Side Badges on Photo (Visible in Stage 2) */}
+          {/* Sleek, Non-Cluttering Side Badges on Photo (Expand on hover or when card is focused) */}
           {activeStep === 'dimensions' &&
             pins.map((p1, idx) => {
               const p2 = pins[(idx + 1) % pins.length];
@@ -869,13 +872,22 @@ export default function InteractiveImageRoofTracer({
                   }}
                   onMouseEnter={() => setHighlightedSideIndex(idx)}
                   onMouseLeave={() => setHighlightedSideIndex(null)}
-                  className={`absolute z-30 font-mono font-bold text-[10px] px-2 py-0.5 rounded border shadow-lg transition-all cursor-pointer ${
+                  className={`absolute z-30 font-mono transition-all cursor-pointer select-none flex items-center justify-center ${
                     isSideHighlighted
-                      ? 'bg-amber-500 text-slate-950 border-amber-300 scale-110 ring-2 ring-amber-400/50'
-                      : 'bg-slate-950/90 text-[#6CBF3D] border-[#6CBF3D]/60'
+                      ? 'scale-110 z-40'
+                      : 'scale-90 opacity-85 hover:opacity-100 hover:scale-105'
                   }`}
                 >
-                  Side {idx + 1}: <b>{sideData?.lengthFt || 10}&apos;</b>
+                  {isSideHighlighted ? (
+                    <div className="bg-amber-400 text-slate-950 font-black text-[11px] px-2.5 py-0.5 rounded-full border border-amber-200 shadow-2xl flex items-center gap-1.5 whitespace-nowrap animate-bounce">
+                      <span>Side {idx + 1}:</span>
+                      <b>{sideData?.lengthFt || 10}&apos;</b>
+                    </div>
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-slate-950/90 text-[#6CBF3D] border border-[#6CBF3D]/80 text-[10px] font-black flex items-center justify-center shadow-lg hover:border-amber-400 hover:text-amber-400">
+                      {idx + 1}
+                    </div>
+                  )}
                 </div>
               );
             })}
