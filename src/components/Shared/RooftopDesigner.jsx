@@ -239,7 +239,146 @@ export default function RooftopDesigner({
     if (onSaveRoofConfig) onSaveRoofConfig(updated);
   };
 
-  // Real Image Upload handler - 100% Dynamic Gemini Vision Scan
+  // AI Vision Scan function (Optional on-demand)
+  const handleRunAIScan = async (imgData) => {
+    const dataUrl = imgData || uploadPreview;
+    if (!dataUrl) return;
+
+    setIsScanning(true);
+    setScanStatusMessage('Connecting to Google Gemini Vision AI to analyze drawing...');
+
+    try {
+      const result = await scanRoofSketch(dataUrl, geminiKey);
+      setIsScanning(false);
+
+      if (result && result.success && result.data) {
+        const d = result.data;
+
+        const pHeight = parseFloat(d.parapetHeightFt) || 3.0;
+        const mLoc = d.mumty?.location || 'none';
+        const mW = parseFloat(d.mumty?.widthFt) || 4;
+        const mD = parseFloat(d.mumty?.depthFt) || 7;
+        const mH = parseFloat(d.mumty?.heightFt) || 7;
+
+        setMumtyLoc(mLoc);
+        setMumtyW(mW);
+        setMumtyD(mD);
+        setMumtyH(mH);
+        setHasWaterTank(Boolean(d.waterTank?.detected));
+
+        let newVerts = d.customVertices;
+        if (!newVerts || !Array.isArray(newVerts) || newVerts.length < 3) {
+          newVerts = [
+            { x: -15, z: -15, label: 'NW' },
+            { x: 15, z: -15, label: 'NE' },
+            { x: 15, z: 15, label: 'SE' },
+            { x: -15, z: 15, label: 'SW' }
+          ];
+        }
+
+        const xs = newVerts.map(v => v.x);
+        const zs = newVerts.map(v => v.z);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minZ = Math.min(...zs);
+        const maxZ = Math.max(...zs);
+        const wTotal = Math.max(parseFloat(d.widthFt) || 0, Math.round(maxX - minX));
+        const dTotal = Math.max(parseFloat(d.depthFt) || 0, Math.round(maxZ - minZ));
+        const halfW = wTotal / 2;
+        const halfD = dTotal / 2;
+
+        let newObstacles = [];
+        if (mLoc && mLoc !== 'none') {
+          let mx = -halfW + mW / 2;
+          let mz = halfD - mD / 2;
+          if (mLoc === 'top-left') {
+            mx = -halfW + mW / 2;
+            mz = -halfD + mD / 2;
+          } else if (mLoc === 'top-right') {
+            mx = halfW - mW / 2;
+            mz = -halfD + mD / 2;
+          }
+          newObstacles.push({
+            id: 'mumty',
+            name: d.mumty?.name || 'Staircase Mumty (सीढ़ी)',
+            type: 'box',
+            location: mLoc,
+            widthFt: mW,
+            depthFt: mD,
+            heightFt: mH,
+            xRelFt: Number(mx.toFixed(1)),
+            zRelFt: Number(mz.toFixed(1)),
+            shadowLengthFt: 9.1
+          });
+        }
+
+        if (d.waterTank?.detected) {
+          newObstacles.push({
+            id: 'tanki',
+            name: 'Water Tank (पानी की टंकी)',
+            type: 'cylinder',
+            radiusFt: d.waterTank.radiusFt || 1.8,
+            heightFt: d.waterTank.heightFt || 3,
+            xRelFt: -halfW + 4,
+            zRelFt: halfD - 4,
+            shadowLengthFt: 4.0
+          });
+        }
+
+        const safeZone = {
+          centerXFt: Number(((minX + maxX) / 2).toFixed(1)),
+          centerZFt: Number((minZ + (maxZ - minZ) * 0.35).toFixed(1)),
+          availableWidthFt: Math.max(16, Math.round(wTotal * 0.75)),
+          availableDepthFt: Math.max(16, Math.round(dTotal * 0.45)),
+          description: '100% Shadow-Free Open Terrace (South Sunlight)'
+        };
+
+        const updated = {
+          type: 'custom_polygon',
+          name: d.roofName || `Uploaded Sketch (${wTotal}×${dTotal} ft)`,
+          widthFt: wTotal,
+          depthFt: dTotal,
+          parapetHeightFt: pHeight,
+          parapetThicknessInches: 9,
+          southDirection: 'top',
+          customVertices: newVerts,
+          walls: d.walls || [],
+          corners: d.corners || [],
+          obstacles: newObstacles,
+          safeSolarZone: safeZone,
+          uploadedImage: dataUrl,
+          isPendingUpload: false
+        };
+
+        setConfig(updated);
+        if (onSaveRoofConfig) onSaveRoofConfig(updated);
+        setBlueprintViewMode('tracer');
+
+        setScanResult({
+          success: true,
+          provider: result.modelUsed,
+          message: `Sketch Analyzed by ${result.modelUsed}!`,
+          explanation: d.explanation,
+          wallsCount: d.walls?.length || newVerts.length,
+          obstaclesDetected: (d.mumty?.detected ? 1 : 0) + (d.waterTank?.detected ? 1 : 0),
+          parapetHeight: `${pHeight} ft`
+        });
+      } else {
+        setScanResult({
+          success: false,
+          message: result?.error || 'AI scan unavailable. Please trace corners using the Pen Tool directly!'
+        });
+      }
+    } catch (err) {
+      setIsScanning(false);
+      setScanResult({
+        success: false,
+        message: 'AI scan error: ' + (err.message || 'Unknown error') + '. Please use the Pen Tool to trace directly!'
+      });
+    }
+  };
+
+  // Real Image Upload handler - Instantly opens Photoshop Pen Tool Tracer (Zero API dependency!)
   const handleImageUpload = e => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -248,138 +387,17 @@ export default function RooftopDesigner({
     reader.onload = async event => {
       const dataUrl = event.target?.result;
       setUploadPreview(dataUrl);
-      setIsScanning(true);
-      setScanStatusMessage('Connecting to Google Gemini Vision AI to analyze drawing...');
+      setScanResult(null);
 
-      try {
-        const result = await scanRoofSketch(dataUrl, geminiKey);
-        setIsScanning(false);
-
-        if (result && result.success && result.data) {
-          const d = result.data;
-
-          const pHeight = parseFloat(d.parapetHeightFt) || 3.0;
-          const mLoc = d.mumty?.location || 'none';
-          const mW = parseFloat(d.mumty?.widthFt) || 4;
-          const mD = parseFloat(d.mumty?.depthFt) || 7;
-          const mH = parseFloat(d.mumty?.heightFt) || 7;
-
-          setMumtyLoc(mLoc);
-          setMumtyW(mW);
-          setMumtyD(mD);
-          setMumtyH(mH);
-          setHasWaterTank(Boolean(d.waterTank?.detected));
-
-          let newVerts = d.customVertices;
-          if (!newVerts || !Array.isArray(newVerts) || newVerts.length < 3) {
-            newVerts = [
-              { x: -15, z: -15, label: 'NW' },
-              { x: 15, z: -15, label: 'NE' },
-              { x: 15, z: 15, label: 'SE' },
-              { x: -15, z: 15, label: 'SW' }
-            ];
-          }
-
-          const xs = newVerts.map(v => v.x);
-          const zs = newVerts.map(v => v.z);
-          const minX = Math.min(...xs);
-          const maxX = Math.max(...xs);
-          const minZ = Math.min(...zs);
-          const maxZ = Math.max(...zs);
-          const wTotal = Math.max(parseFloat(d.widthFt) || 0, Math.round(maxX - minX));
-          const dTotal = Math.max(parseFloat(d.depthFt) || 0, Math.round(maxZ - minZ));
-          const halfW = wTotal / 2;
-          const halfD = dTotal / 2;
-
-          let newObstacles = [];
-          if (mLoc && mLoc !== 'none') {
-            let mx = -halfW + mW / 2;
-            let mz = halfD - mD / 2;
-            if (mLoc === 'top-left') {
-              mx = -halfW + mW / 2;
-              mz = -halfD + mD / 2;
-            } else if (mLoc === 'top-right') {
-              mx = halfW - mW / 2;
-              mz = -halfD + mD / 2;
-            }
-            newObstacles.push({
-              id: 'mumty',
-              name: d.mumty?.name || 'Staircase Mumty (सीढ़ी)',
-              type: 'box',
-              location: mLoc,
-              widthFt: mW,
-              depthFt: mD,
-              heightFt: mH,
-              xRelFt: Number(mx.toFixed(1)),
-              zRelFt: Number(mz.toFixed(1)),
-              shadowLengthFt: 9.1
-            });
-          }
-
-          if (d.waterTank?.detected) {
-            newObstacles.push({
-              id: 'tanki',
-              name: 'Water Tank (पानी की टंकी)',
-              type: 'cylinder',
-              radiusFt: d.waterTank.radiusFt || 1.8,
-              heightFt: d.waterTank.heightFt || 3,
-              xRelFt: -halfW + 4,
-              zRelFt: halfD - 4,
-              shadowLengthFt: 4.0
-            });
-          }
-
-          const safeZone = {
-            centerXFt: Number(((minX + maxX) / 2).toFixed(1)),
-            centerZFt: Number((minZ + (maxZ - minZ) * 0.35).toFixed(1)),
-            availableWidthFt: Math.max(16, Math.round(wTotal * 0.75)),
-            availableDepthFt: Math.max(16, Math.round(dTotal * 0.45)),
-            description: '100% Shadow-Free Open Terrace (South Sunlight)'
-          };
-
-          const updated = {
-            type: 'custom_polygon',
-            name: d.roofName || `Uploaded Sketch (${wTotal}×${dTotal} ft)`,
-            widthFt: wTotal,
-            depthFt: dTotal,
-            parapetHeightFt: pHeight,
-            parapetThicknessInches: 9,
-            southDirection: 'top',
-            customVertices: newVerts,
-            walls: d.walls || [],
-            corners: d.corners || [],
-            obstacles: newObstacles,
-            safeSolarZone: safeZone,
-            uploadedImage: dataUrl,
-            isPendingUpload: false
-          };
-
-          setConfig(updated);
-          if (onSaveRoofConfig) onSaveRoofConfig(updated);
-          setBlueprintViewMode('tracer'); // Automatically open tracer overlay on upload!
-
-          setScanResult({
-            success: true,
-            provider: result.modelUsed,
-            message: `Sketch Analyzed by ${result.modelUsed}!`,
-            explanation: d.explanation,
-            wallsCount: d.walls?.length || newVerts.length,
-            obstaclesDetected: (d.mumty?.detected ? 1 : 0) + (d.waterTank?.detected ? 1 : 0),
-            parapetHeight: `${pHeight} ft`
-          });
-        } else {
-          setScanResult({
-            success: false,
-            message: result?.error || 'Failed to detect walls from sketch. Please ensure image is clear.'
-          });
-        }
-      } catch (err) {
-        setIsScanning(false);
-        setScanResult({
-          success: false,
-          message: 'Error during image analysis: ' + (err.message || 'Unknown error')
-        });
-      }
+      // Instantly open the Pen Tool Tracer over the photo!
+      const updated = {
+        ...config,
+        uploadedImage: dataUrl,
+        isPendingUpload: false
+      };
+      setConfig(updated);
+      if (onSaveRoofConfig) onSaveRoofConfig(updated);
+      setBlueprintViewMode('tracer');
     };
     reader.readAsDataURL(file);
   };
@@ -401,12 +419,15 @@ export default function RooftopDesigner({
       description: '100% Shadow-Free Open Terrace (South Sunlight)'
     };
 
+    const pHeight = parseFloat(tracedData.parapetHeightFt) || config.parapetHeightFt || 3.0;
+
     const updated = {
       ...config,
       type: 'custom_polygon',
       name: `Traced Roof (${wTotal}×${dTotal} ft)`,
       widthFt: wTotal,
       depthFt: dTotal,
+      parapetHeightFt: pHeight,
       customVertices: tracedData.customVertices,
       walls: tracedData.walls,
       corners: tracedData.corners,
@@ -627,11 +648,34 @@ export default function RooftopDesigner({
                       Click to Upload Rooftop Sketch / Drawing / Site Photo
                     </span>
                     <span className="text-[10px] text-slate-400 mt-1 block">
-                      हाथ से बना नक़्शा अपलोड करें—AI दीवारों के माप पढ़कर 2D व 3D मॉडल बनाएगा
+                      No API key needed! Trace instantly with Photoshop Pen Tool.
                     </span>
                   </div>
                 )}
               </div>
+
+              {/* Optional AI Auto-Scan Button */}
+              {uploadPreview && !isScanning && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleRunAIScan(uploadPreview)}
+                    className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-amber-500/30 cursor-pointer shadow-sm transition-all"
+                    title="Optional: Ask Google Gemini AI to auto-read dimensions from sketch"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">neurology</span>
+                    <span>Optional: Try AI Auto-Scan</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBlueprintViewMode('tracer')}
+                    className="py-2 px-3 rounded-xl bg-[#6CBF3D] hover:bg-[#5ca633] text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">colorize</span>
+                    <span>Open Pen Tool</span>
+                  </button>
+                </div>
+              )}
 
               {/* AI Extraction Results Summary Card */}
               {scanResult && scanResult.success && (
@@ -865,6 +909,7 @@ export default function RooftopDesigner({
                 imageUrl={uploadPreview}
                 initialCorners={config.corners || []}
                 initialWalls={config.walls || walls}
+                initialParapetHeight={config.parapetHeightFt || 3.0}
                 onApplyGeometry={handleApplyTracedGeometry}
                 onClose={() => setBlueprintViewMode('cad')}
               />

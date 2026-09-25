@@ -185,13 +185,13 @@ Respond ONLY with a valid JSON object matching this structure:
 }
 `;
 
-  // Active Gemini models for Google AI Studio API keys (3.5-flash verified working)
+  // Active Gemini models with fallback for high demand (503) or rate limits
   const models = [
-    'gemini-3.5-flash',
-    'gemini-3.7-flash',
-    'gemini-3.6-flash',
-    'gemini-flash-latest',
-    'gemini-3.8-flash'
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-pro'
   ];
   let lastError = null;
 
