@@ -11,6 +11,8 @@ const formatINR = (val) => {
 export default function CreateQuotation() {
   const { 
     currentDealer, 
+    role,
+    dealers,
     addQuotation, 
     updateQuotation, 
     editingQuotation, 
@@ -32,13 +34,37 @@ export default function CreateQuotation() {
   const { addToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Derive dealer tier margin configuration
-  const dealerTierKey = (currentDealer?.tier || '').toLowerCase().includes('diamond') ? 'diamond' :
-                        (currentDealer?.tier || '').toLowerCase().includes('platinum') ? 'platinum' :
-                        (currentDealer?.tier || '').toLowerCase().includes('silver') ? 'silver' : 'gold';
-  const tierConfig = tierMargins?.[dealerTierKey] || { defaultMarginPerKw: 4500, maxMarginCapPerKw: 6000 };
-
+  const isAdmin = role === 'admin';
   const initialSource = editingQuotation || activeDraftQuote;
+
+  // Channel configuration (Direct Company Quote vs Dealer Partner)
+  const [quoteChannel, setQuoteChannel] = useState(() => {
+    if (initialSource?.isDirectCompanyQuote !== undefined) {
+      return initialSource.isDirectCompanyQuote ? 'direct' : 'dealer';
+    }
+    return isAdmin ? 'direct' : 'dealer';
+  });
+
+  const [assignedDealerId, setAssignedDealerId] = useState(() => {
+    if (initialSource?.dealerCode && initialSource?.dealerCode !== 'SV-DIRECT') {
+      return initialSource.dealerCode;
+    }
+    return currentDealer?.id || (dealers && dealers[0]?.id) || 'SV-DLR-0104';
+  });
+
+  const isDirectCompanyQuote = isAdmin ? (quoteChannel === 'direct') : false;
+  const effectiveDealer = isDirectCompanyQuote
+    ? null
+    : (isAdmin ? (dealers?.find(d => d.id === assignedDealerId) || currentDealer) : currentDealer);
+
+  // Derive dealer tier margin configuration
+  const dealerTierKey = isDirectCompanyQuote ? 'gold' :
+                        (effectiveDealer?.tier || '').toLowerCase().includes('diamond') ? 'diamond' :
+                        (effectiveDealer?.tier || '').toLowerCase().includes('platinum') ? 'platinum' :
+                        (effectiveDealer?.tier || '').toLowerCase().includes('silver') ? 'silver' : 'gold';
+  const tierConfig = isDirectCompanyQuote
+    ? { defaultMarginPerKw: 0, maxMarginCapPerKw: 0 }
+    : (tierMargins?.[dealerTierKey] || { defaultMarginPerKw: 4500, maxMarginCapPerKw: 6000 });
 
   // Step 1.1 Customer Details (Persisted across multi-step navigation)
   const [custName, setCustName] = useState(initialSource?.customerName || '');
@@ -65,9 +91,10 @@ export default function CreateQuotation() {
   // Step 1.3 Pricing & Subsidy (Linked to Admin Pricing Presets & Dealer Tier Margins)
   const [ratePerKw, setRatePerKw] = useState(() => Number(initialSource?.baseRatePerKW) || pricingPresets?.baseRatePerKw || 59800);
   const [marginMode, setMarginMode] = useState('amount'); // default to fixed amount matching tier
-  const [dealerMarginRate, setDealerMarginRate] = useState(8); // 8%
+  const [dealerMarginRate, setDealerMarginRate] = useState(isDirectCompanyQuote ? 0 : 8); // 8%
   const [dealerMarginFixed, setDealerMarginFixed] = useState(() => {
-    if (initialSource?.dealerTotalMargin) return Number(initialSource.dealerTotalMargin);
+    if (initialSource?.dealerTotalMargin !== undefined) return Number(initialSource.dealerTotalMargin);
+    if (isDirectCompanyQuote) return 0;
     return tierConfig.defaultMarginPerKw * 3.3;
   });
   const [saveStatus, setSaveStatus] = useState('');
@@ -93,10 +120,15 @@ export default function CreateQuotation() {
     if (!editingQuotation && !activeDraftQuote && pricingPresets?.baseRatePerKw) {
       setRatePerKw(pricingPresets.baseRatePerKw);
     }
-    if (!editingQuotation && !activeDraftQuote && tierConfig?.defaultMarginPerKw) {
-      setDealerMarginFixed(tierConfig.defaultMarginPerKw * (parseFloat(systemCapacity) || 5));
+    if (!editingQuotation && !activeDraftQuote) {
+      if (isDirectCompanyQuote) {
+        setDealerMarginFixed(0);
+        setDealerMarginRate(0);
+      } else if (tierConfig?.defaultMarginPerKw) {
+        setDealerMarginFixed(tierConfig.defaultMarginPerKw * (parseFloat(systemCapacity) || 5));
+      }
     }
-  }, [pricingPresets?.baseRatePerKw, tierConfig?.defaultMarginPerKw, editingQuotation, activeDraftQuote, systemCapacity]);
+  }, [pricingPresets?.baseRatePerKw, tierConfig?.defaultMarginPerKw, editingQuotation, activeDraftQuote, systemCapacity, isDirectCompanyQuote]);
 
   // Auto-populate when editing an existing quote or restoring draft (SR-36)
   useEffect(() => {
@@ -148,20 +180,24 @@ export default function CreateQuotation() {
   // Base EPC & Hardware Project Cost
   const baseProjectCost = Math.round(kw * ratePerKw);
 
-  // Dealer margin computation (dual mode: % or fixed ₹ amount)
-  const dealerMarginINR = marginMode === 'percent'
-    ? Math.round(baseProjectCost * (dealerMarginRate / 100))
-    : Math.round(dealerMarginFixed);
+  // Dealer margin computation (dual mode: % or fixed ₹ amount, strictly 0 for direct company quotes)
+  const dealerMarginINR = isDirectCompanyQuote ? 0 : (
+    marginMode === 'percent'
+      ? Math.round(baseProjectCost * (dealerMarginRate / 100))
+      : Math.round(dealerMarginFixed)
+  );
 
   // Effective margin percentage
-  const effectiveMarginPercent = baseProjectCost > 0
-    ? ((dealerMarginINR / baseProjectCost) * 100).toFixed(1)
-    : '0.0';
+  const effectiveMarginPercent = isDirectCompanyQuote ? '0.0' : (
+    baseProjectCost > 0
+      ? ((dealerMarginINR / baseProjectCost) * 100).toFixed(1)
+      : '0.0'
+  );
 
   // Tier Margin Cap & Audit Validation (SR-24)
-  const maxMarginCapPerKw = currentDealer?.maxMarginCapPerKw || tierConfig?.maxMarginCapPerKw || 6000;
-  const currentMarginPerKw = kw > 0 ? Math.round(dealerMarginINR / kw) : 0;
-  const isMarginExceeded = currentMarginPerKw > maxMarginCapPerKw;
+  const maxMarginCapPerKw = isDirectCompanyQuote ? 0 : (effectiveDealer?.maxMarginCapPerKw || tierConfig?.maxMarginCapPerKw || 6000);
+  const currentMarginPerKw = (isDirectCompanyQuote || kw <= 0) ? 0 : Math.round(dealerMarginINR / kw);
+  const isMarginExceeded = isDirectCompanyQuote ? false : (currentMarginPerKw > maxMarginCapPerKw);
 
   // Total Customer Quoted Project Cost (Base Cost + Dealer Margin)
   const totalCost = baseProjectCost + dealerMarginINR;
@@ -231,7 +267,13 @@ export default function CreateQuotation() {
     setProjectType('Residential');
     setMultiBrandComparison(false);
     setRatePerKw(pricingPresets?.baseRatePerKw || 59800);
-    setDealerMarginFixed(tierConfig.defaultMarginPerKw * 3.3);
+    if (isAdmin) {
+      setQuoteChannel('direct');
+      setDealerMarginFixed(0);
+      setDealerMarginRate(0);
+    } else {
+      setDealerMarginFixed(tierConfig.defaultMarginPerKw * 3.3);
+    }
   };
 
   const handleSaveDraft = async () => {
@@ -245,6 +287,9 @@ export default function CreateQuotation() {
     }
 
     const isEdit = Boolean(editingQuotation?.id);
+    const resolvedDealerCode = isDirectCompanyQuote ? 'SV-DIRECT' : (effectiveDealer?.id || currentDealer?.id || 'SV-DLR-0104');
+    const resolvedDealerName = isDirectCompanyQuote ? 'Sunvine Renewable Energy (Head Office)' : (effectiveDealer?.firmName || currentDealer?.firmName || 'Rajesh Solar Solutions');
+
     const quotePayload = {
       id: isEdit ? editingQuotation.id : `SV-2026-Q${Math.floor(100 + Math.random() * 900)}`,
       date: isEdit ? (editingQuotation.date || new Date().toLocaleDateString('en-GB')) : new Date().toLocaleDateString('en-GB'),
@@ -267,7 +312,8 @@ export default function CreateQuotation() {
       baseCost: baseProjectCost,
       dealerMargin: dealerMarginINR,
       dealerTotalMargin: dealerMarginINR,
-      dealerMarginPerKW: Math.round(dealerMarginINR / kw),
+      dealerMarginPerKW: isDirectCompanyQuote ? 0 : (kw > 0 ? Math.round(dealerMarginINR / kw) : 0),
+      isDirectCompanyQuote,
       isFlagged: isMarginExceeded,
       requiresAudit: isMarginExceeded,
       auditFlagReason: isMarginExceeded ? `Margin of ₹${currentMarginPerKw}/kW exceeds tier cap of ₹${maxMarginCapPerKw}/kW` : null,
@@ -275,10 +321,11 @@ export default function CreateQuotation() {
       grandTotalCustomer: totalCost,
       subsidyAmount: subsidy,
       netPayable: finalPayable,
-      status: isEdit ? (editingQuotation.status || 'Draft') : (isMarginExceeded ? 'Audit Required' : 'Draft'),
-      statusClass: isEdit ? (editingQuotation.statusClass || 'bg-secondary/15 text-secondary') : (isMarginExceeded ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-secondary/15 text-secondary'),
-      dealerCode: currentDealer?.id || 'SV-DLR-0104',
-      dealerName: currentDealer?.firmName || 'Rajesh Solar Solutions'
+      status: isEdit ? (editingQuotation.status || (isDirectCompanyQuote ? 'Approved / Direct' : 'Draft')) : (isMarginExceeded ? 'Audit Required' : (isDirectCompanyQuote ? 'Approved / Direct' : 'Draft')),
+      statusClass: isEdit ? (editingQuotation.statusClass || 'bg-secondary/15 text-secondary') : (isMarginExceeded ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-primary/15 text-primary'),
+      dealerCode: resolvedDealerCode,
+      dealerId: resolvedDealerCode,
+      dealerName: resolvedDealerName
     };
 
     setIsSubmitting(true);
@@ -327,6 +374,9 @@ export default function CreateQuotation() {
     }
 
     const isEdit = Boolean(editingQuotation?.id);
+    const resolvedDealerCode = isDirectCompanyQuote ? 'SV-DIRECT' : (effectiveDealer?.id || currentDealer?.id || 'SV-DLR-0104');
+    const resolvedDealerName = isDirectCompanyQuote ? 'Sunvine Renewable Energy (Head Office)' : (effectiveDealer?.firmName || currentDealer?.firmName || 'Rajesh Solar Solutions');
+
     const quotePayload = {
       id: isEdit ? editingQuotation.id : `SV-2026-Q${Math.floor(100 + Math.random() * 900)}`,
       date: isEdit ? (editingQuotation.date || new Date().toLocaleDateString('en-GB')) : new Date().toLocaleDateString('en-GB'),
@@ -349,8 +399,10 @@ export default function CreateQuotation() {
       inverterType: inverterModel,
       inverterCount: '1 NOS',
       baseRatePerKW: ratePerKw,
-      dealerMarginPerKW: Math.round(dealerMarginINR / kw),
+      dealerMarginPerKW: isDirectCompanyQuote ? 0 : (kw > 0 ? Math.round(dealerMarginINR / kw) : 0),
       dealerTotalMargin: dealerMarginINR,
+      dealerMargin: dealerMarginINR,
+      isDirectCompanyQuote,
       isFlagged: isMarginExceeded,
       requiresAudit: isMarginExceeded,
       auditFlagReason: isMarginExceeded ? `Margin of ₹${currentMarginPerKw}/kW exceeds tier cap of ₹${maxMarginCapPerKw}/kW` : null,
@@ -360,7 +412,9 @@ export default function CreateQuotation() {
       netPayable: finalPayable,
       status: isEdit ? (editingQuotation.status || 'Active / Sent') : (isMarginExceeded ? 'Audit Required' : 'Active / Sent'),
       statusClass: isEdit ? (editingQuotation.statusClass || 'bg-primary/15 text-primary') : (isMarginExceeded ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-primary/15 text-primary'),
-      dealerId: currentDealer?.id || 'SV-DLR-0104'
+      dealerId: resolvedDealerCode,
+      dealerCode: resolvedDealerCode,
+      dealerName: resolvedDealerName
     };
 
     if (isEdit && updateQuotation) {
@@ -387,19 +441,19 @@ export default function CreateQuotation() {
             onClick={() => {
               if (clearEditingQuotation) clearEditingQuotation();
               if (clearActiveDraftQuote) clearActiveDraftQuote();
-              setActiveTab('dashboard');
+              setActiveTab(isAdmin ? 'admin_dashboard' : 'dashboard');
             }}
             className="inline-flex items-center gap-1.5 text-secondary hover:text-on-surface font-label-sm transition-colors w-fit group"
           >
             <span className="material-symbols-outlined text-[18px] group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
-            <span>Back to Dashboard</span>
+            <span>{isAdmin ? 'Back to Overview' : 'Back to Dashboard'}</span>
           </button>
           <div className="flex flex-wrap items-center gap-2 mt-1">
             <h1 className="text-xl sm:text-2xl lg:text-3xl text-on-surface tracking-tight font-bold">
-              {editingQuotation ? 'Edit Quotation' : 'New Quotation'}
+              {editingQuotation ? 'Edit Quotation' : (isDirectCompanyQuote ? 'New Direct Company Quotation' : 'New Quotation')}
             </h1>
-            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px] tracking-wide uppercase font-semibold shrink-0">
-              {editingQuotation ? `#${editingQuotation.id}` : 'Ref #SV-2025-Q408'}
+            <span className="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-[10px] tracking-wide uppercase font-semibold shrink-0">
+              {editingQuotation ? `#${editingQuotation.id}` : (isDirectCompanyQuote ? 'Sunvine HO Direct (Zero Margin)' : 'Ref #SV-2025-Q408')}
             </span>
             {editingQuotation && (
               <button
@@ -430,6 +484,75 @@ export default function CreateQuotation() {
           </div>
         </div>
       </div>
+
+      {/* Admin Channel Selection Bar (Head Office Direct vs Dealer Partner) */}
+      {isAdmin && (
+        <div className="mb-6 p-4 rounded-2xl bg-[#0F1B2E] text-white shadow-md border border-slate-700/70 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#6CBF3D]/20 border border-[#6CBF3D]/40 flex items-center justify-center text-[#6CBF3D] shrink-0">
+              <span className="material-symbols-outlined text-[24px]">corporate_fare</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#6CBF3D]">Sunvine Operations Console</span>
+                <span className="px-2 py-0.5 text-[10px] rounded-full bg-white/15 text-slate-200 font-semibold">Central EPC Issuance</span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                {isDirectCompanyQuote
+                  ? 'Issuing direct company quotation with 0% dealer margin markup for customer.'
+                  : `Issuing quotation on behalf of authorized partner: ${effectiveDealer?.firmName || 'Partner'}.`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center p-1 bg-slate-800/90 rounded-xl border border-slate-700">
+              <button
+                type="button"
+                onClick={() => {
+                  setQuoteChannel('direct');
+                  setDealerMarginFixed(0);
+                  setDealerMarginRate(0);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  quoteChannel === 'direct'
+                    ? 'bg-[#6CBF3D] text-[#0F1B2E] shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">apartment</span>
+                <span>Sunvine Direct (₹0 Margin)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuoteChannel('dealer')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  quoteChannel === 'dealer'
+                    ? 'bg-white text-[#0F1B2E] shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">handshake</span>
+                <span>Dealer Partner</span>
+              </button>
+            </div>
+
+            {quoteChannel === 'dealer' && (
+              <select
+                value={assignedDealerId}
+                onChange={(e) => setAssignedDealerId(e.target.value)}
+                className="h-9 px-3 text-xs bg-slate-800 text-white rounded-xl border border-slate-700 outline-none focus:border-[#6CBF3D]"
+              >
+                {(dealers || []).slice(0, 100).map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.firmName} ({d.city}) • {d.tier}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Save Notification Banner */}
       {saveStatus && (
@@ -838,14 +961,22 @@ export default function CreateQuotation() {
                 <div className="flex flex-col min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-xs text-on-surface font-semibold">Dealer Margin</span>
-                    <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0">
-                      {marginMode === 'percent' ? `${dealerMarginRate}%` : `${effectiveMarginPercent}%`}
-                    </span>
+                    {isDirectCompanyQuote ? (
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0">
+                        ₹0 Direct Sale
+                      </span>
+                    ) : (
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0">
+                        {marginMode === 'percent' ? `${dealerMarginRate}%` : `${effectiveMarginPercent}%`}
+                      </span>
+                    )}
                   </div>
-                  <span className="text-[10px] text-secondary">Added to proposal</span>
+                  <span className="text-[10px] text-secondary">
+                    {isDirectCompanyQuote ? 'Direct company quotation (zero middleman markup)' : 'Added to proposal'}
+                  </span>
                 </div>
-                <span className="text-sm text-emerald-700 font-bold tabular-nums whitespace-nowrap shrink-0">
-                  + {formatINR(dealerMarginINR)}
+                <span className={`text-sm font-bold tabular-nums whitespace-nowrap shrink-0 ${isDirectCompanyQuote ? 'text-secondary font-medium' : 'text-emerald-700'}`}>
+                  {isDirectCompanyQuote ? '₹\u00A00' : `+ ${formatINR(dealerMarginINR)}`}
                 </span>
               </div>
 
@@ -921,162 +1052,184 @@ export default function CreateQuotation() {
               </div>
             </div>
 
-            {/* Interactive Dealer Commercials (Dual Mode: % or Fixed ₹ Amount) */}
-            <div className="p-3.5 sm:p-4 bg-surface rounded-xl border border-surface-container-high flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="material-symbols-outlined text-primary text-[18px] sm:text-[20px] shrink-0">account_balance_wallet</span>
-                  <span className="text-xs sm:text-sm text-on-surface font-bold">Custom Dealer Margin</span>
-                </div>
-                <span className="text-sm sm:text-base text-primary font-bold whitespace-nowrap shrink-0" id="dealerMarginDisplay">
-                  {formatINR(dealerMarginINR)}
-                </span>
-              </div>
-
-              {/* Mode Toggle: % vs ₹ */}
-              <div className="flex items-center p-1 bg-surface-container-low rounded-lg border border-surface-container-high self-start">
-                <button
-                  type="button"
-                  onClick={() => setMarginMode('percent')}
-                  className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                    marginMode === 'percent'
-                      ? 'bg-primary-container text-on-primary shadow-xs'
-                      : 'text-secondary hover:text-on-surface'
-                  }`}
-                >
-                  <span>% Percentage</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMarginMode('amount')}
-                  className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                    marginMode === 'amount'
-                      ? 'bg-primary-container text-on-primary shadow-xs'
-                      : 'text-secondary hover:text-on-surface'
-                  }`}
-                >
-                  <span>₹ Fixed Amount</span>
-                </button>
-              </div>
-
-              {/* Preset Chips & Custom Input */}
-              {marginMode === 'percent' ? (
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    {[5, 8, 10, 12, 15].map((pct) => (
-                      <button
-                        key={pct}
-                        type="button"
-                        onClick={() => setDealerMarginRate(pct)}
-                        className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                          dealerMarginRate === pct
-                            ? 'bg-primary-container text-on-primary shadow-xs'
-                            : 'bg-surface-container-lowest border border-surface-container-high text-secondary hover:text-on-surface'
-                        }`}
-                      >
-                        {pct}%
-                      </button>
-                    ))}
+            {/* Interactive Commercials Card */}
+            {isDirectCompanyQuote ? (
+              <div className="p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/30 flex flex-col gap-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                    <span className="material-symbols-outlined text-emerald-600 text-[20px]">verified</span>
+                    <span>Direct Company Quotation (Zero Dealer Margin)</span>
                   </div>
-                  {/* Custom % Input */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-secondary font-medium shrink-0">Custom %:</span>
-                    <div className="relative flex items-center">
-                      <input
-                        type="number"
-                        min="0"
-                        max="50"
-                        step="0.5"
-                        value={dealerMarginRate}
-                        onChange={(e) => setDealerMarginRate(Math.max(0, parseFloat(e.target.value) || 0))}
-                        className="w-16 h-8 text-center text-xs font-bold rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none"
-                      />
-                      <span className="absolute right-2 text-xs text-secondary font-bold pointer-events-none">%</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    {[10000, 20000, 30000, 50000].map((amt) => (
-                      <button
-                        key={amt}
-                        type="button"
-                        onClick={() => setDealerMarginFixed(amt)}
-                        className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                          dealerMarginFixed === amt
-                            ? 'bg-primary-container text-on-primary shadow-xs'
-                            : 'bg-surface-container-lowest border border-surface-container-high text-secondary hover:text-on-surface'
-                        }`}
-                      >
-                        ₹{(amt / 1000)}k
-                      </button>
-                    ))}
-                  </div>
-                  {/* Custom ₹ Input */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-secondary font-medium shrink-0">Custom ₹:</span>
-                    <div className="relative flex items-center">
-                      <span className="absolute left-2 text-xs text-secondary font-bold pointer-events-none">₹</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="500000"
-                        step="1000"
-                        value={dealerMarginFixed}
-                        onChange={(e) => setDealerMarginFixed(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="w-24 h-8 pl-5 pr-2 text-xs font-bold rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="text-[11px] text-secondary flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-surface-container-high">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span>
-                    Spread: <strong className={isMarginExceeded ? 'text-error font-bold' : 'text-on-surface font-bold'}>{formatINR(currentMarginPerKw)} / kW</strong> ({effectiveMarginPercent}%)
-                  </span>
-                  <span className="text-secondary/60">•</span>
-                  <span className="text-[10px] bg-surface-container px-2 py-0.5 rounded font-medium">
-                    Cap: <strong>{formatINR(maxMarginCapPerKw)}/kW</strong> ({currentDealer?.tier || 'Gold'})
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300">
+                    ₹0 Dealer Markup
                   </span>
                 </div>
-                <span className="inline-flex items-center gap-1 text-primary font-medium text-[10px] bg-primary/10 px-2 py-0.5 rounded-full shrink-0">
-                  <span className="material-symbols-outlined text-[12px]">lock</span>
-                  <span>Confidential (Hidden from Customer PDF)</span>
-                </span>
-              </div>
-
-              {isMarginExceeded && (
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-on-surface text-xs flex items-start gap-2.5 mt-1 animate-in fade-in">
-                  <span className="material-symbols-outlined text-[18px] text-error shrink-0">warning</span>
-                  <div className="flex-1">
-                    <div className="font-bold text-error">
-                      Tier Margin Cap Exceeded ({formatINR(currentMarginPerKw)}/kW &gt; {formatINR(maxMarginCapPerKw)}/kW)
-                    </div>
-                    <p className="text-[11px] text-secondary mt-0.5">
-                      Your configured spread exceeds the {currentDealer?.tier || 'Standard'} tier threshold. This quotation will be flagged for Super Admin compliance audit upon submission.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (marginMode === 'amount') {
-                          setDealerMarginFixed(Math.round(maxMarginCapPerKw * kw));
-                        } else {
-                          const capPct = Math.min(50, ((maxMarginCapPerKw * kw) / (baseProjectCost || 1)) * 100);
-                          setDealerMarginRate(parseFloat(capPct.toFixed(1)));
-                        }
-                      }}
-                      className="mt-1.5 text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[13px]">tune</span>
-                      <span>Clamp to Tier Cap ({formatINR(Math.round(maxMarginCapPerKw * kw))})</span>
-                    </button>
-                  </div>
+                <p className="text-xs text-emerald-800/90 leading-relaxed">
+                  Issued directly by <strong>Sunvine Renewable Energy (Head Office)</strong>. No dealer commission is charged, ensuring the lowest possible turnkey pricing and highest ROI payback for the customer.
+                </p>
+                <div className="flex items-center gap-3 pt-2 border-t border-emerald-500/20 text-xs text-emerald-900 font-medium">
+                  <span>🏢 Channel: Sunvine Direct (HO)</span>
+                  <span>•</span>
+                  <span>GST &amp; DBT Subsidy: Fully Eligible</span>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="p-3.5 sm:p-4 bg-surface rounded-xl border border-surface-container-high flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="material-symbols-outlined text-primary text-[18px] sm:text-[20px] shrink-0">account_balance_wallet</span>
+                    <span className="text-xs sm:text-sm text-on-surface font-bold">Custom Dealer Margin</span>
+                  </div>
+                  <span className="text-sm sm:text-base text-primary font-bold whitespace-nowrap shrink-0" id="dealerMarginDisplay">
+                    {formatINR(dealerMarginINR)}
+                  </span>
+                </div>
+
+                {/* Mode Toggle: % vs ₹ */}
+                <div className="flex items-center p-1 bg-surface-container-low rounded-lg border border-surface-container-high self-start">
+                  <button
+                    type="button"
+                    onClick={() => setMarginMode('percent')}
+                    className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                      marginMode === 'percent'
+                        ? 'bg-primary-container text-on-primary shadow-xs'
+                        : 'text-secondary hover:text-on-surface'
+                    }`}
+                  >
+                    <span>% Percentage</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMarginMode('amount')}
+                    className={`flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                      marginMode === 'amount'
+                        ? 'bg-primary-container text-on-primary shadow-xs'
+                        : 'text-secondary hover:text-on-surface'
+                    }`}
+                  >
+                    <span>₹ Fixed Amount</span>
+                  </button>
+                </div>
+
+                {/* Preset Chips & Custom Input */}
+                {marginMode === 'percent' ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {[5, 8, 10, 12, 15].map((pct) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setDealerMarginRate(pct)}
+                          className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            dealerMarginRate === pct
+                              ? 'bg-primary-container text-on-primary shadow-xs'
+                              : 'bg-surface-container-lowest border border-surface-container-high text-secondary hover:text-on-surface'
+                          }`}
+                        >
+                          {pct}%
+                        </button>
+                      ))}
+                    </div>
+                    {/* Custom % Input */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-secondary font-medium shrink-0">Custom %:</span>
+                      <div className="relative flex items-center">
+                        <input
+                          type="number"
+                          min="0"
+                          max="50"
+                          step="0.5"
+                          value={dealerMarginRate}
+                          onChange={(e) => setDealerMarginRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-16 h-8 text-center text-xs font-bold rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none"
+                        />
+                        <span className="absolute right-2 text-xs text-secondary font-bold pointer-events-none">%</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {[10000, 20000, 30000, 50000].map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setDealerMarginFixed(amt)}
+                          className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            dealerMarginFixed === amt
+                              ? 'bg-primary-container text-on-primary shadow-xs'
+                              : 'bg-surface-container-lowest border border-surface-container-high text-secondary hover:text-on-surface'
+                          }`}
+                        >
+                          ₹{(amt / 1000)}k
+                        </button>
+                      ))}
+                    </div>
+                    {/* Custom ₹ Input */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-secondary font-medium shrink-0">Custom ₹:</span>
+                      <div className="relative flex items-center">
+                        <span className="absolute left-2 text-xs text-secondary font-bold pointer-events-none">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="500000"
+                          step="1000"
+                          value={dealerMarginFixed}
+                          onChange={(e) => setDealerMarginFixed(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-24 h-8 pl-5 pr-2 text-xs font-bold rounded-lg border border-surface-container-high bg-surface-container-lowest focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-[11px] text-secondary flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-surface-container-high">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span>
+                      Spread: <strong className={isMarginExceeded ? 'text-error font-bold' : 'text-on-surface font-bold'}>{formatINR(currentMarginPerKw)} / kW</strong> ({effectiveMarginPercent}%)
+                    </span>
+                    <span className="text-secondary/60">•</span>
+                    <span className="text-[10px] bg-surface-container px-2 py-0.5 rounded font-medium">
+                      Cap: <strong>{formatINR(maxMarginCapPerKw)}/kW</strong> ({effectiveDealer?.tier || currentDealer?.tier || 'Gold'})
+                    </span>
+                  </div>
+                  <span className="inline-flex items-center gap-1 text-primary font-medium text-[10px] bg-primary/10 px-2 py-0.5 rounded-full shrink-0">
+                    <span className="material-symbols-outlined text-[12px]">lock</span>
+                    <span>Confidential (Hidden from Customer PDF)</span>
+                  </span>
+                </div>
+
+                {isMarginExceeded && (
+                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-on-surface text-xs flex items-start gap-2.5 mt-1 animate-in fade-in">
+                    <span className="material-symbols-outlined text-[18px] text-error shrink-0">warning</span>
+                    <div className="flex-1">
+                      <div className="font-bold text-error">
+                        Tier Margin Cap Exceeded ({formatINR(currentMarginPerKw)}/kW &gt; {formatINR(maxMarginCapPerKw)}/kW)
+                      </div>
+                      <p className="text-[11px] text-secondary mt-0.5">
+                        Your configured spread exceeds the {effectiveDealer?.tier || currentDealer?.tier || 'Standard'} tier threshold. This quotation will be flagged for Super Admin compliance audit upon submission.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (marginMode === 'amount') {
+                            setDealerMarginFixed(Math.round(maxMarginCapPerKw * kw));
+                          } else {
+                            const capPct = Math.min(50, ((maxMarginCapPerKw * kw) / (baseProjectCost || 1)) * 100);
+                            setDealerMarginRate(parseFloat(capPct.toFixed(1)));
+                          }
+                        }}
+                        className="mt-1.5 text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">tune</span>
+                        <span>Clamp to Tier Cap ({formatINR(Math.round(maxMarginCapPerKw * kw))})</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           {/* Action Submission Card (In-flow Form Card for Mobile & Desktop) */}

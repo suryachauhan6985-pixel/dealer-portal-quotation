@@ -75,6 +75,9 @@ function MainApp() {
       switch (activeTab) {
         case 'admin_dashboard':
           return <AdminDashboard />;
+        case 'create_quote':
+        case 'admin_create_quote':
+          return <CreateQuotation />;
         case 'dealers_mgmt':
           return <DealerManagement />;
         case 'pricing_master':

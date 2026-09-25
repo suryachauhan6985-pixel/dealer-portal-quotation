@@ -38,6 +38,7 @@ const AppContext = createContext();
 const TAB_TO_PATH = {
   dashboard: '/dashboard',
   create_quote: '/new-quotation',
+  admin_create_quote: '/admin/new-quotation',
   preview_quote: '/preview-quotation',
   my_quotes: '/my-quotations',
   profile: '/settings',
@@ -54,7 +55,8 @@ const PATH_TO_TAB = Object.entries(TAB_TO_PATH).reduce((acc, [tab, path]) => {
   acc[path] = tab;
   return acc;
 }, {
-  '/profile': 'dealer_settings'
+  '/profile': 'dealer_settings',
+  '/admin/new-quotation': 'create_quote'
 });
 
 const getInitialTabFromUrl = () => {
@@ -93,7 +95,9 @@ export const AppProvider = ({ children }) => {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
-      const targetPath = TAB_TO_PATH[effectiveTab] || '/dashboard';
+      const targetPath = (role === 'admin' && (effectiveTab === 'create_quote' || effectiveTab === 'admin_create_quote'))
+        ? '/admin/new-quotation'
+        : (TAB_TO_PATH[effectiveTab] || '/dashboard');
       if (window.location.pathname !== targetPath) {
         if (replace) {
           window.history.replaceState({ tab: effectiveTab }, '', targetPath);

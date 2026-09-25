@@ -54,6 +54,7 @@ export default function Navigation() {
 
   const adminMenu = [
     { id: 'admin_dashboard', label: 'Executive Overview', mobileLabel: 'Overview', icon: 'dashboard' },
+    { id: 'create_quote', label: 'New Direct Quote', mobileLabel: 'New Quote', icon: 'note_add' },
     { id: 'dealers_mgmt', label: 'Dealer Partners', mobileLabel: 'Dealers', icon: 'group' },
     { id: 'pricing_master', label: 'Pricing & Presets', mobileLabel: 'Pricing', icon: 'tune' },
     { id: 'hardware_master', label: 'Hardware Catalog', mobileLabel: 'Hardware', icon: 'memory' },
