@@ -67,6 +67,68 @@ function parseDataUrl(dataUrl) {
 }
 
 /**
+ * Mathematically builds closed orthogonal (90-degree) 2D polygon vertices
+ * from sequential walls with direction ("E", "S", "W", "N" / "right", "down", "left", "up") and length in feet.
+ * Snaps the final closing vector so start == end with zero drift!
+ */
+export function buildOrthogonalClosedPolygon(walls) {
+  if (!walls || !Array.isArray(walls) || walls.length < 3) return null;
+
+  // 1. Normalize directions into unit orthogonal vectors: dx, dz
+  const segments = walls.map((w, idx) => {
+    const len = parseFloat(w.length_ft || w.lengthFt) || 10;
+    const rawDir = (w.direction || '').toLowerCase().trim();
+    let dx = 0;
+    let dz = 0;
+
+    if (rawDir === 'e' || rawDir.includes('east') || rawDir.includes('right')) {
+      dx = len;
+    } else if (rawDir === 'w' || rawDir.includes('west') || rawDir.includes('left')) {
+      dx = -len;
+    } else if (rawDir === 's' || rawDir.includes('south') || rawDir.includes('down')) {
+      dz = len;
+    } else if (rawDir === 'n' || rawDir.includes('north') || rawDir.includes('up')) {
+      dz = -len;
+    } else {
+      if (idx % 2 === 0) dx = len;
+      else dz = len;
+    }
+    return { len, dx, dz, name: w.name || `Wall ${idx + 1}` };
+  });
+
+  // 2. Trace vertices starting at (0, 0)
+  let currentX = 0;
+  let currentZ = 0;
+  const rawPts = [{ x: 0, z: 0, label: segments[0].name }];
+
+  for (let i = 0; i < segments.length - 1; i++) {
+    currentX += segments[i].dx;
+    currentZ += segments[i].dz;
+    rawPts.push({
+      x: Number(currentX.toFixed(1)),
+      z: Number(currentZ.toFixed(1)),
+      label: segments[i + 1]?.name || `Corner ${i + 2}`
+    });
+  }
+
+  // 3. Center around (0,0)
+  const xs = rawPts.map(p => p.x);
+  const zs = rawPts.map(p => p.z);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minZ = Math.min(...zs);
+  const maxZ = Math.max(...zs);
+  const midX = (minX + maxX) / 2;
+  const midZ = (minZ + maxZ) / 2;
+
+  return rawPts.map(p => ({
+    x: Number((p.x - midX).toFixed(1)),
+    z: Number((p.z - midZ).toFixed(1)),
+    label: p.label
+  }));
+}
+
+/**
  * Calls Gemini Vision API to analyze any uploaded rooftop drawing/sketch
  */
 export async function analyzeWithGeminiVision(dataUrl, apiKey) {
@@ -82,11 +144,13 @@ INSTRUCTIONS:
 3. Read all written dimensions (numbers in feet or meters). Do NOT invent, assume, or hallucinate numbers or walls that are not in the sketch.
 4. List all wall segments forming the boundary in clockwise sequential order starting from the top-leftmost wall.
    For each wall:
-   - "side": number (1, 2, 3...)
-   - "name": descriptive name (e.g. "Top South Wall", "Upper East Wall", "East Drop", etc.)
-   - "lengthFt": the numeric length in feet (e.g. 30, 10, 8, 7, 4, 16, 5, 60, etc.)
-   - "direction": general direction vector ("right", "down", "left", "up", "right-down", etc.)
-5. Compute the 2D polygon vertices "customVertices": array of objects [{ "x": number, "z": number, "label": string }] in feet centered around (0,0) forming a closed loop representing the boundary in the sketch.
+   - "wall_number": 1, 2, 3...
+   - "name": descriptive name (e.g. "Top South Wall", "Upper East Drop", "Notch Step", etc.)
+   - "length_ft": the numeric length in feet written on the paper (e.g. 30, 10, 8, 7, 4, 16, 5, 60, etc.)
+   - "direction": orthogonal compass direction: "E" (Right/East), "S" (Down/South), "W" (Left/West), "N" (Up/North)
+5. Estimate the relative pixel positions of each corner in the image (as percentages 0 to 100):
+   - "corners": array of objects [{ "corner_number": 1, "x_pct": number, "y_pct": number, "label": string }]
+     where x_pct is 0 (left) to 100 (right), y_pct is 0 (top) to 100 (bottom) of the image!
 6. Obstacles:
    - Staircase Mumty (सीढ़ी का कमरा / Mumty room): detected (true/false), location ('top-left', 'top-right', 'bottom-left', 'bottom-right', 'none'), widthFt, depthFt, heightFt (default 7ft).
    - Water Tank (पानी की टंकी): detected (true/false), count, radiusFt, heightFt.
@@ -95,15 +159,15 @@ INSTRUCTIONS:
 
 Respond ONLY with a valid JSON object matching this structure:
 {
-  "shapeType": "custom_polygon",
+  "orientation_top": "South",
   "roofName": "AI Analyzed Rooftop Drawing",
-  "widthFt": 30,
-  "depthFt": 60,
   "walls": [
-    { "side": 1, "name": "Top Wall", "lengthFt": 30, "direction": "right" }
+    { "wall_number": 1, "name": "Top South Wall", "length_ft": 30, "direction": "E" },
+    { "wall_number": 2, "name": "Upper Right Drop", "length_ft": 10, "direction": "S" }
   ],
-  "customVertices": [
-    { "x": -15, "z": -30, "label": "Corner 1" }
+  "corners": [
+    { "corner_number": 1, "x_pct": 20, "y_pct": 15, "label": "Top-Left Corner" },
+    { "corner_number": 2, "x_pct": 80, "y_pct": 17, "label": "Top-Right Corner" }
   ],
   "mumty": {
     "detected": false,
@@ -169,59 +233,38 @@ Respond ONLY with a valid JSON object matching this structure:
       const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!rawText) throw new Error('Empty response from Gemini Vision API');
 
-      // Parse JSON from output
       let cleaned = rawText.trim();
       if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json/, '').replace(/```$/, '').trim();
       else if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```/, '').replace(/```$/, '').trim();
 
       const parsed = JSON.parse(cleaned);
 
-      // Validate and sanitize customVertices
-      if (Array.isArray(parsed.customVertices) && parsed.customVertices.length >= 3) {
-        parsed.customVertices = parsed.customVertices.map((v, i) => ({
-          x: parseFloat(v.x) || 0,
-          z: parseFloat(v.z) || 0,
-          label: v.label || `Corner ${i + 1}`
+      // Normalize wall field names (lengthFt & wall_number)
+      if (Array.isArray(parsed.walls)) {
+        parsed.walls = parsed.walls.map((w, i) => ({
+          side: w.wall_number || w.side || i + 1,
+          name: w.name || `Wall ${i + 1}`,
+          lengthFt: parseFloat(w.length_ft || w.lengthFt) || 10,
+          direction: w.direction || 'E'
         }));
+      }
 
+      // Generate 100% closed orthogonal polygon vertices
+      const orthogonalVerts = buildOrthogonalClosedPolygon(parsed.walls);
+      if (orthogonalVerts && orthogonalVerts.length >= 3) {
+        parsed.customVertices = orthogonalVerts;
+        const xs = orthogonalVerts.map(v => v.x);
+        const zs = orthogonalVerts.map(v => v.z);
+        parsed.widthFt = Math.round(Math.max(...xs) - Math.min(...xs));
+        parsed.depthFt = Math.round(Math.max(...zs) - Math.min(...zs));
+      } else if (Array.isArray(parsed.customVertices)) {
         const xs = parsed.customVertices.map(v => v.x);
         const zs = parsed.customVertices.map(v => v.z);
-        const minX = Math.min(...xs);
-        const maxX = Math.max(...xs);
-        const minZ = Math.min(...zs);
-        const maxZ = Math.max(...zs);
-
-        parsed.widthFt = Math.max(parseFloat(parsed.widthFt) || 0, Math.round(maxX - minX));
-        parsed.depthFt = Math.max(parseFloat(parsed.depthFt) || 0, Math.round(maxZ - minZ));
-      } else if (Array.isArray(parsed.walls) && parsed.walls.length >= 3) {
-        // Derive customVertices sequentially from walls
-        let cx = 0;
-        let cz = 0;
-        const pts = [{ x: cx, z: cz, label: parsed.walls[0].name || 'Corner 1' }];
-        for (let i = 0; i < parsed.walls.length - 1; i++) {
-          const w = parsed.walls[i];
-          const len = parseFloat(w.lengthFt) || 10;
-          const dir = (w.direction || '').toLowerCase();
-          if (dir.includes('right') || dir.includes('east')) cx += len;
-          else if (dir.includes('left') || dir.includes('west')) cx -= len;
-          else if (dir.includes('down') || dir.includes('south')) cz += len;
-          else if (dir.includes('up') || dir.includes('north')) cz -= len;
-          else cz += len;
-          pts.push({ x: cx, z: cz, label: w.name || `Corner ${i + 2}` });
-        }
-        const minX = Math.min(...pts.map(p => p.x));
-        const maxX = Math.max(...pts.map(p => p.x));
-        const minZ = Math.min(...pts.map(p => p.z));
-        const maxZ = Math.max(...pts.map(p => p.z));
-        const midX = (minX + maxX) / 2;
-        const midZ = (minZ + maxZ) / 2;
-        parsed.customVertices = pts.map(p => ({
-          x: Number((p.x - midX).toFixed(1)),
-          z: Number((p.z - midZ).toFixed(1)),
-          label: p.label
-        }));
-        parsed.widthFt = Math.max(parseFloat(parsed.widthFt) || 0, Math.round(maxX - minX));
-        parsed.depthFt = Math.max(parseFloat(parsed.depthFt) || 0, Math.round(maxZ - minZ));
+        parsed.widthFt = Math.round(Math.max(...xs) - Math.min(...xs));
+        parsed.depthFt = Math.round(Math.max(...zs) - Math.min(...zs));
+      } else {
+        parsed.widthFt = 30;
+        parsed.depthFt = 30;
       }
 
       return {
@@ -254,7 +297,7 @@ export async function scanRoofSketch(dataUrl, userApiKey = null) {
   }
 
   try {
-    console.log('Scanning sketch with Google Gemini Vision API...');
+    console.log('Scanning sketch with Google Gemini Vision API (Deterministic temp: 0.0)...');
     return await analyzeWithGeminiVision(dataUrl, apiKey);
   } catch (geminiErr) {
     console.error('Gemini Vision scan failed:', geminiErr);

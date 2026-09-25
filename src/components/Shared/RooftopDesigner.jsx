@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { scanRoofSketch, getGeminiApiKey, saveGeminiApiKey } from '../../utils/aiRoofVisionEngine';
+import InteractiveImageRoofTracer from './InteractiveImageRoofTracer';
 
 /**
  * Clean Default Config (Awaiting User Upload)
@@ -346,6 +347,7 @@ export default function RooftopDesigner({
             southDirection: 'top',
             customVertices: newVerts,
             walls: d.walls || [],
+            corners: d.corners || [],
             obstacles: newObstacles,
             safeSolarZone: safeZone,
             uploadedImage: dataUrl,
@@ -354,6 +356,7 @@ export default function RooftopDesigner({
 
           setConfig(updated);
           if (onSaveRoofConfig) onSaveRoofConfig(updated);
+          setBlueprintViewMode('tracer'); // Automatically open tracer overlay on upload!
 
           setScanResult({
             success: true,
@@ -379,6 +382,41 @@ export default function RooftopDesigner({
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  // Traced geometry callback from InteractiveImageRoofTracer
+  const handleApplyTracedGeometry = tracedData => {
+    const minX = Math.min(...tracedData.customVertices.map(v => v.x));
+    const maxX = Math.max(...tracedData.customVertices.map(v => v.x));
+    const minZ = Math.min(...tracedData.customVertices.map(v => v.z));
+    const maxZ = Math.max(...tracedData.customVertices.map(v => v.z));
+    const wTotal = Math.max(10, Math.round(maxX - minX));
+    const dTotal = Math.max(10, Math.round(maxZ - minZ));
+
+    const safeZone = {
+      centerXFt: Number(((minX + maxX) / 2).toFixed(1)),
+      centerZFt: Number((minZ + (maxZ - minZ) * 0.35).toFixed(1)),
+      availableWidthFt: Math.max(16, Math.round(wTotal * 0.75)),
+      availableDepthFt: Math.max(16, Math.round(dTotal * 0.45)),
+      description: '100% Shadow-Free Open Terrace (South Sunlight)'
+    };
+
+    const updated = {
+      ...config,
+      type: 'custom_polygon',
+      name: `Traced Roof (${wTotal}×${dTotal} ft)`,
+      widthFt: wTotal,
+      depthFt: dTotal,
+      customVertices: tracedData.customVertices,
+      walls: tracedData.walls,
+      corners: tracedData.corners,
+      safeSolarZone: safeZone,
+      isPendingUpload: false
+    };
+
+    setConfig(updated);
+    if (onSaveRoofConfig) onSaveRoofConfig(updated);
+    setBlueprintViewMode('cad');
   };
 
   const handleClearDrawing = () => {
@@ -795,36 +833,40 @@ export default function RooftopDesigner({
             </div>
 
             {uploadPreview && (
-              <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 text-[11px]">
+              <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 text-[11px] gap-1">
                 <button
                   type="button"
                   onClick={() => setBlueprintViewMode('cad')}
-                  className={`px-2.5 py-0.5 rounded font-bold transition-all cursor-pointer ${
-                    blueprintViewMode === 'cad' ? 'bg-[#6CBF3D] text-slate-950' : 'text-slate-400 hover:text-white'
+                  className={`px-3 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    blueprintViewMode === 'cad' ? 'bg-[#6CBF3D] text-slate-950 shadow-xs' : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  2D CAD Blueprint
+                  <span className="material-symbols-outlined text-[15px]">architecture</span>
+                  <span>2D CAD Blueprint</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setBlueprintViewMode('photo')}
-                  className={`px-2.5 py-0.5 rounded font-bold transition-all cursor-pointer ${
-                    blueprintViewMode === 'photo' ? 'bg-[#6CBF3D] text-slate-950' : 'text-slate-400 hover:text-white'
+                  onClick={() => setBlueprintViewMode('tracer')}
+                  className={`px-3 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    blueprintViewMode === 'tracer' ? 'bg-[#6CBF3D] text-slate-950 shadow-xs' : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Uploaded Sketch Photo
+                  <span className="material-symbols-outlined text-[15px]">gesture</span>
+                  <span>Draw / Trace on Photo (Auto-Straight)</span>
                 </button>
               </div>
             )}
           </div>
 
           {/* 2D Viewport */}
-          <div className="w-full flex-1 min-h-[420px] flex items-center justify-center bg-[#070D18] rounded-xl border border-slate-800/80 p-4 relative overflow-hidden">
-            {blueprintViewMode === 'photo' && uploadPreview ? (
-              <img
-                src={uploadPreview}
-                alt="Uploaded Rooftop Sketch"
-                className="max-h-[380px] max-w-full object-contain rounded-lg shadow-xl border border-slate-700"
+          <div className="w-full flex-1 min-h-[440px] flex items-center justify-center bg-[#070D18] rounded-xl border border-slate-800/80 p-2 relative overflow-hidden">
+            {blueprintViewMode === 'tracer' && uploadPreview ? (
+              <InteractiveImageRoofTracer
+                imageUrl={uploadPreview}
+                initialCorners={config.corners || []}
+                initialWalls={config.walls || walls}
+                onApplyGeometry={handleApplyTracedGeometry}
+                onClose={() => setBlueprintViewMode('cad')}
               />
             ) : config.isPendingUpload && !uploadPreview ? (
               <div
