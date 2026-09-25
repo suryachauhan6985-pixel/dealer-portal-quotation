@@ -1,22 +1,32 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 /**
- * Interactive Image Roof Tracer with Photoshop Pen Tool & CAD Point-and-Click
+ * 8-Point Compass Direction Helper (Supports both 90° and Non-90° / Slanted / Diagonal Walls)
+ */
+function getCompassDirection(dx, dy) {
+  const angle = (Math.atan2(dy, dx) * 180) / Math.PI; // -180 to 180
+  const normalized = (angle + 360) % 360; // 0 to 360 (0 is East, 90 is South, 180 is West, 270 is North)
+
+  if (normalized >= 337.5 || normalized < 22.5) return { code: 'E', label: 'East ➡️' };
+  if (normalized >= 22.5 && normalized < 67.5) return { code: 'SE', label: 'South-East ↘️' };
+  if (normalized >= 67.5 && normalized < 112.5) return { code: 'S', label: 'South ⬇️' };
+  if (normalized >= 112.5 && normalized < 157.5) return { code: 'SW', label: 'South-West ↙️' };
+  if (normalized >= 157.5 && normalized < 202.5) return { code: 'W', label: 'West ⬅️' };
+  if (normalized >= 202.5 && normalized < 247.5) return { code: 'NW', label: 'North-West ↖️' };
+  if (normalized >= 247.5 && normalized < 292.5) return { code: 'N', label: 'North ⬆️' };
+  return { code: 'NE', label: 'North-East ↗️' };
+}
+
+/**
+ * Interactive Image Roof Tracer with Photoshop Pen Tool & Point-to-Point Straight Line
  * 
  * Features:
- * 1. ✒️ Photoshop Pen Tool (Point & Click) [Default]:
- *    - Click Corner 1 -> move mouse (live 90° straight rubber-band CAD guide line follows cursor).
- *    - Click Corner 2 -> line connects!
- *    - Click Corner 3 -> line connects!
- *    - Click Corner 1 (start) -> Path closes automatically into a closed roof polygon!
- * 2. ✏️ Freehand Drag with Auto-Straighten:
- *    - Drag wavy stroke with mouse/finger -> snaps into 90° straight line on release.
- * 3. 📏 Stage 2: Sides & Measurements + Parapet (Separate review & dimension entry):
- *    - Traced lines are converted to numbered Sides (Side 1, Side 2, Side 3...).
- *    - CRUCIAL: Editing measurement in feet does NOT alter or stretch the lines on the photo!
- *    - Side-by-side dimension table with direction badges (East ➡️, South ⬇️, etc.).
- *    - Dedicated Parapet Wall Height input (मुंडेर की ऊंचाई) for 3D model & shadow clearance.
- *    - "Generate 2D CAD & 3D Model" computes mathematically accurate closed CAD polygon!
+ * 1. ✒️ Point-to-Point Straight Line (Free Angle CAD):
+ *    - Connects directly from corner to corner with a clean, straight line at ANY angle (90°, 45°, slants, skewed plots).
+ *    - Optional 90° Ortho Snap toggle (or hold Shift key) if pure 90° lines are desired.
+ * 2. 📏 Stage 2: Sides & Measurements + Parapet Height:
+ *    - Editing feet measurements does NOT stretch or alter the traced lines on the photo.
+ *    - Mathematically constructs closed CAD polygon supporting both 90° and non-90° irregular shapes.
  */
 export default function InteractiveImageRoofTracer({
   imageUrl,
@@ -35,8 +45,12 @@ export default function InteractiveImageRoofTracer({
     return 'draw';
   });
 
-  // Tool Mode in Stage 1: 'pen' (Photoshop Pen Tool - Point & Click) vs 'freehand' (Drag & Auto-straighten)
+  // Tool Mode in Stage 1: 'pen' (Photoshop Pen Tool - Point & Click) vs 'freehand' (Drag)
   const [toolMode, setToolMode] = useState('pen');
+
+  // Ortho 90° Snap Toggle (Default: false -> Point-to-Point straight at ANY angle)
+  const [isOrthoSnap, setIsOrthoSnap] = useState(false);
+  const [isShiftDown, setIsShiftDown] = useState(false);
 
   // Corner pins stored as percentages (0 to 100) of image width/height
   const [pins, setPins] = useState(() => {
@@ -77,15 +91,16 @@ export default function InteractiveImageRoofTracer({
   // Drawing state
   const [isDrawingStroke, setIsDrawingStroke] = useState(false);
   const [currentStroke, setCurrentStroke] = useState([]);
-  const [mousePos, setMousePos] = useState(null); // Current mouse position for live guide line
+  const [mousePos, setMousePos] = useState(null);
 
   // Zoom
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isLoopClosed, setIsLoopClosed] = useState(() => initialCorners && initialCorners.length >= 3);
 
-  // Keyboard shortcuts (Undo: Ctrl+Z, Finish: Enter)
+  // Keyboard listeners (Shift for Ortho, Ctrl+Z for Undo, Enter to Finish)
   useEffect(() => {
     const handleKeyDown = e => {
+      if (e.key === 'Shift') setIsShiftDown(true);
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         handleUndo();
@@ -94,8 +109,17 @@ export default function InteractiveImageRoofTracer({
         finalizeSidesFromPins(pins);
       }
     };
+
+    const handleKeyUp = e => {
+      if (e.key === 'Shift') setIsShiftDown(false);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, [activeStep, pins]);
 
   // Sync initialCorners if AI finishes in background
@@ -140,7 +164,7 @@ export default function InteractiveImageRoofTracer({
     return { xPct, yPct, pixelX: posX, pixelY: posY };
   };
 
-  // Convert pins into sides when closing loop
+  // Convert pins into sides with accurate 8-point compass directions (handles non-90° angles!)
   const finalizeSidesFromPins = useCallback(
     pinsList => {
       const n = pinsList.length;
@@ -153,21 +177,14 @@ export default function InteractiveImageRoofTracer({
         const dx = p2.xPct - p1.xPct;
         const dy = p2.yPct - p1.yPct;
 
-        let dir = 'E';
-        if (Math.abs(dx) >= Math.abs(dy)) {
-          dir = dx >= 0 ? 'E' : 'W';
-        } else {
-          dir = dy >= 0 ? 'S' : 'N';
-        }
-
-        // Preserve existing side length if available
+        const compass = getCompassDirection(dx, dy);
         const existingLen = sides[i]?.lengthFt || p1.lengthFt || 10;
 
         newSides.push({
           side: i + 1,
-          name: `Side ${i + 1}`,
+          name: `Side ${i + 1} (${compass.label})`,
           lengthFt: existingLen,
-          direction: dir
+          direction: compass.code
         });
       }
 
@@ -177,6 +194,30 @@ export default function InteractiveImageRoofTracer({
     },
     [sides]
   );
+
+  // Apply snap logic (if ortho snap active or shift held, snap to 90°; otherwise FREE point-to-point)
+  const computeTargetPoint = (lastPoint, targetPoint) => {
+    if (!lastPoint) return targetPoint;
+    const shouldSnapOrtho = isOrthoSnap || isShiftDown;
+
+    if (!shouldSnapOrtho) {
+      // FREE POINT-TO-POINT STRAIGHT LINE (Any Angle!)
+      return {
+        xPct: targetPoint.xPct,
+        yPct: targetPoint.yPct
+      };
+    }
+
+    // 90° Ortho Snap
+    const dx = targetPoint.xPct - lastPoint.xPct;
+    const dy = targetPoint.yPct - lastPoint.yPct;
+    const isHorizontal = Math.abs(dx) >= Math.abs(dy);
+
+    return {
+      xPct: isHorizontal ? targetPoint.xPct : lastPoint.xPct,
+      yPct: isHorizontal ? lastPoint.yPct : targetPoint.yPct
+    };
+  };
 
   // 1. CLICK OR MOUSE DOWN
   const handleMouseDown = e => {
@@ -196,9 +237,9 @@ export default function InteractiveImageRoofTracer({
     }
 
     if (toolMode === 'pen') {
-      // PHOTOSHOP PEN TOOL MODE: Single Click places point and connects line
+      // PHOTOSHOP PEN TOOL MODE: Point-to-Point Straight Line
       if (pins.length === 0) {
-        // First point (P1)
+        // Place first anchor P1
         setPins([
           {
             id: 'pin_1',
@@ -209,34 +250,26 @@ export default function InteractiveImageRoofTracer({
           }
         ]);
       } else {
-        // Auto-straighten from last pin (Orthogonal 90° H or V)
         const lastPin = pins[pins.length - 1];
-        const dx = coords.xPct - lastPin.xPct;
-        const dy = coords.yPct - lastPin.yPct;
-        const isHorizontal = Math.abs(dx) >= Math.abs(dy);
-
-        const straightEnd = {
-          xPct: isHorizontal ? coords.xPct : lastPin.xPct,
-          yPct: isHorizontal ? lastPin.yPct : coords.yPct
-        };
+        const snapped = computeTargetPoint(lastPin, coords);
 
         const newPin = {
           id: `pin_${pins.length + 1}`,
-          xPct: Number(straightEnd.xPct.toFixed(1)),
-          yPct: Number(straightEnd.yPct.toFixed(1)),
+          xPct: Number(snapped.xPct.toFixed(1)),
+          yPct: Number(snapped.yPct.toFixed(1)),
           label: `P${pins.length + 1}`,
           lengthFt: 10
         };
         setPins(prev => [...prev, newPin]);
       }
     } else {
-      // FREEHAND DRAG MODE: Start tracking stroke
+      // FREEHAND DRAG MODE
       setIsDrawingStroke(true);
       setCurrentStroke([coords]);
     }
   };
 
-  // 2. MOUSE MOVE (Track cursor for live Pen Tool guide line or drag stroke)
+  // 2. MOUSE MOVE (Track cursor for live Pen Tool guide line)
   const handleMouseMove = e => {
     const coords = getCoordinatesFromEvent(e);
     if (!coords) return;
@@ -259,7 +292,7 @@ export default function InteractiveImageRoofTracer({
     }
   };
 
-  // 3. MOUSE UP (For freehand drag auto-straightening)
+  // 3. MOUSE UP (For freehand drag)
   const handleMouseUp = () => {
     if (draggingPinIndex !== null) {
       setDraggingPinIndex(null);
@@ -274,28 +307,17 @@ export default function InteractiveImageRoofTracer({
       return;
     }
 
-    // Freehand Drag Mode: User drew a stroke
     const startPt = currentStroke[0];
     const endPt = currentStroke[currentStroke.length - 1];
 
-    const dx = endPt.xPct - startPt.xPct;
-    const dy = endPt.yPct - startPt.yPct;
-    const isHorizontal = Math.abs(dx) >= Math.abs(dy);
-
     let effectiveStart = { xPct: startPt.xPct, yPct: startPt.yPct };
-
-    // Snap start to previous corner if continuing
     if (pins.length > 0) {
       const lastPin = pins[pins.length - 1];
       effectiveStart = { xPct: lastPin.xPct, yPct: lastPin.yPct };
     }
 
-    const straightEnd = {
-      xPct: isHorizontal ? endPt.xPct : effectiveStart.xPct,
-      yPct: isHorizontal ? effectiveStart.yPct : endPt.yPct
-    };
+    const straightEnd = computeTargetPoint(effectiveStart, endPt);
 
-    // Check if connecting back to start point
     if (pins.length >= 3) {
       const firstPin = pins[0];
       const distToFirst = Math.hypot(straightEnd.xPct - firstPin.xPct, straightEnd.yPct - firstPin.yPct);
@@ -352,24 +374,6 @@ export default function InteractiveImageRoofTracer({
     setActiveStep('draw');
   };
 
-  // Auto-snap all vertices to strict orthogonal 90-degree lines
-  const handleSnap90 = () => {
-    if (pins.length < 3) return;
-    const snapped = [...pins];
-    for (let i = 0; i < snapped.length - 1; i++) {
-      const p1 = snapped[i];
-      const p2 = snapped[i + 1];
-      const dx = Math.abs(p2.xPct - p1.xPct);
-      const dy = Math.abs(p2.yPct - p1.yPct);
-      if (dx >= dy) {
-        snapped[i + 1] = { ...p2, yPct: p1.yPct };
-      } else {
-        snapped[i + 1] = { ...p2, xPct: p1.xPct };
-      }
-    }
-    setPins(snapped);
-  };
-
   // Update a single side measurement in Stage 2 (DOES NOT CHANGE DRAWING LENGTH ON PHOTO!)
   const handleSideLengthChange = (idx, value) => {
     const val = parseFloat(value) || 0;
@@ -382,40 +386,73 @@ export default function InteractiveImageRoofTracer({
     });
   };
 
-  // Final confirmation: Compute 100% mathematically closed CAD polygon & send to 2D/3D
+  // Final confirmation: Compute mathematically closed CAD polygon supporting both 90° and Non-90° / Slanted walls!
   const handleGenerateCADAnd3D = () => {
-    if (pins.length < 3 || sides.length < 3) {
+    const n = sides.length;
+    if (pins.length < 3 || n < 3) {
       alert('Please trace at least 3 walls to form a closed roof boundary.');
       return;
     }
 
-    // Mathematical closed vector accumulation from sides
-    let currX = 0;
-    let currZ = 0;
-    const rawVertices = [{ x: 0, z: 0, label: pins[0]?.label || 'Corner 1' }];
+    // 1. Calculate raw vector displacements for each side from traced geometry & lengths
+    const displacements = [];
+    let totalPerimeter = 0;
 
-    for (let i = 0; i < sides.length - 1; i++) {
+    for (let i = 0; i < n; i++) {
       const s = sides[i];
       const len = parseFloat(s.lengthFt) || 10;
-      const dir = (s.direction || 'E').toUpperCase();
+      totalPerimeter += len;
 
-      if (dir === 'E' || dir.includes('EAST') || dir.includes('RIGHT')) currX += len;
-      else if (dir === 'W' || dir.includes('WEST') || dir.includes('LEFT')) currX -= len;
-      else if (dir === 'S' || dir.includes('SOUTH') || dir.includes('DOWN')) currZ += len;
-      else if (dir === 'N' || dir.includes('NORTH') || dir.includes('UP')) currZ -= len;
-      else {
-        if (i % 2 === 0) currX += len;
-        else currZ += len;
-      }
+      const p1 = pins[i];
+      const p2 = pins[(i + 1) % n];
+      const dxImage = p2.xPct - p1.xPct;
+      const dyImage = p2.yPct - p1.yPct;
+      let angle = Math.atan2(dyImage, dxImage);
+
+      // If angle is within 4° of cardinal axes (0, 90, 180, 270), snap to exact cardinal
+      const deg = ((angle * 180) / Math.PI + 360) % 360;
+      if (Math.abs(deg - 0) < 4 || Math.abs(deg - 360) < 4) angle = 0;
+      else if (Math.abs(deg - 90) < 4) angle = Math.PI / 2;
+      else if (Math.abs(deg - 180) < 4) angle = Math.PI;
+      else if (Math.abs(deg - 270) < 4) angle = (3 * Math.PI) / 2;
+
+      displacements.push({
+        len,
+        dx: len * Math.cos(angle),
+        dz: len * Math.sin(angle),
+        name: s.name,
+        dirCode: s.direction
+      });
+    }
+
+    // 2. Closure error (sum of all dx and dz should be 0)
+    const errX = displacements.reduce((sum, d) => sum + d.dx, 0);
+    const errZ = displacements.reduce((sum, d) => sum + d.dz, 0);
+
+    // 3. Accumulate vertices with Bowditch compass rule correction (guarantees 100% closed loop!)
+    let currX = 0;
+    let currZ = 0;
+    let distSoFar = 0;
+    const rawVertices = [{ x: 0, z: 0, label: pins[0]?.label || 'Corner 1' }];
+
+    for (let i = 0; i < n - 1; i++) {
+      const d = displacements[i];
+      distSoFar += d.len;
+
+      const corrX = totalPerimeter > 0 ? (errX * distSoFar) / totalPerimeter : 0;
+      const corrZ = totalPerimeter > 0 ? (errZ * distSoFar) / totalPerimeter : 0;
+
+      currX += d.dx;
+      currZ += d.dz;
 
       rawVertices.push({
-        x: Number(currX.toFixed(1)),
-        z: Number(currZ.toFixed(1)),
+        x: Number((currX - corrX).toFixed(1)),
+        z: Number((currZ - corrZ).toFixed(1)),
         label: pins[i + 1]?.label || `Corner ${i + 2}`
       });
     }
 
-    // Center coordinates around (0, 0)
+    // 4. Center coordinates around (0, 0)
     const xs = rawVertices.map(v => v.x);
     const zs = rawVertices.map(v => v.z);
     const minX = Math.min(...xs);
@@ -454,20 +491,17 @@ export default function InteractiveImageRoofTracer({
     });
   };
 
-  // Real-time Photoshop Pen Tool Rubber-Band Guide Line from last pin to mouse
+  // Real-time Pen Tool Guide Line from last pin to mouse
   const getGuideLine = () => {
     if (activeStep !== 'draw' || pins.length === 0 || !mousePos) return null;
     const lastPin = pins[pins.length - 1];
-    const dx = mousePos.xPct - lastPin.xPct;
-    const dy = mousePos.yPct - lastPin.yPct;
-    const isHorizontal = Math.abs(dx) >= Math.abs(dy);
+    const snapped = computeTargetPoint(lastPin, mousePos);
 
     return {
       x1: lastPin.xPct,
       y1: lastPin.yPct,
-      x2: isHorizontal ? mousePos.xPct : lastPin.xPct,
-      y2: isHorizontal ? lastPin.yPct : mousePos.yPct,
-      isHorizontal
+      x2: snapped.xPct,
+      y2: snapped.yPct
     };
   };
 
@@ -526,36 +560,51 @@ export default function InteractiveImageRoofTracer({
             </button>
           </div>
 
-          {/* Mode Switcher in Stage 1 (Pen Tool vs Freehand Drag) */}
+          {/* Mode Switchers in Stage 1 */}
           {activeStep === 'draw' && (
-            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+            <div className="flex items-center gap-1.5">
+              {/* Point-to-Point Angle Mode Toggle */}
               <button
                 type="button"
-                onClick={() => setToolMode('pen')}
-                className={`px-2.5 py-1 rounded-lg font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
-                  toolMode === 'pen'
-                    ? 'bg-amber-400 text-slate-950 shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                onClick={() => setIsOrthoSnap(!isOrthoSnap)}
+                className={`px-2.5 py-1.5 rounded-xl border text-xs font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
+                  isOrthoSnap
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                    : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
                 }`}
-                title="Photoshop Pen Tool: Just click on each corner point!"
+                title="Toggle between Free Angle (Point-to-Point) and 90° Ortho Lock (or hold Shift key)"
               >
-                <span className="material-symbols-outlined text-[15px]">colorize</span>
-                <span>✒️ Pen Tool (Point &amp; Click)</span>
+                <span className="material-symbols-outlined text-[16px]">
+                  {isOrthoSnap ? 'square_foot' : 'timeline'}
+                </span>
+                <span>{isOrthoSnap ? '📐 90° Ortho Lock' : '⚡ Free Angle (Any Slant)'}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setToolMode('freehand')}
-                className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                  toolMode === 'freehand'
-                    ? 'bg-amber-400 text-slate-950 shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Freehand Drag with auto-straightening"
-              >
-                <span className="material-symbols-outlined text-[15px]">gesture</span>
-                <span>✏️ Freehand Drag</span>
-              </button>
+              {/* Pen Tool vs Freehand Drag */}
+              <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setToolMode('pen')}
+                  className={`px-2 py-1 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    toolMode === 'pen' ? 'bg-[#6CBF3D] text-slate-950' : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Click to place corners"
+                >
+                  <span className="material-symbols-outlined text-[14px]">colorize</span>
+                  <span>Pen Tool</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setToolMode('freehand')}
+                  className={`px-2 py-1 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    toolMode === 'freehand' ? 'bg-[#6CBF3D] text-slate-950' : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Freehand drag stroke"
+                >
+                  <span className="material-symbols-outlined text-[14px]">gesture</span>
+                  <span>Drag</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -574,18 +623,6 @@ export default function InteractiveImageRoofTracer({
               >
                 <span className="material-symbols-outlined text-[16px]">undo</span>
                 <span>Undo</span>
-              </button>
-
-              {/* Snap 90° button */}
-              <button
-                type="button"
-                onClick={handleSnap90}
-                disabled={pins.length < 3}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1 border border-slate-700 cursor-pointer"
-                title="Snap all corners to 90°"
-              >
-                <span className="material-symbols-outlined text-[16px] text-amber-400">square_foot</span>
-                <span>Snap 90°</span>
               </button>
 
               {/* Reset button */}
@@ -672,11 +709,7 @@ export default function InteractiveImageRoofTracer({
         onTouchMove={handleMouseMove}
         onTouchEnd={handleMouseUp}
         className={`w-full relative min-h-[460px] max-h-[620px] overflow-auto flex items-center justify-center bg-[#070D18] p-4 select-none ${
-          activeStep === 'draw'
-            ? toolMode === 'pen'
-              ? 'cursor-crosshair'
-              : 'cursor-crosshair'
-            : 'cursor-default'
+          activeStep === 'draw' ? 'cursor-crosshair' : 'cursor-default'
         }`}
       >
         <div
@@ -691,7 +724,7 @@ export default function InteractiveImageRoofTracer({
             className="max-h-[520px] max-w-[90vw] object-contain rounded-xl shadow-2xl pointer-events-none border border-slate-700 block"
           />
 
-          {/* Live Freehand Wavy Stroke while dragging mouse (in freehand mode) */}
+          {/* Live Freehand Wavy Stroke while dragging mouse */}
           {activeStep === 'draw' && toolMode === 'freehand' && isDrawingStroke && currentStroke.length > 1 && (
             <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-30">
               <polyline
@@ -719,7 +752,7 @@ export default function InteractiveImageRoofTracer({
               />
             )}
 
-            {/* Connecting Wall Lines */}
+            {/* Connecting Wall Lines (Direct Straight Lines from Point to Point) */}
             {pins.map((p1, idx) => {
               const isLast = idx === pins.length - 1;
               if (!isLoopClosed && activeStep === 'draw' && isLast) return null;
@@ -742,7 +775,7 @@ export default function InteractiveImageRoofTracer({
               );
             })}
 
-            {/* Photoshop Pen Tool: Live Rubber-Band Guide Line from last placed pin to mouse cursor */}
+            {/* Photoshop Pen Tool: Live Rubber-Band Straight Guide Line from last placed pin to mouse cursor */}
             {activeStep === 'draw' && guideLine && !isLoopClosed && (
               <g>
                 <line
@@ -755,7 +788,6 @@ export default function InteractiveImageRoofTracer({
                   strokeDasharray="5 3"
                   strokeLinecap="round"
                 />
-                {/* Real-time Pen cursor crosshair point */}
                 <circle
                   cx={`${guideLine.x2}%`}
                   cy={`${guideLine.y2}%`}
@@ -856,28 +888,24 @@ export default function InteractiveImageRoofTracer({
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5 text-amber-400 font-bold">
               <span className="material-symbols-outlined text-[18px]">
-                {toolMode === 'pen' ? 'colorize' : 'gesture'}
+                {isOrthoSnap ? 'square_foot' : 'timeline'}
               </span>
               <span>{pins.length} Corners Placed</span>
             </span>
             <span>•</span>
             <span className="text-slate-400">
-              {toolMode === 'pen' ? (
-                pins.length === 0 ? (
-                  <>
-                    👉 <b>Photoshop Pen Tool Active:</b> नक़्शे के पहले कोने (Corner 1) पर <b>सिर्फ एक क्लिक</b> करें।
-                  </>
-                ) : pins.length < 3 ? (
-                  <>
-                    👉 अगले कोने पर क्लिक करते जाएं—लाइन अपने-आप <b>90° सीधी CAD लाइन</b> बनती जाएगी।
-                  </>
-                ) : (
-                  <>
-                    👉 चारों तरफ कोने क्लिक करके <b>P1 पर क्लिक करें</b> (या &quot;Finish Boundary&quot; बटन दबाएं)।
-                  </>
-                )
+              {pins.length === 0 ? (
+                <>
+                  👉 नक़्शे के पहले कोने (Corner 1) पर <b>क्लिक</b> करें। <b>(Point-to-Point सीधी लाइन चालू है—कोई भी तिरछा या 90° कोना बना सकते हैं)</b>
+                </>
+              ) : pins.length < 3 ? (
+                <>
+                  👉 अगले कोने पर क्लिक करते जाएं—सीधी लाइन अपने-आप जुड़ती जाएगी (तिरछी या सीधी दोनों सम्भव)।
+                </>
               ) : (
-                'माउस दबाकर लाइन खींचें—छोड़ते ही लाइन सीधी हो जाएगी।'
+                <>
+                  👉 कोने क्लिक करके <b>P1 पर क्लिक करें</b> (या &quot;Finish Boundary&quot; बटन दबाएं)।
+                </>
               )}
             </span>
           </div>
@@ -947,27 +975,10 @@ export default function InteractiveImageRoofTracer({
             </div>
           </div>
 
-          {/* Sides Dimension Cards Grid */}
+          {/* Sides Dimension Cards Grid (Supports 8-point compass directions!) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 max-h-56 overflow-y-auto p-1">
             {sides.map((side, idx) => {
               const isHighlighted = highlightedSideIndex === idx;
-              const dirIcon =
-                side.direction === 'E'
-                  ? 'east'
-                  : side.direction === 'W'
-                  ? 'west'
-                  : side.direction === 'S'
-                  ? 'south'
-                  : 'north';
-
-              const dirLabel =
-                side.direction === 'E'
-                  ? 'East ➡️'
-                  : side.direction === 'W'
-                  ? 'West ⬅️'
-                  : side.direction === 'S'
-                  ? 'South ⬇️'
-                  : 'North ⬆️';
 
               return (
                 <div
@@ -982,8 +993,7 @@ export default function InteractiveImageRoofTracer({
                 >
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-extrabold text-white">Side {side.side}</span>
-                    <span className="text-[10px] text-slate-400 font-mono flex items-center gap-0.5">
-                      <span className="material-symbols-outlined text-[13px]">{dirIcon}</span>
+                    <span className="text-[10px] text-amber-300 font-mono font-bold px-1.5 py-0.2 rounded bg-amber-500/10 border border-amber-500/20">
                       {side.direction}
                     </span>
                   </div>
